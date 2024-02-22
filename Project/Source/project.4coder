@@ -1,0 +1,60 @@
+version(1);
+
+project_name = "OpenGL Test";
+
+patterns = {
+    "*.cpp",
+    "*.c",
+    "*.cc",
+    "*.h",
+    "*.hpp",
+    "*.bat",
+    "*.sh",
+    "*.4coder",
+    "Makefile",
+};
+
+blacklist_patterns = {
+    ".*",
+};
+
+load_paths_custom = {
+    { "include", .recursive = false },
+    { "os", .recursive = true },
+    { ".", .relative = true }
+};
+
+load_paths = {
+    { load_paths_custom, .os = "win" },
+};
+
+command_list = {
+    { .name = "clean",
+        .out = "*clean*", .footer_panel = true, .save_dirty_files = false, .cursor_at_end = true,
+        .cmd = {
+            {"mingw32-make clean", .os = "win"},
+            {"make clean", .os = "linux"},
+            {"make clean", .os = "mac"},          
+        },
+    },
+    { .name = "build",
+        .out = "*compile*", .footer_panel = true, .save_dirty_files = true, .cursor_at_end = false,
+        .cmd = {
+            {"mingw32-make", .os = "win"},
+            {"make", .os = "linux"},
+            {"make", .os = "mac"},
+        },
+    },
+    { .name = "run",
+        .out = "*run*", .footer_panel = true, .save_dirty_files = false, .cursor_at_end = true,
+        .cmd = {
+            {".\ryu.exe", .os = "win"},
+            {"./ryu", .os = "linux"},
+            {"./ryu", .os = "mac"},          
+        },
+    },
+};
+
+fkey_command[3] = "clean";
+fkey_command[4] = "build";
+fkey_command[5] = "run";
