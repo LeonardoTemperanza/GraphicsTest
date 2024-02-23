@@ -103,6 +103,60 @@ Vec3 MoveTowards(Vec3 current, Vec3 target, float delta)
     return current + diff / dist * delta;
 }
 
+Vec2 operator +(Vec2 a, Vec2 b)
+{
+    return {.x = a.x+b.x, .y = a.y+b.y};
+}
+
+Vec2 operator -(Vec2 a, Vec2 b)
+{
+    return {.x = a.x-b.x, .y = a.y-b.y};
+}
+
+Vec2 operator *(Vec2 v, float f)
+{
+    return {.x = v.x*f, .y = v.y*f};
+}
+
+Vec2 operator *(float f, Vec2 v)
+{
+    return {.x = v.x*f, .y = v.y*f};
+}
+
+Vec2 operator /(Vec2 v, float f)
+{
+    return {.x = v.x/f, .y = v.y/f};
+}
+
+Vec2& operator +=(Vec2& a, Vec2 b)
+{
+    a = {.x = a.x+b.x, .y = a.y+b.y};
+    return a;
+}
+
+Vec2& operator -=(Vec2& a, Vec2 b)
+{
+    a = {.x = a.x-b.x, .y = a.y-b.y};
+    return a;
+}
+
+Vec2 operator -(Vec2 v)
+{
+    return {.x=-v.x, .y=-v.y};
+}
+
+Vec2& operator *=(Vec2& v, float f)
+{
+    v = {.x = v.x*f, .y = v.y*f};
+    return v;
+}
+
+Vec2& operator /=(Vec2& v, float f)
+{
+    v = {.x = v.x/f, .y = v.y/f};
+    return v;
+}
+
 Quat& operator *=(Quat& a, Quat b)
 {
     a.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;

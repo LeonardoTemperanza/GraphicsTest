@@ -27,15 +27,16 @@ del bin2h.obj bin2h.exe
 
 set source_files=..\Source\unity_build.cpp
 set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib
-set output_name=opengl_test.exe
+set output_name=graphics_test.exe
 set common=/nologo /std:c++20 /DFORCE_OPENGL /I%include_dirs% %source_files% /link %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
 
 REM Development build, debug is enabled, profiling and optimization disabled
 cl /Zi /Od %common%
 set build_ret=%errorlevel%
 
+REM Uncomment to execute on every build
 if %build_ret%==0 (
-rem call opengl_test.exe
+REM call graphics_test.exe
 )
 
 popd

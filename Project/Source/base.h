@@ -11,6 +11,7 @@ typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef uint32_t b32;
 typedef int8_t   s8;
 typedef int16_t  s16;
 typedef int32_t  s32;
@@ -74,6 +75,11 @@ struct Vec4
     float x, y, z, w;
 };
 
+struct Vec2
+{
+    float x, y;
+};
+
 Vec3 operator +(Vec3 a, Vec3 b);
 Vec3& operator +=(Vec3& a, Vec3 b);
 Vec3 operator -(Vec3 a, Vec3 b);
@@ -84,6 +90,18 @@ Vec3 operator *(float f, Vec3 v);
 Vec3& operator *=(Vec3& v, float f);
 Vec3 operator /(Vec3 v, float f);
 Vec3& operator /=(Vec3& v, float f);
+
+Vec2 operator +(Vec2 a, Vec2 b);
+Vec2& operator +=(Vec2& a, Vec2 b);
+Vec2 operator -(Vec2 a, Vec2 b);
+Vec2& operator -=(Vec2& a, Vec2 b);
+Vec2 operator -(Vec2 v);
+Vec2 operator *(Vec2 v, float f);
+Vec2 operator *(float f, Vec2 v);
+Vec2& operator *=(Vec2& v, float f);
+Vec2 operator /(Vec2 v, float f);
+Vec2& operator /=(Vec2& v, float f);
+
 Vec4 operator +(Vec4 a, Vec4 b);
 Vec4& operator +=(Vec4& a, Vec4 b);
 Vec4 operator -(Vec4 a, Vec4 b);
