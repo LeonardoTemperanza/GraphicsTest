@@ -27,6 +27,23 @@ typedef unsigned char uchar;
 #define MB(num) (KB(num)*1024LLU)
 #define GB(num) (MB(num)*1024LLU)
 
+#if defined(_WIN64) || defined(__x86_64__) || defined(_M_X64) || defined(__64BIT__) || defined(__powerpc64__) || defined(__ppc64__)
+#ifndef Bit64
+#define Bit64 1
+#endif
+#else
+#ifndef Bit32
+#define Bit32 1
+#endif
+#endif
+
+////
+// Hash functions
+u32 Murmur32Seed(void const* data, s64 len, u32 seed);
+u64 Murmur64Seed(void const* data, s64 len, u64 seed);
+inline u32 Murmur32(void const* data, s64 len) { return Murmur32Seed(data, len, 0x9747b28c); }
+inline u64 Murmur64(void const* data, s64 len) { return Murmur64Seed(data, len, 0x9747b28c); }
+
 ////
 // Simple math functions
 #define Pi 3.14159265358979323846

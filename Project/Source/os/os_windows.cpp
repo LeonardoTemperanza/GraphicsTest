@@ -38,7 +38,12 @@ struct OS_Context
     
     void* mainFiber;
     void* eventsFiber;
+    bool isInModalLoop;
     bool quit;
+    
+    // Info gathered from the WndProc
+    bool lMouseButton;
+    bool rMouseButton;
     
     // NOTE: The windows window manager breaks Used when not in full screen mode
     bool usingDwm;
@@ -221,6 +226,13 @@ static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, 
 }
 #endif
 
+void Win32_BreakOutOfModalLoop()
+{
+    win32.isInModalLoop = true;
+    SwitchToFiber(win32.mainFiber);
+    win32.isInModalLoop = false;
+}
+
 // NOTE: Window callback function. Since Microsoft wants programs to get stuck
 // inside this function at all costs, a weird hack is being used to "break free"
 // of this function. Using a fiber I go back to regular code execution during
@@ -275,14 +287,14 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         // should be prioritized over this
         case WM_TIMER:
         {
-            if(window) SwitchToFiber(win32.mainFiber);
+            if(window) Win32_BreakOutOfModalLoop();
             break;
         }
         
         // Redraw immediately after resize (we don't want black bars)
         case WM_SIZE:
         {
-            if(window) SwitchToFiber(win32.mainFiber);
+            if(window) Win32_BreakOutOfModalLoop();
             
             // Reset the timer. Without this, the resizing is laggy
             // because we let the app update twice per resize.
@@ -408,6 +420,31 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
                 return 1;
             }
             
+            break;
+        }
+        
+        // This is for user input stuff
+        case WM_LBUTTONDOWN:
+        {
+            win32.lMouseButton = true;
+            break;
+        }
+        
+        case WM_LBUTTONUP:
+        {
+            win32.lMouseButton = false;
+            break;
+        }
+        
+        case WM_RBUTTONDOWN:
+        {
+            win32.rMouseButton = true;
+            break;
+        }
+        
+        case WM_RBUTTONUP:
+        {
+            win32.rMouseButton = false;
             break;
         }
     }
@@ -734,6 +771,9 @@ OS_GraphicsLib OS_Init()
     }
 #else
     {
+        // If no specific order is supplied, then try
+        // D3D11 first and then if that for some reason
+        // fails we fallback to opengl.
         bool ok = Win32_SetupD3D11();
         if(ok)
             usedLib = GfxLib_D3D11;
@@ -887,15 +927,50 @@ InputState OS_PollInput()
             if(pad->wButtons & XINPUT_GAMEPAD_X)              resPad.buttons |= Gamepad_X;
             if(pad->wButtons & XINPUT_GAMEPAD_Y)              resPad.buttons |= Gamepad_Y;
             
-            resPad.leftTrigger  = (float)pad->bLeftTrigger / 255;
+            resPad.leftTrigger  = (float)pad->bLeftTrigger  / 255;
             resPad.rightTrigger = (float)pad->bRightTrigger / 255;
             
             // For the left and right stick, normalize values differently
             // if it's positive/negative because the range is different
-            resPad.leftStickX = (float)pad->sThumbLX / (pad->sThumbLX > 0 ? 32767 : 32768);
-            resPad.leftStickY = (float)pad->sThumbLY / (pad->sThumbLY > 0 ? 32767 : 32768);
+            resPad.leftStickX  = (float)pad->sThumbLX / (pad->sThumbLX > 0 ? 32767 : 32768);
+            resPad.leftStickY  = (float)pad->sThumbLY / (pad->sThumbLY > 0 ? 32767 : 32768);
             resPad.rightStickX = (float)pad->sThumbRX / (pad->sThumbRX > 0 ? 32767 : 32768);
             resPad.rightStickY = (float)pad->sThumbRY / (pad->sThumbRY > 0 ? 32767 : 32768);
+        }
+    }
+    
+    // Mouse state
+    {
+        POINT p;
+        GetCursorPos(&p);  // In screen coordinates
+        if(!ScreenToClient(win32.window, &p))
+        {
+            res.mouse.active = false;
+            res.mouse.xPos   = -1;
+            res.mouse.yPos   = -1;
+        }
+        else
+        {
+            res.mouse.active = p.x >= 0 && p.y >= 0;
+            res.mouse.xPos   = p.x;
+            res.mouse.yPos   = p.y;
+        }
+        
+        // In a modal loop we won't get click events anyway
+        // so...
+        if(!win32.isInModalLoop)
+        {
+            // For clicks, I guess we need to use the WndProc.
+            MSG msg = {0};
+            // Only left and right mouse buttons for now
+            while(PeekMessage(&msg, win32.window, WM_LBUTTONDOWN, WM_RBUTTONDBLCLK, true))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);  // This calls WndProc
+            }
+            
+            res.mouse.leftClick  = win32.lMouseButton;
+            res.mouse.rightClick = win32.rMouseButton;
         }
     }
     

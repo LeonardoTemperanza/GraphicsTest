@@ -34,6 +34,19 @@ enum GamepadButtonField
     Gamepad_Y              = 1 << 14
 };
 
+struct MouseState
+{
+    bool active; // On the window?
+    bool leftClick;
+    bool rightClick;
+    // In pixels starting from the top-left corner
+    // of the application window. This is guaranteed
+    // to be < 0 if the cursor is not on the window
+    int64_t xPos;
+    int64_t yPos;
+    // Do i need a delta?
+};
+
 // All inactive gamepads will have every property set
 // to 0, so no need to check for the active flag unless needed.
 struct GamepadState
@@ -56,6 +69,7 @@ struct GamepadState
 struct InputState
 {
     GamepadState gamepads[MaxActiveControllers];
+    MouseState mouse;
     
     //KeyboardState* keyboards;
     //int64_t numKeyboards;

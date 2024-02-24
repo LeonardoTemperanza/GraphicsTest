@@ -26,10 +26,7 @@ enum Axis2
     Axis2_Count,
 };
 
-struct UI_Key
-{
-    int key;
-};
+typedef s64 UI_Key;
 
 typedef u32 UI_BoxFlags;
 enum
@@ -65,7 +62,7 @@ struct UI_Box
     UI_Key key;
     u64 lastFrameTouchedIdx;
     
-    // Per frame info provided by builders
+    // Per-frame info provided by builders
     UI_BoxFlags flags;
     String string;
     UI_Size semanticSize[Axis2_Count];
@@ -78,7 +75,7 @@ struct UI_Box
     
     // Persistent data
     f32 hotT;   // Used for animation
-    f32 timeT;  // Used for animation
+    f32 activeT;  // Used for animation
 };
 
 // Bacic key type helpers
@@ -86,24 +83,24 @@ UI_Key UI_KeyNull();
 UI_Key UI_KeyFromString(String string);
 b32 UI_KeyMatch(UI_Key a, UI_Key b);
 
-// Construct a widget, looking up from the cache if
+// Construct a box, looking up from the cache if
 // possible, and pushing it as a new child of the
 // active parent
 UI_Box* UI_MakeBox(UI_BoxFlags flags, String string);
-UI_Box* UI_MakeBox(UI_BoxFlags flags, char* fmt, ...);
+UI_Box* UI_MakeBox(UI_BoxFlags flags, const char* fmt, ...);
 
 // Some other possible building parameterizations
-void UI_BoxEquipDisplayString(UI_Box* widget, String string);
-void UI_BoxEquipChildLayoutAxis(UI_Box* widget, Axis2 axis);
+void UI_BoxEquipDisplayString(UI_Box* box, String string);
+void UI_BoxEquipChildLayoutAxis(UI_Box* box, Axis2 axis);
 
 // Managing the parent stack
-UI_Box* UI_PushParent(UI_Box* widget);
+UI_Box* UI_PushParent(UI_Box* box);
 UI_Box* UI_PopParent();
 
-// The user's interaction with a widget
+// The user's interaction with a box
 struct UI_Signal
 {
-    UI_Box* widget;
+    UI_Box* box;
     Vec2 mouse;
     Vec2 dragDelta;
     bool clicked;
@@ -115,10 +112,11 @@ struct UI_Signal
     bool hovering;
 };
 
-UI_Signal UI_SignalFromBox(UI_Box* widget);
+UI_Signal UI_SignalFromBox(UI_Box* box);
 
 // Helpers from common widget "types", though the concept
-// of subtypes does not really exist here, there's just a single
-// Box struct that just has everything you might ever need.
+// of subtypes does not really exist here, because the needed
+// features are obtained by composing simple elements (boxes)
+// together.
 
 UI_Signal UI_Button(String string);

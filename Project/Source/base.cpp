@@ -5,6 +5,161 @@
 
 #include "base.h"
 
+////
+// Hash functions
+// From Bill Hall's "gb.h" helper library
+// https://github.com/gingerBill/gb/blob/master/gb.h
+u32 Murmur32Seed(void const* data, s64 len, u32 seed)
+{
+    u32 const c1 = 0xcc9e2d51;
+	u32 const c2 = 0x1b873593;
+	u32 const r1 = 15;
+	u32 const r2 = 13;
+	u32 const m  = 5;
+	u32 const n  = 0xe6546b64;
+    
+	s64 i, nblocks = len / 4;
+	u32 hash = seed, k1 = 0;
+	u32 const *blocks = (u32 const*)data;
+	u8 const *tail = (u8 const *)(data) + nblocks*4;
+    
+	for (i = 0; i < nblocks; i++) {
+		u32 k = blocks[i];
+		k *= c1;
+		k = (k << r1) | (k >> (32 - r1));
+		k *= c2;
+        
+		hash ^= k;
+		hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
+	}
+    
+	switch (len & 3) {
+        case 3:
+		k1 ^= tail[2] << 16;
+        case 2:
+		k1 ^= tail[1] << 8;
+        case 1:
+		k1 ^= tail[0];
+        
+		k1 *= c1;
+		k1 = (k1 << r1) | (k1 >> (32 - r1));
+		k1 *= c2;
+		hash ^= k1;
+	}
+    
+	hash ^= len;
+	hash ^= (hash >> 16);
+	hash *= 0x85ebca6b;
+	hash ^= (hash >> 13);
+	hash *= 0xc2b2ae35;
+	hash ^= (hash >> 16);
+    
+	return hash;
+}
+
+// From Bill Hall's "gb.h" helper library 
+// https://github.com/gingerBill/gb/blob/master/gb.h
+u64 Murmur64Seed(void const* data_, s64 len, u64 seed)
+{
+#if defined(Bit64)
+    u64 const m = 0xc6a4a7935bd1e995ULL;
+    s32 const r = 47;
+    
+    u64 h = seed ^ (len * m);
+    
+    u64 const *data = (u64 const *)data_;
+    u8  const *data2 = (u8 const *)data_;
+    u64 const* end = data + (len / 8);
+    
+    while (data != end) {
+        u64 k = *data++;
+        
+        k *= m;
+        k ^= k >> r;
+        k *= m;
+        
+        h ^= k;
+        h *= m;
+    }
+    
+    switch (len & 7) {
+        case 7: h ^= (u64)(data2[6]) << 48;
+        case 6: h ^= (u64)(data2[5]) << 40;
+        case 5: h ^= (u64)(data2[4]) << 32;
+        case 4: h ^= (u64)(data2[3]) << 24;
+        case 3: h ^= (u64)(data2[2]) << 16;
+        case 2: h ^= (u64)(data2[1]) << 8;
+        case 1: h ^= (u64)(data2[0]);
+        h *= m;
+    };
+    
+    h ^= h >> r;
+    h *= m;
+    h ^= h >> r;
+    
+    return h;
+#else
+    u64 h;
+    u32 const m = 0x5bd1e995;
+    s32 const r = 24;
+    
+    u32 h1 = (u32)(seed) ^ (u32)(len);
+    u32 h2 = (u32)(seed >> 32);
+    
+    u32 const *data = (u32 const *)data_;
+    
+    while (len >= 8) {
+        u32 k1, k2;
+        k1 = *data++;
+        k1 *= m;
+        k1 ^= k1 >> r;
+        k1 *= m;
+        h1 *= m;
+        h1 ^= k1;
+        len -= 4;
+        
+        k2 = *data++;
+        k2 *= m;
+        k2 ^= k2 >> r;
+        k2 *= m;
+        h2 *= m;
+        h2 ^= k2;
+        len -= 4;
+    }
+    
+    if (len >= 4) {
+        u32 k1 = *data++;
+        k1 *= m;
+        k1 ^= k1 >> r;
+        k1 *= m;
+        h1 *= m;
+        h1 ^= k1;
+        len -= 4;
+    }
+    
+    switch (len) {
+        case 3: h2 ^= ((u8 const *)data)[2] << 16;
+        case 2: h2 ^= ((u8 const *)data)[1] <<  8;
+        case 1: h2 ^= ((u8 const *)data)[0] <<  0;
+        h2 *= m;
+    };
+    
+    h1 ^= h2 >> 18;
+    h1 *= m;
+    h2 ^= h1 >> 22;
+    h2 *= m;
+    h1 ^= h2 >> 17;
+    h1 *= m;
+    h2 ^= h1 >> 19;
+    h2 *= m;
+    
+    h = h1;
+    h = (h << 32) | h2;
+    
+    return h;
+#endif
+}
+
 const Vec3 Vec3::right    = { 1.0f,  0.0f,  0.0f};
 const Vec3 Vec3::up       = { 0.0f,  1.0f,  0.0f};
 const Vec3 Vec3::forward  = { 0.0f,  0.0f,  1.0f};
