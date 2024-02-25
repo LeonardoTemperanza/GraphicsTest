@@ -17,7 +17,7 @@ int main()
     d3d11_Renderer d3d11Renderer = {0};
     switch(usedLib)
     {
-        case GfxLib_None:   return 1;
+        case GfxLib_None:   break;
         case GfxLib_OpenGL: glRenderer = gl_InitRenderer(&permArena);       break;
         case GfxLib_D3D11:  d3d11Renderer = d3d11_InitRenderer(&permArena); break;
     }
@@ -28,8 +28,8 @@ int main()
     
     const float maxDeltaTime = 1/20.0f;
     float deltaTime = 1/60.0f;  // Reasonable default value
-    uint64_t startTicks = 0;
-    uint64_t endTicks = 0;
+    u64 startTicks  = 0;
+    u64 endTicks    = 0;
     
     bool firstIter = true;
     while(true)
@@ -52,7 +52,7 @@ int main()
         
         switch(usedLib)
         {
-            case GfxLib_None:   return 1;
+            case GfxLib_None:   break;
             case GfxLib_OpenGL: gl_Render(&glRenderer, appState.renderSettings);       break;
             case GfxLib_D3D11:  d3d11_Render(&d3d11Renderer, appState.renderSettings); break;
         }

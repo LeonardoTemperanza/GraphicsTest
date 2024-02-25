@@ -230,6 +230,8 @@ struct String
 
 #define ArenaDefAlign sizeof(void*)
 
+#define ArenaAllocType(type, arena) ArenaAlloc(arena, sizeof(type), alignof(type))
+
 struct Arena
 {
     unsigned char* buffer;

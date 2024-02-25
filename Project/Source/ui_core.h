@@ -3,6 +3,10 @@
 
 #include "base.h"
 
+// Ok, so i guess we would need to have a pool of nodes right?
+// And every frame we just query the existing data structure,
+// and if a certain node is "new" we allocate a new one, correct?
+
 enum UI_SizeKind
 {
     UI_SizeKind_Null = 0,
@@ -21,7 +25,7 @@ struct UI_Size
 
 enum Axis2
 {
-    Axis2_X,
+    Axis2_X = 0,
     Axis2_Y,
     Axis2_Count,
 };
@@ -78,6 +82,33 @@ struct UI_Box
     f32 activeT;  // Used for animation
 };
 
+struct UI_ParentLL
+{
+    UI_Box* box;
+    UI_ParentLL* next;
+    UI_ParentLL* prev;
+};
+
+struct UI_Ctx
+{
+    // @temp I assume i want to double buffer this here?
+    // prevArena and arena can be swapped at the end of the frame
+    // and prevArena can be fully freed
+    Arena* prevArena;
+    Arena* arena;
+    
+    // Used to manage the parent stack. By "parent" i mean
+    // the currently selected parent by the UI builder code.
+    UI_ParentLL* parentFirst;
+    UI_ParentLL* parentLast;
+    
+    // Hash containing the nodes, for cross-frame-boundary data.
+    // Entries can be nullptr, in which case they are not occupied.
+    Slice<UI_Box*> boxHash;
+};
+
+static UI_Ctx ui;
+
 // Bacic key type helpers
 UI_Key UI_KeyNull();
 UI_Key UI_KeyFromString(String string);
@@ -94,6 +125,8 @@ void UI_BoxEquipDisplayString(UI_Box* box, String string);
 void UI_BoxEquipChildLayoutAxis(UI_Box* box, Axis2 axis);
 
 // Managing the parent stack
+// @temp From what i understand this just sets
+// "Ok i want to add a bunch of stuff as child to this current node"
 UI_Box* UI_PushParent(UI_Box* box);
 UI_Box* UI_PopParent();
 
@@ -112,6 +145,13 @@ struct UI_Signal
     bool hovering;
 };
 
+// @temp I assume what this does is this:
+// it takes the current box as argument
+// it attempts to get the previous frame's
+// equivalent by getting the key, and looking
+// that up the cache (to get its final layout).
+// then you compare that with the current frame's
+// input and then 
 UI_Signal UI_SignalFromBox(UI_Box* box);
 
 // Helpers from common widget "types", though the concept
@@ -120,3 +160,11 @@ UI_Signal UI_SignalFromBox(UI_Box* box);
 // together.
 
 UI_Signal UI_Button(String string);
+
+// Layout
+void UI_AutoLayout(UI_Box* root);
+void UI_ComputeStandaloneSize(UI_Box* box, Axis2 axis);
+void UI_ComputeParentDependentSize(UI_Box* box, Axis2 axis);
+void UI_ComputeChildDependentSize(UI_Box* box, Axis2 axis);
+void UI_SolveSizeViolations(UI_Box* box, Axis2 axis);
+void UI_ComputePositions(UI_Box* box, Axis2 axis);
