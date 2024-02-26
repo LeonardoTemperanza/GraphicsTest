@@ -233,7 +233,8 @@ struct String
 
 #define ArenaDefAlign sizeof(void*)
 
-#define ArenaAllocType(type, arena) (type*)ArenaAlloc(arena, sizeof(type), alignof(type))
+#define ArenaAllocType(type, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type), alignof(type))
+#define ArenaAllocArray(type, size, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type)*(size), alignof(type));
 
 struct Arena
 {
@@ -373,6 +374,18 @@ struct Slice
 {
     t* ptr;
     int64_t len;
+    
+#ifdef BoundsChecking
+    // For reading the value
+    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
+#else
+    // For reading the value
+    inline t  operator [](int idx) const { return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { return ptr[idx]; };
+#endif
 };
 
 ////

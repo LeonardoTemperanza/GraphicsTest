@@ -18,20 +18,49 @@ b32 UI_KeyMatch(UI_Key a, UI_Key b)
 
 UI_Box* UI_MakeBox(UI_BoxFlags flags, String string)
 {
+    assert(ui.parentLast);
+    
     // Using malloc instead of arena for now...
-    auto box = (UI_Box*)malloc(sizeof(UI_Box));
+    auto box = ArenaAllocType(UI_Box, &ui.arena);
     memset(box, 0, sizeof(UI_Box));
     
     box->key = UI_KeyFromString(string);
-    box->lastFrameTouchedIdx = 0; // TODO ???
     box->flags  = flags;
     box->string = string;
+    
+    // Set as child of currently selected parent
+    if(ui.parentLast)
+    {
+        assert(ui.parentLast->box);
+        if(!ui.parentLast->box->last)
+            ui.parentLast->box->first = ui.parentLast->box->last = box;
+        else
+        {
+            ui.parentLast->box->last->next = box;
+            box->prev = ui.parentLast->box->last->next;
+            ui.parentLast->box->last = box;
+        }
+    }
+    
+    // Look for persistent data in the previous frame's hash
+    for(UI_Box* cur = ui.prevHash[box->key]; cur; cur->hashNext)
+    {
+        if(cur->string == box->string)  // Found previous frame's box
+        {
+            // Set persistent data
+            box->hotT = cur->hotT;
+            box->activeT = cur->activeT;
+            break;
+        }
+    }
+    
     return box;
 }
 
 UI_Box* UI_MakeBox(UI_BoxFlags flags, const char* fmt, ...)
 {
     // Process the format string...
+    TODO;
     
     String resStr = {0};
     
@@ -43,7 +72,9 @@ UI_Box* UI_MakeBox(UI_BoxFlags flags, const char* fmt, ...)
 
 UI_Box* UI_MakeBox(UI_BoxFlags flags, const char* fmt, va_list args)
 {
+    // Make the string and then just call the usual function
     TODO;
+    
     return nullptr;
 }
 
@@ -60,7 +91,7 @@ void UI_BoxEquipChildLayoutAxis(UI_Box* box, Axis2 axis)
 
 UI_Box* UI_PushParent(UI_Box* box)
 {
-    auto node = ArenaAllocType(UI_ParentLL, ui.arena);
+    auto node = ArenaAllocType(UI_ParentLL, &ui.arena);
     memset(node, sizeof(*node), 0);
     
     if(!ui.parentLast)
@@ -92,8 +123,25 @@ UI_Box* UI_PopParent()
 
 UI_Signal UI_SignalFromBox(UI_Box* box)
 {
+    // Look for a box with the same key in the hash
+    UI_Box* found = nullptr;
+    for(UI_Box* cur = ui.prevHash[box->key]; cur; cur = cur->hashNext)
+    {
+        if(cur->string == box->string)
+        {
+            found = cur;
+            break;
+        }
+    }
+    
+    if(!found) return {0};
+    
+    // Check for input on the given box
+    UI_Signal signal = {0};
+    ui.input.mouse.xPos;
     TODO;
-    return {0};
+    
+    return signal;
 }
 
 UI_Signal UI_Button(char* string)
@@ -108,6 +156,13 @@ UI_Signal UI_Button(char* string)
     return UI_SignalFromBox(box);
 }
 
+void UI_Init()
+{
+    ui = {0};
+    ui.arena = ArenaVirtualMemInit(GB(4), MB(2));
+    ui.prevArena = ArenaVirtualMemInit(GB(4), MB(2));
+}
+
 void UI_BeginFrame(InputState input)
 {
     ui.input = input;
@@ -117,14 +172,15 @@ void UI_EndFrame()
 {
     ui.parentLast = ui.parentFirst = nullptr;
     
-    ArenaFreeAll(ui.prevArena);
+    ArenaFreeAll(&ui.prevArena);
     auto tmp = ui.prevArena;
     ui.prevArena = tmp;
     ui.arena = tmp;
     
-    ui.boxHash = {.ptr=nullptr, .len=0};
-    
-    ++ui.frameIdx;
+    auto hash = ui.hash;
+    ui.prevHash = hash;
+    ui.hash.ptr = ArenaAllocArray(UI_Box*, UI_HashSize, &ui.arena);
+    ui.hash.len = UI_HashSize;
 }
 
 void UI_AutoLayout(UI_Box* root)
@@ -146,14 +202,13 @@ void UI_ComputeStandaloneSize(UI_Box* box, Axis2 axis)
 {
     if(!box) return;
     
-    // @temp
     auto kind = box->semanticSize[axis].kind;
     switch(kind)
     {
         default: break;
         case UI_SizeKind_Null:        box->computedSize[axis] = 0.0f;  break;
         case UI_SizeKind_Pixels:      box->computedSize[axis] = box->semanticSize[axis].value; break;
-        case UI_SizeKind_TextContent: break;
+        case UI_SizeKind_TextContent: break; // @temp
     }
     
     // This could be post-order, doesn't matter
@@ -229,6 +284,7 @@ void UI_ComputePositions(UI_Box* box, Axis2 axis)
     
     // How to do this? Would i not need the direction of travel of the nodes?
     // I guess i can just add it to the box struct, no?
+    // One thing that i would need to do is actually just play around with dear imgui
     TODO;
     
     UI_ComputePositions(box->first, axis);

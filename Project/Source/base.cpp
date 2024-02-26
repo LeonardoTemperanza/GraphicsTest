@@ -495,6 +495,21 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
     return res;
 }
 
+////
+// String utils
+b32 operator ==(String s1, String s2)
+{
+    if(s1.len != s2.len) return false;
+    
+    for(int i = 0; i < s1.len; ++i)
+    {
+        if(s1.ptr[i] != s2.ptr[i]) return false;
+    }
+    
+    return true;
+}
+
+////
 // Memory Allocations
 
 inline static uintptr_t AlignForward(uintptr_t ptr, size_t align)

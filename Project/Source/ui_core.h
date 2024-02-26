@@ -62,9 +62,8 @@ struct UI_Box
     UI_Box* hashNext;
     UI_Box* hashPrev;
     
-    // Key+generation info
+    // Key info
     UI_Key key;
-    u64 lastFrameTouchedIdx;
     
     // Per-frame info provided by builders
     UI_BoxFlags flags;
@@ -89,28 +88,26 @@ struct UI_ParentLL
     UI_ParentLL* prev;
 };
 
+// 503 because it's a prime number
+#define UI_HashSize 503
 struct UI_Ctx
 {
-    u64 frameIdx;
     InputState input;
     
-    // @temp I assume i want to double buffer this here?
-    // prevArena and arena can be swapped at the end of the frame
-    // and prevArena can be fully freed
-    Arena* prevArena;
-    Arena* arena;
+    // Double buffer the arena for cross frame
+    // persistent data.
+    Arena prevArena;
+    Arena arena;
     
     // Used to manage the parent stack. By "parent" i mean
     // the currently selected parent by the UI builder code.
     UI_ParentLL* parentFirst;
     UI_ParentLL* parentLast;
     
-    // Hash containing the nodes, for cross-frame-boundary data.
+    // Hash containing the nodes, for cross-frame data.
     // Entries can be nullptr, in which case they are not occupied.
-    Slice<UI_Box*> boxHash;
-    // Current frame boxes to be added to the hash
-    // next frame.
-    Slice<UI_Box*> pendingBoxes;
+    Slice<UI_Box*> prevHash;
+    Slice<UI_Box*> hash;
 };
 
 static UI_Ctx ui;
@@ -169,6 +166,7 @@ float UI_Slider(float curValue, float min, float max, const char* text);
 b32 UI_Checkbox(b32 curValue, const char* text);
 
 // Common API
+void UI_Init();
 void UI_BeginFrame(InputState input);
 void UI_EndFrame();
 

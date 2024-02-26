@@ -4,6 +4,7 @@
 #include "simulation.h"
 #include "renderer/renderer_opengl.h"
 #include "renderer/renderer_d3d11.h"
+#include "ui_core.h"
 
 int main()
 {
@@ -23,6 +24,7 @@ int main()
     }
     
     AppState appState = InitSimulation();
+    UI_Init();
     
     OS_ShowWindow();
     
