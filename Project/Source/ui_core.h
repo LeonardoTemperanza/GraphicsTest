@@ -91,6 +91,9 @@ struct UI_ParentLL
 
 struct UI_Ctx
 {
+    u64 frameIdx;
+    InputState input;
+    
     // @temp I assume i want to double buffer this here?
     // prevArena and arena can be swapped at the end of the frame
     // and prevArena can be fully freed
@@ -105,6 +108,9 @@ struct UI_Ctx
     // Hash containing the nodes, for cross-frame-boundary data.
     // Entries can be nullptr, in which case they are not occupied.
     Slice<UI_Box*> boxHash;
+    // Current frame boxes to be added to the hash
+    // next frame.
+    Slice<UI_Box*> pendingBoxes;
 };
 
 static UI_Ctx ui;
@@ -125,8 +131,6 @@ void UI_BoxEquipDisplayString(UI_Box* box, String string);
 void UI_BoxEquipChildLayoutAxis(UI_Box* box, Axis2 axis);
 
 // Managing the parent stack
-// @temp From what i understand this just sets
-// "Ok i want to add a bunch of stuff as child to this current node"
 UI_Box* UI_PushParent(UI_Box* box);
 UI_Box* UI_PopParent();
 
@@ -159,7 +163,14 @@ UI_Signal UI_SignalFromBox(UI_Box* box);
 // features are obtained by composing simple elements (boxes)
 // together.
 
-UI_Signal UI_Button(String string);
+UI_Box* UI_Container();
+UI_Signal UI_Button(char* string);
+float UI_Slider(float curValue, float min, float max, const char* text);
+b32 UI_Checkbox(b32 curValue, const char* text);
+
+// Common API
+void UI_BeginFrame(InputState input);
+void UI_EndFrame();
 
 // Layout
 void UI_AutoLayout(UI_Box* root);

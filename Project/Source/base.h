@@ -37,6 +37,9 @@ typedef unsigned char uchar;
 #endif
 #endif
 
+#define ToLenStr(str) String{.ptr=str, .len=((s64)strlen(str))}
+#define StrLit(str) String{.ptr=str, .len=sizeof(str)}
+
 ////
 // Hash functions
 u32 Murmur32Seed(void const* data, s64 len, u32 seed);
@@ -230,7 +233,7 @@ struct String
 
 #define ArenaDefAlign sizeof(void*)
 
-#define ArenaAllocType(type, arena) ArenaAlloc(arena, sizeof(type), alignof(type))
+#define ArenaAllocType(type, arena) (type*)ArenaAlloc(arena, sizeof(type), alignof(type))
 
 struct Arena
 {

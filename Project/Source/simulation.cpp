@@ -117,6 +117,23 @@ void UpdateCamera(Transform* camera, float deltaTime, GamepadState* gamepad)
     camera->position += curVel * deltaTime;
 }
 
+void UpdateUI(InputState input)
+{
+    // Example of how the UI might work
+#if 0
+    
+    UI_BeginFrame(input);
+    
+    auto window = UI_Container();
+    UI_PushParent(window);
+    
+    UI_Button("Hello");
+    
+    UI_PopParent(window);
+    UI_EndFrame();
+#endif
+}
+
 void MainUpdate(AppState* state, float deltaTime, InputState input, Arena* permArena, Arena* frameArena)
 {
     ApplyDeadzone(&input);
@@ -135,6 +152,8 @@ void MainUpdate(AppState* state, float deltaTime, InputState input, Arena* permA
         // Currently used gamepad
         gamepad = &input.gamepads[domGamepad.idx];
     }
+    
+    UpdateUI(input);
     
     UpdateCamera(&state->renderSettings.camera, deltaTime, gamepad);
     
