@@ -12,7 +12,8 @@ const float triggerDeadzone = 0.1f;
 AppState InitSimulation()
 {
     AppState state = {0};
-    
+    state.renderSettings.camera.position.z = -10.0f;
+    state.renderSettings.camera.rotation = Quat::identity;
     return state;
 }
 
@@ -74,7 +75,7 @@ void ApplyDeadzone(InputState* input)
 
 InputDominator GetDominatingKeyboard(InputState input, InputDominator prevDom)
 {
-    assert(false);
+    TODO;
     return prevDom;
 }
 
@@ -88,12 +89,14 @@ void UpdateCamera(Transform* camera, float deltaTime, GamepadState* gamepad)
     
     angleX += rotateXSpeed * gamepad->rightStickX * deltaTime;
     angleY += rotateYSpeed * gamepad->rightStickY * deltaTime;
-    angleX = fmod(angleX, 2*Pi);
+    while(angleX < 0.0f) angleX += 2*Pi;
+    while(angleX > 2*Pi) angleX -= 2*Pi;
+    
     angleY = clamp(angleY, Deg2Rad(-90), Deg2Rad(90));
     
     Quat yRot = AngleAxis(Vec3::left, angleY);
     Quat xRot = AngleAxis(Vec3::up, angleX);
-    camera->rotation = yRot * xRot;
+    camera->rotation = xRot * yRot;
     
     // Camera position
     static Vec3 curVel = {0};
@@ -121,13 +124,15 @@ void UpdateUI(InputState input)
 {
     // Example of how the UI might work
 #if 0
-    
     UI_BeginFrame(input);
     
     auto window = UI_Container();
     UI_PushParent(window);
     
-    UI_Button("Hello");
+    if(UI_Button("Hello").clicked)
+    {
+        
+    }
     
     UI_PopParent(window);
     UI_EndFrame();

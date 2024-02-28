@@ -3,18 +3,39 @@
 #include "embedded_files.h"
 #include "embedded_models.h"
 
+// Cube
 const float vertices[] =
 {
-    -0.5f, -0.5f,  -1.0,
-    0.5f,  -0.5f,  -1.1,
-    0.0f,   0.5f,  -1.2,
-    0.5f,   0.5f,  -1.3
+    -0.5f, -0.5f, -0.5f,
+    +0.5f, -0.5f, -0.5f,
+    +0.5f, +0.5f, -0.5f,
+    -0.5f, +0.5f, -0.5f,
+    -0.5f, -0.5f, +0.5f,
+    +0.5f, -0.5f, +0.5f,
+    +0.5f, +0.5f, +0.5f,
+    -0.5f, +0.5f, +0.5f,
 };
 
 const unsigned int indices[] =
 {
-    0, 1, 2,
-    2, 1, 3
+    // Back
+    2, 1, 0,
+    2, 0, 3,
+    // Front
+    4, 5, 6,
+    4, 6, 7,
+    // Bottom
+    0, 1, 5,
+    0, 5, 4,
+    // Top
+    2, 3, 7,
+    2, 7, 6,
+    // Left
+    0, 4, 7,
+    0, 7, 3,
+    // Right
+    1, 6, 5,
+    1, 2, 6,
 };
 
 gl_Renderer gl_InitRenderer(Arena* permArena)

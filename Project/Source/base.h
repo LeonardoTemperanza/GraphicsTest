@@ -146,22 +146,32 @@ struct Mat4
         };
         struct
         {
-            Vec4 column1, column2, column3, column4;
+            Vec4 c1, c2, c3, c4;
+        };
+        struct
+        {
+            Vec3 m11to3; char padding0;
+            Vec3 m21to3; char padding1;
+            Vec3 m31to3; char padding2;
+            Vec3 m41to3; char padding3;
         };
     };
     
-    inline Mat4(float a11, float a12, float a13, float a14,
-                float a21, float a22, float a23, float a24,
-                float a31, float a32, float a33, float a34,
-                float a41, float a42, float a43, float a44)
+    // This "constructor" allows to specify the elements in the
+    // normal math notation (which would be in row major order
+    // with C's struct initializer). It's not an actual constructor
+    // because if it were it wouldn't let me initialize with an
+    // aggregate initialization list (for some reason).
+    inline void set(float a11, float a12, float a13, float a14,
+                    float a21, float a22, float a23, float a24,
+                    float a31, float a32, float a33, float a34,
+                    float a41, float a42, float a43, float a44)
     {
         m11 = a11; m12 = a12; m13 = a13; m14 = a14;
         m21 = a21, m22 = a22, m23 = a23, m24 = a24;
         m31 = a31, m32 = a32, m33 = a33, m34 = a34;
         m41 = a41, m42 = a42, m43 = a43, m44 = a44;
     }
-    
-    inline Mat4() { }
     
     static const Mat4 identity;
 };

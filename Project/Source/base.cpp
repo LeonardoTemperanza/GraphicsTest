@@ -167,7 +167,15 @@ const Vec3 Vec3::left     = {-1.0f,  0.0f,  0.0f};
 const Vec3 Vec3::down     = { 0.0f, -1.0f,  0.0f};
 const Vec3 Vec3::backward = { 0.0f,  0.0f, -1.0f};
 
-const Quat Quat::identity = { .w=1.0f, .x=0.0f, .y=0.0f, .z=0.0f };
+const Quat Quat::identity = {.w=1.0f, .x=0.0f, .y=0.0f, .z=0.0f};
+
+const Mat4 Mat4::identity =
+{ 
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+};
 
 // Vector and matrix operations
 Vec3 operator +(Vec3 a, Vec3 b)
@@ -428,6 +436,12 @@ Quat slerp(Quat q1, Quat q2, float t)
     return Quat::identity;
 }
 
+Quat lerp(Quat q1, Quat q2, float t)
+{
+    TODO;
+    return Quat::identity;
+}
+
 Quat AngleAxis(Vec3 axis, float angle)
 {
     if(dot(axis, axis) == 0.0f)
@@ -455,25 +469,37 @@ Quat RotateTowards(Quat current, Quat target, float delta)
     return slerp(current, target, t);
 }
 
+Mat4 RotationMatrix(Quat r)
+{
+#if 0
+    Mat4 res;
+    res.set
+    (1 -2*r.y*r.y -2*r.z*r.z, 2*r.x*r.y -2*r.w*r.z,    2*r.x*r.z +2*r.w*r.y,    0,
+     2*r.x*r.y +2*r.w*r.z,    1 -2*r.x*r.x -2*r.z*r.z, 2*r.y*r.z -2*r.w*r.x,    0,
+     2*r.x*r.z -2*r.w*r.y,    2*r.y*r.z +2*r.w*r.x,    1 -2*r.x*r.x -2*r.y*r.y, 0,
+     0,                       0,                       0,                       1);
+#else
+    Mat4 res = Mat4::identity;
+    res.m11to3 = r * Vec3::right;
+    res.m21to3 = r * Vec3::up;
+    res.m31to3 = r * Vec3::forward;
+#endif
+    return res;
+}
+
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
 {
+    // Inverse rotation matrix
+    Mat4 res = RotationMatrix(normalize(camRot));
+    
+    // Apply inverse of translation first, then inverse of rotation
     Vec3& p = camPos;
-    Quat r = normalize(inverse(camRot));
-    
-    // Apply quaternion rotation:
-    // 2*(q0^2 + q1^2) - 1    2*(q1*q2 - q0*q3)      2*(q1*q3 + q0*q2)
-    // 2*(q1*q2 + q0*q3)      2*(q0^2 + q2^2) - 1    2*(q2*q3 - q0*q1)
-    // 2*(q1*q3 - q0*q2)      2*(q2*q3 + q0*q1)      2*(q0^2 + q3^2) - 1
-    Mat4 res
-    (1 -2*r.y*r.y -2*r.z*r.z, 2*r.x*r.y +2*r.w*r.z,    2*r.x*r.z -2*r.w*r.y,    0,
-     2*r.x*r.y -2*r.w*r.z,    1 -2*r.x*r.x -2*r.z*r.z, 2*r.y*r.z +2*r.w*r.x,    0,
-     2*r.x*r.z +2*r.w*r.y,    2*r.y*r.z -2*r.w*r.x,    1 -2*r.x*r.x -2*r.y*r.y, 0,
-     0,                       0,                       0,                       1);
-    
-    // Apply inverse of rotation first, then inverse of translation
-    res.m14 = res.column1.x * -p.x + res.column2.x * -p.y + res.column3.x * p.z;
-    res.m24 = res.column1.y * -p.x + res.column2.y * -p.y + res.column3.y * p.z;
-    res.m34 = res.column1.z * -p.x + res.column2.z * -p.y + res.column3.z * p.z;
+    res.m14 = -p.x;
+    res.m24 = -p.y;
+    res.m34 = p.z;
+    //res.m14 = res.m11 * -p.x + res.m12 * -p.y + res.m13 * p.z;
+    //res.m24 = res.m21 * -p.x + res.m22 * -p.y + res.m23 * p.z;
+    //res.m34 = res.m31 * -p.x + res.m32 * -p.y + res.m33 * p.z;
     
     return res; 
 }

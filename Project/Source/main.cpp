@@ -29,7 +29,7 @@ int main()
     OS_ShowWindow();
     
     const float maxDeltaTime = 1/20.0f;
-    float deltaTime = 1/60.0f;  // Reasonable default value
+    float deltaTime = 0.0f;
     u64 startTicks  = 0;
     u64 endTicks    = 0;
     
@@ -41,16 +41,17 @@ int main()
         
         InputState input = OS_PollInput();
         
+        // In the first iteration, we simply want to render
+        // the initialized state.
         if(!firstIter)
         {
             endTicks = OS_GetTicks();
             deltaTime = min(maxDeltaTime, OS_GetElapsedSeconds(startTicks, endTicks));
+            
+            startTicks = OS_GetTicks();
+            MainUpdate(&appState, deltaTime, input, &permArena, &frameArena);
+            OS_SwapBuffers();
         }
-        
-        startTicks = OS_GetTicks();
-        MainUpdate(&appState, deltaTime, input, &permArena, &frameArena);
-        
-        if(!firstIter) OS_SwapBuffers();
         
         switch(usedLib)
         {
