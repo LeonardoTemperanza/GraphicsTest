@@ -203,16 +203,6 @@ Vec3 operator /(Vec3 v, float f)
     return {.x = v.x/f, .y = v.y/f, .z = v.z/f};
 }
 
-Vec4 operator +(Vec4 a, Vec4 b)
-{
-    return {.x = a.x+b.x, .y = a.y+b.y, .z = a.z+b.z};
-}
-
-Vec4 operator -(Vec4 a, Vec4 b)
-{
-    return {.x = a.x-b.x, .y = a.y-b.y, .z = a.z-b.z};
-}
-
 Vec3& operator +=(Vec3& a, Vec3 b)
 {
     a = {.x = a.x+b.x, .y = a.y+b.y, .z = a.z+b.z};
@@ -317,6 +307,60 @@ Vec2& operator *=(Vec2& v, float f)
 Vec2& operator /=(Vec2& v, float f)
 {
     v = {.x = v.x/f, .y = v.y/f};
+    return v;
+}
+
+Vec4 operator +(Vec4 a, Vec4 b)
+{
+    return {.x = a.x+b.x, .y = a.y+b.y, .z = a.z+b.z, .w = a.w+b.w};
+}
+
+Vec4 operator -(Vec4 a, Vec4 b)
+{
+    return {.x = a.x-b.x, .y = a.y-b.y, .z = a.z-b.z, .w = a.w-b.w};
+}
+
+Vec4 operator *(Vec4 v, float f)
+{
+    return {.x = v.x*f, .y = v.y*f, .z = v.z*f, .w = v.w*f};
+}
+
+Vec4 operator *(float f, Vec4 v)
+{
+    return {.x = v.x*f, .y = v.y*f, .z = v.z*f, .w = v.w*f};
+}
+
+Vec4 operator /(Vec4 v, float f)
+{
+    return {.x = v.x/f, .y = v.y/f, .z = v.z/f, .w = v.w/f};
+}
+
+Vec4& operator +=(Vec4& a, Vec4 b)
+{
+    a = {.x = a.x+b.x, .y = a.y+b.y, .z = a.z+b.z, .w = a.w+b.w};
+    return a;
+}
+
+Vec4& operator -=(Vec4& a, Vec4 b)
+{
+    a = {.x = a.x-b.x, .y = a.y-b.y, .z = a.z-b.z, .w = a.w-b.w};
+    return a;
+}
+
+Vec4 operator -(Vec4 v)
+{
+    return {.x=-v.x, .y=-v.y, .z=-v.z, .w=-v.w};
+}
+
+Vec4& operator *=(Vec4& v, float f)
+{
+    v = {.x = v.x*f, .y = v.y*f, .z = v.z*f, .w = v.w*f};
+    return v;
+}
+
+Vec4& operator /=(Vec4& v, float f)
+{
+    v = {.x = v.x/f, .y = v.y/f, .z = v.z/f, .w = v.w/f};
     return v;
 }
 
@@ -469,38 +513,34 @@ Quat RotateTowards(Quat current, Quat target, float delta)
     return slerp(current, target, t);
 }
 
-Mat4 RotationMatrix(Quat r)
+Mat4 RotationMatrix(Quat q)
 {
-#if 0
+    float x = q.x * 2.0f; float y = q.y * 2.0f; float z = q.z * 2.0f;
+    float xx = q.x * x;   float yy = q.y * y;   float zz = q.z * z;
+    float xy = q.x * y;   float xz = q.x * z;   float yz = q.y * z;
+    float wx = q.w * x;   float wy = q.w * y;   float wz = q.w * z;
+    
+    // Calculate 3x3 matrix from orthonormal basis
     Mat4 res;
     res.set
-    (1 -2*r.y*r.y -2*r.z*r.z, 2*r.x*r.y -2*r.w*r.z,    2*r.x*r.z +2*r.w*r.y,    0,
-     2*r.x*r.y +2*r.w*r.z,    1 -2*r.x*r.x -2*r.z*r.z, 2*r.y*r.z -2*r.w*r.x,    0,
-     2*r.x*r.z -2*r.w*r.y,    2*r.y*r.z +2*r.w*r.x,    1 -2*r.x*r.x -2*r.y*r.y, 0,
-     0,                       0,                       0,                       1);
-#else
-    Mat4 res = Mat4::identity;
-    res.m11to3 = r * Vec3::right;
-    res.m21to3 = r * Vec3::up;
-    res.m31to3 = r * Vec3::forward;
-#endif
+    (1.0f - (yy + zz), xy - wz,          xz + wy,          0.0f,
+     xy + wz,          1.0f - (xx + zz), yz - wx,          0.0f,
+     xz - wy,          yz + wx,          1.0f - (xx + yy), 0.0f,
+     0.0f,             0.0f,             0.0f,             1.0f);
+    
     return res;
 }
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
 {
     // Inverse rotation matrix
-    Mat4 res = RotationMatrix(normalize(camRot));
+    Mat4 res = RotationMatrix(normalize(inverse(camRot)));
     
-    // Apply inverse of translation first, then inverse of rotation
+    // Apply inverse of translation after having applied inverse of rotation
     Vec3& p = camPos;
-    res.m14 = -p.x;
-    res.m24 = -p.y;
-    res.m34 = p.z;
-    //res.m14 = res.m11 * -p.x + res.m12 * -p.y + res.m13 * p.z;
-    //res.m24 = res.m21 * -p.x + res.m22 * -p.y + res.m23 * p.z;
-    //res.m34 = res.m31 * -p.x + res.m32 * -p.y + res.m33 * p.z;
-    
+    res.m14 = res.m11 * -p.x + res.m12 * -p.y + res.m13 * -p.z;
+    res.m24 = res.m21 * -p.x + res.m22 * -p.y + res.m23 * -p.z;
+    res.m34 = res.m31 * -p.x + res.m32 * -p.y + res.m33 * -p.z;
     return res; 
 }
 
@@ -512,11 +552,12 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
     const float t = r / aspectRatio;
     
     // This is the View->Projection matrix
-    Mat4 res
+    Mat4 res;
+    res.set
     (n/r, 0,   0,            0,
      0,   n/t, 0,            0,
      0,   0,   -(f+n)/(f-n), -2*f*n/(f-n),
-     0,   0,   -1,           1);
+     0,   0,   -1,            1);
     
     return res;
 }

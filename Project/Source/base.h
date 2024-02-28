@@ -126,6 +126,12 @@ Vec4 operator +(Vec4 a, Vec4 b);
 Vec4& operator +=(Vec4& a, Vec4 b);
 Vec4 operator -(Vec4 a, Vec4 b);
 Vec4& operator -=(Vec4& a, Vec4 b);
+Vec4 operator -(Vec4 v);
+Vec4 operator *(Vec4 v, float f);
+Vec4 operator *(float f, Vec4 v);
+Vec4& operator *=(Vec4& v, float f);
+Vec4 operator /(Vec4 v, float f);
+Vec4& operator /=(Vec4& v, float f);
 
 Vec3 normalize(Vec3 v);
 float magnitude(Vec3 v);
@@ -147,13 +153,6 @@ struct Mat4
         struct
         {
             Vec4 c1, c2, c3, c4;
-        };
-        struct
-        {
-            Vec3 m11to3; char padding0;
-            Vec3 m21to3; char padding1;
-            Vec3 m31to3; char padding2;
-            Vec3 m41to3; char padding3;
         };
     };
     
