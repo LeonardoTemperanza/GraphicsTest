@@ -13,10 +13,23 @@ struct RenderSettings
     Slice<Particle> particles;
 };
 
-struct Primitives
+#include "renderer_opengl.h"
+#include "renderer_d3d11.h"
+
+// Function pointers
+void SetRenderFunctionPointers(OS_GraphicsLib gfxLib);
+
+struct Renderer
 {
-    Slice<float> sphereVerts;
-    Slice<u32> sphereIndices;
+    union
+    {
+        gl_Renderer glRenderer;
+        d3d11_Renderer d3d11Renderer;
+    };
 };
 
-Primitives GeneratePrimitives(Arena* dst);
+Renderer StubInitRenderer(Arena* arena);
+void StubRender(Renderer* r, RenderSettings settings);
+
+Renderer (*InitRenderer)(Arena* arena) = StubInitRenderer;
+void (*Render)(Renderer* r, RenderSettings settings) = StubRender;

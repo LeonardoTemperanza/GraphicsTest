@@ -2,8 +2,7 @@
 #include "base.h"
 #include "os/os_generic.h"
 #include "simulation.h"
-#include "renderer/renderer_opengl.h"
-#include "renderer/renderer_d3d11.h"
+#include "renderer/renderer_generic.h"
 #include "ui_core.h"
 
 int main()
@@ -14,16 +13,12 @@ int main()
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
-    gl_Renderer glRenderer = {0};
-    d3d11_Renderer d3d11Renderer = {0};
-    switch(usedLib)
-    {
-        case GfxLib_None:   break;
-        case GfxLib_OpenGL: glRenderer = gl_InitRenderer(&permArena);       break;
-        case GfxLib_D3D11:  d3d11Renderer = d3d11_InitRenderer(&permArena); break;
-    }
+    SetRenderFunctionPointers(usedLib);
+    
+    Renderer renderer = InitRenderer(&permArena);
     
     AppState appState = InitSimulation();
+    
     UI_Init();
     
     OS_ShowWindow();
@@ -53,12 +48,7 @@ int main()
             OS_SwapBuffers();
         }
         
-        switch(usedLib)
-        {
-            case GfxLib_None:   break;
-            case GfxLib_OpenGL: gl_Render(&glRenderer, appState.renderSettings);       break;
-            case GfxLib_D3D11:  d3d11_Render(&d3d11Renderer, appState.renderSettings); break;
-        }
+        Render(&renderer, appState.renderSettings);
         
         firstIter = false;
     }

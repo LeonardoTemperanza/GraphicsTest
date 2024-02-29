@@ -128,27 +128,24 @@ gl_Renderer gl_InitRenderer(Arena* permArena)
     r.vertShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderBinary(1, &r.vertShader, GL_SHADER_BINARY_FORMAT_SPIR_V, vertShader, sizeof(vertShader));
     glSpecializeShader(r.vertShader, "main", 0, nullptr, nullptr);
-    glGetShaderiv(r.vertShader, GL_COMPILE_STATUS, &compileStatus);
-    if(!compileStatus) OS_FatalError("Could not compile vertex shader");
     
     r.fragShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderBinary(1, &r.fragShader, GL_SHADER_BINARY_FORMAT_SPIR_V, fragShader, sizeof(fragShader));
     glSpecializeShader(r.fragShader, "main", 0, nullptr, nullptr);
-    glGetShaderiv(r.fragShader, GL_COMPILE_STATUS, &compileStatus);
-    if(!compileStatus) OS_FatalError("Could not compile fragment shader");
     
     r.shaderProgram = glCreateProgram();
     glAttachShader(r.shaderProgram, r.vertShader);
     glAttachShader(r.shaderProgram, r.fragShader);
     glLinkProgram(r.shaderProgram);
-    GLint isLinked = 0;
-    glGetProgramiv(r.shaderProgram, GL_LINK_STATUS, &isLinked);
     
     // TODO: Do uniforms really have to be dynamically queried in opengl 4.6?
     int perFrameBindingPoint = 0;
-    // Whyyyyyyyyyyy does this return -1 on my laptop???
-    r.perFrameUniformIdx = 0;
-    //r.perFrameUniformIdx = glGetUniformBlockIndex(r.shaderProgram, "PerFrame");
+    
+    r.perFrameUniformIdx = glGetUniformBlockIndex(r.shaderProgram, "PerFrame");
+    // @hack On my laptop (Redmibook 14 AMD Windows 11) this returns -1
+    // for some reason... I guess if this happens just set it to 0
+    // and just hope for the best?
+    if(r.perFrameUniformIdx == -1) r.perFrameUniformIdx = 0;
     
     glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBindingPoint, r.frameUbo);
     glUniformBlockBinding(r.shaderProgram, r.perFrameUniformIdx, perFrameBindingPoint);

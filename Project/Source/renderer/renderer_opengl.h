@@ -1,8 +1,6 @@
 
 #pragma once
 
-#include "renderer_generic.h"
-
 struct gl_Renderer
 {
     GLuint vao;
@@ -15,8 +13,6 @@ struct gl_Renderer
     GLuint vertShader;
     GLuint fragShader;
     GLuint shaderProgram;
-    
-    Primitives primitives;
 };
 
 struct PerFrameUniforms

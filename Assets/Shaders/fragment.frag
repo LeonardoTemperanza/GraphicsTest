@@ -2,7 +2,25 @@
 #version 460 core
 
 layout (location = 0) in vec3 fragNormal;
+
 layout (location = 0) out vec4 fragColor;
+
+struct DirectionalLight
+{
+    vec3 direction;
+    
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+layout(std140, binding = 0) uniform PerFrame
+{
+    mat4 world2View;
+    mat4 view2Proj;
+    
+    DirectionalLight dirLight;
+};
 
 void main()
 {

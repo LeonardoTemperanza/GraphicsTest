@@ -11,6 +11,8 @@
 #error "Unknown operating system."
 #endif
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
 #include "base.cpp"
 #include "main.cpp"
 #include "simulation.cpp"

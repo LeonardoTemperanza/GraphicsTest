@@ -1,6 +1,8 @@
 
 #include "renderer_d3d11.h"
 
+D3D11_Context Win32_GetD3D11Context();
+
 d3d11_Renderer d3d11_InitRenderer(Arena* permArena)
 {
     // @temp Maybe some of this stuff can be moved to the win32 layer
