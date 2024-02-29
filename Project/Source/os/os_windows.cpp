@@ -45,7 +45,7 @@ struct OS_Context
     bool lMouseButton;
     bool rMouseButton;
     
-    // NOTE: The windows window manager breaks Used when not in full screen mode
+    // NOTE: Used when not in full screen mode
     bool usingDwm;
     
     OS_GraphicsLib gfxLib;
@@ -63,11 +63,14 @@ struct WGL_Context
 
 struct D3D11_Context
 {
-    
+    IDXGISwapChain* swapchain;
+    ID3D11Device* device;
+    ID3D11DeviceContext* deviceContext;
 };
 
 static OS_Context win32;
 static WGL_Context wgl;
+static D3D11_Context d3d11;
 
 // Stubs and signatures
 // XInputGetState
@@ -676,7 +679,16 @@ bool Win32_SetupD3D11()
         dxgiDevice->Release();
     }
     
+    d3d11.device = device;
+    d3d11.deviceContext = deviceContext;
+    d3d11.swapchain = swapchain;
+    
     return true;
+}
+
+D3D11_Context Win32_GetD3D11Context()
+{
+    return d3d11;
 }
 
 // Handles the DPI stuff. This depends on the
@@ -903,9 +915,9 @@ InputState OS_PollInput()
     // Gamepad controllers first
     for(int i = 0; i < XUSER_MAX_COUNT; ++i)
     {
-        XINPUT_STATE state;
-        bool active = XInputGetState(i, &state);
-        if(active)
+        XINPUT_STATE state = {0};
+        DWORD active = XInputGetState(i, &state);
+        if(active == ERROR_SUCCESS)
         {
             XINPUT_GAMEPAD* pad = &state.Gamepad;
             GamepadState& resPad = res.gamepads[i];

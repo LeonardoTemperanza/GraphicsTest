@@ -124,25 +124,34 @@ gl_Renderer gl_InitRenderer(Arena* permArena)
     //glVertexArrayElementBuffer(r.vao, r.ebo);
     
     // Specialize and link SPIR-V shader
+    GLint compileStatus = 0;
     r.vertShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderBinary(1, &r.vertShader, GL_SHADER_BINARY_FORMAT_SPIR_V, vertShader, sizeof(vertShader));
     glSpecializeShader(r.vertShader, "main", 0, nullptr, nullptr);
+    glGetShaderiv(r.vertShader, GL_COMPILE_STATUS, &compileStatus);
+    if(!compileStatus) OS_FatalError("Could not compile vertex shader");
     
     r.fragShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderBinary(1, &r.fragShader, GL_SHADER_BINARY_FORMAT_SPIR_V, fragShader, sizeof(fragShader));
     glSpecializeShader(r.fragShader, "main", 0, nullptr, nullptr);
+    glGetShaderiv(r.fragShader, GL_COMPILE_STATUS, &compileStatus);
+    if(!compileStatus) OS_FatalError("Could not compile fragment shader");
     
     r.shaderProgram = glCreateProgram();
     glAttachShader(r.shaderProgram, r.vertShader);
     glAttachShader(r.shaderProgram, r.fragShader);
     glLinkProgram(r.shaderProgram);
+    GLint isLinked = 0;
+    glGetProgramiv(r.shaderProgram, GL_LINK_STATUS, &isLinked);
     
     // TODO: Do uniforms really have to be dynamically queried in opengl 4.6?
     int perFrameBindingPoint = 0;
-    r.perFrameUniformIdx = glGetUniformBlockIndex(r.shaderProgram, "PerFrame");
+    // Whyyyyyyyyyyy does this return -1 on my laptop???
+    r.perFrameUniformIdx = 0;
+    //r.perFrameUniformIdx = glGetUniformBlockIndex(r.shaderProgram, "PerFrame");
+    
     glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBindingPoint, r.frameUbo);
     glUniformBlockBinding(r.shaderProgram, r.perFrameUniformIdx, perFrameBindingPoint);
-    
     return r;
 }
 
@@ -174,7 +183,7 @@ void gl_Render(gl_Renderer* r, RenderSettings settings)
     u.world2View.m33 *= -1.0f;
     u.world2View.m34 *= -1.0f;
     
-    u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
+    u.view2Proj = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
     
     glClearColor(0.12f, 0.3f, 0.25f, 1.0f);

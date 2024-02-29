@@ -5,7 +5,8 @@
 
 struct d3d11_Renderer
 {
-    int a;
+    ID3D11Texture2D* framebuffer;
+    ID3D11Texture2D* depthBuffer;
 };
 
 d3d11_Renderer d3d11_InitRenderer(Arena* permArena);
