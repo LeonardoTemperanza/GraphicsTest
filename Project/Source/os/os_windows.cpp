@@ -27,6 +27,13 @@
 
 #include "base.h"
 
+struct Win32_Message
+{
+    UINT kind;
+    WPARAM wParam;
+    LPARAM lParam;
+};
+
 struct OS_Context
 {
     bool init;
@@ -41,9 +48,15 @@ struct OS_Context
     bool isInModalLoop;
     bool quit;
     
-    // Info gathered from the WndProc
-    bool lMouseButton;
-    bool rMouseButton;
+    // It's expected that the user won't
+    // press buttons hundreds of times per frame
+#define MaxBufferedInputs 20
+    Win32_Message bufferedInputs[MaxBufferedInputs];
+    int numInputs;
+    
+    // Currently used cursor. Can be nullptr which
+    // means "hide the cursor"
+    HCURSOR curCursor;
     
     // NOTE: Used when not in full screen mode
     bool usingDwm;
@@ -236,6 +249,18 @@ void Win32_BreakOutOfModalLoop()
     win32.isInModalLoop = false;
 }
 
+void Win32_BufferInputMessage(UINT message, WPARAM wParam, LPARAM lParam)
+{
+    // Save these input events until the next call to
+    // OS_PollInput
+    auto& curInput = win32.bufferedInputs[win32.numInputs % MaxBufferedInputs];
+    curInput = { message, wParam, lParam };
+    
+    ++win32.numInputs;
+    if(win32.numInputs > MaxBufferedInputs)
+        win32.numInputs = MaxBufferedInputs;
+}
+
 // NOTE: Window callback function. Since Microsoft wants programs to get stuck
 // inside this function at all costs, a weird hack is being used to "break free"
 // of this function. Using a fiber I go back to regular code execution during
@@ -419,7 +444,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
             // Handle cursor update when hovering over the client area
             if(LOWORD(lParam) == HTCLIENT)
             {
-                SetCursor(arrowCursor);
+                SetCursor(win32.curCursor);
                 return 1;
             }
             
@@ -428,26 +453,33 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         
         // This is for user input stuff
         case WM_LBUTTONDOWN:
-        {
-            win32.lMouseButton = true;
-            break;
-        }
-        
-        case WM_LBUTTONUP:
-        {
-            win32.lMouseButton = false;
-            break;
-        }
-        
         case WM_RBUTTONDOWN:
+        case WM_MBUTTONDOWN:
         {
-            win32.rMouseButton = true;
+            // "Capturing" means making sure
+            // that the events get sent to the
+            // appropriate window. Without capturing,
+            // the LBUTTONUP message would not get sent,
+            // thus the app wouldn't know that the user
+            // released the mouse.
+            if(window) SetCapture(window);
+            
+            Win32_BufferInputMessage(message, wParam, lParam);
             break;
         }
-        
+        case WM_LBUTTONUP:
         case WM_RBUTTONUP:
+        case WM_MBUTTONUP:
         {
-            win32.rMouseButton = false;
+            ReleaseCapture();
+            
+            Win32_BufferInputMessage(message, wParam, lParam);
+            break;
+        }
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            Win32_BufferInputMessage(message, wParam, lParam);
             break;
         }
     }
@@ -712,6 +744,8 @@ OS_GraphicsLib OS_Init()
     // visuals.
     Win32_InitDPISettings();
     
+    OS_ShowCursor(true);
+    
     // QPC initialization
     {
         LARGE_INTEGER freq;
@@ -905,6 +939,36 @@ void OS_MemFree(void* mem, uint64_t size)
     if(!ok) abort();
 }
 
+VirtualKeycode Win32_ConvertToCustomKeyCodes(WPARAM code)
+{
+    UINT aKey = 0x41;
+    UINT zKey = 0x5A;
+    UINT codeInt = (UINT)code;
+    if(codeInt >= aKey && codeInt <= zKey)
+        return (VirtualKeycode)(codeInt - aKey + Keycode_A);
+    
+    VirtualKeycode res = Keycode_Null;
+    switch(code)
+    {
+        case VK_LBUTTON: res = Keycode_LMouse; break;
+        case VK_RBUTTON: res = Keycode_RMouse; break;
+        case VK_MBUTTON: res = Keycode_MMouse; break;
+        default:         res = Keycode_Null;   break;
+    }
+    
+    return res;
+}
+
+void Win32_HandleWindowMessageRange(UINT min, UINT max)
+{
+    MSG msg = {0};
+    while(PeekMessage(&msg, win32.window, min, max, true))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+}
+
 InputState OS_PollInput()
 {
     assert(win32.init);
@@ -968,22 +1032,91 @@ InputState OS_PollInput()
             res.mouse.yPos   = p.y;
         }
         
+        // Buttons and clicks
+        
         // In a modal loop we won't get click events anyway
         // so...
         if(!win32.isInModalLoop)
         {
-            // For clicks, I guess we need to use the WndProc.
-            MSG msg = {0};
-            // Only left and right mouse buttons for now
-            while(PeekMessage(&msg, win32.window, WM_LBUTTONDOWN, WM_RBUTTONDBLCLK, true))
-            {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);  // This calls WndProc
-            }
-            
-            res.mouse.leftClick  = win32.lMouseButton;
-            res.mouse.rightClick = win32.rMouseButton;
+            // Get all input messages to update the input buffers
+            Win32_HandleWindowMessageRange(WM_KEYDOWN, WM_KEYUP);
+            Win32_HandleWindowMessageRange(WM_LBUTTONDOWN, WM_LBUTTONUP);
+            Win32_HandleWindowMessageRange(WM_RBUTTONDOWN, WM_RBUTTONUP);
+            Win32_HandleWindowMessageRange(WM_MBUTTONDOWN, WM_MBUTTONUP);
         }
+        
+        // This holds state for holding down buttons
+        static bool heldKeys[Keycode_Count] = {0};
+        bool pressedKeys[Keycode_Count] = {0};
+        
+        for(int i = 0; i < win32.numInputs; ++i)
+        {
+            Win32_Message msg = win32.bufferedInputs[i];
+            switch(msg.kind)
+            {
+                case WM_KEYDOWN:
+                {
+                    VirtualKeycode keycode = Win32_ConvertToCustomKeyCodes(msg.wParam);
+                    heldKeys[keycode] = true;
+                    pressedKeys[keycode] = true;
+                    break;
+                }
+                case WM_KEYUP:
+                {
+                    VirtualKeycode keycode = Win32_ConvertToCustomKeyCodes(msg.wParam);
+                    heldKeys[keycode] = false;
+                    break;
+                }
+                
+                // For some reason WM_KEYDOWN doesn't work
+                // with mouse clicks even though there are virtual
+                // keycodes for just that. Not documented.
+                case WM_LBUTTONDOWN:
+                {
+                    heldKeys[Keycode_LMouse] = true;
+                    pressedKeys[Keycode_LMouse] = true;
+                    break;
+                }
+                case WM_LBUTTONUP:
+                {
+                    heldKeys[Keycode_LMouse] = false;
+                    break;
+                }
+                case WM_RBUTTONDOWN:
+                {
+                    heldKeys[Keycode_RMouse] = true;
+                    pressedKeys[Keycode_RMouse] = true;
+                    break;
+                }
+                case WM_RBUTTONUP:
+                {
+                    heldKeys[Keycode_RMouse] = false;
+                    break;
+                }
+                case WM_MBUTTONDOWN:
+                {
+                    heldKeys[Keycode_MMouse] = true;
+                    pressedKeys[Keycode_MMouse] = true;
+                    break;
+                }
+                case WM_MBUTTONUP:
+                {
+                    heldKeys[Keycode_MMouse] = false;
+                    break;
+                }
+            }
+        }
+        
+        // Clear buffered inputs
+        memset(&win32.bufferedInputs, 0, sizeof(win32.bufferedInputs));
+        win32.numInputs = 0;
+        
+        // held, pressed: true
+        // not held, pressed: true
+        // held, not pressed: true
+        // not held, not pressed: false
+        for(int i = 0; i < Keycode_Count; ++i)
+            res.virtualKeys[i] = heldKeys[i] || pressedKeys[i];
     }
     
     return res;
@@ -1020,4 +1153,26 @@ void OS_FatalError(const char* message)
 {
     MessageBoxA(nullptr, message, "Error", MB_ICONEXCLAMATION);
     ExitProcess(0);
+}
+
+void OS_ShowCursor(bool show)
+{
+    assert(win32.init);
+    
+    static HCURSOR arrowCursor = LoadCursor(nullptr, IDC_ARROW);
+    win32.curCursor = show ? arrowCursor : nullptr;
+    
+    bool isInvisible = GetCursor() == nullptr;
+    // Only set the cursor if we're trying to modify visibility
+    if((show && isInvisible) || (!show && !isInvisible))
+        SetCursor(win32.curCursor);
+}
+
+void OS_SetCursorPos(int64_t posX, int64_t posY)
+{
+    POINT p = {0};
+    p.x = posX;
+    p.y = posY;
+    ClientToScreen(win32.window, &p); // To screen coordinates
+    SetCursorPos(p.x, p.y);
 }

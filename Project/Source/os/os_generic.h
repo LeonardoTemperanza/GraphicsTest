@@ -34,17 +34,50 @@ enum GamepadButtonField
     Gamepad_Y              = 1 << 14
 };
 
+enum VirtualKeycode
+{
+    Keycode_Null = 0,
+    Keycode_LMouse,
+    Keycode_RMouse,
+    Keycode_MMouse,
+    Keycode_A,
+    Keycode_B,
+    Keycode_C,
+    Keycode_D,
+    Keycode_E,
+    Keycode_F,
+    Keycode_G,
+    Keycode_H,
+    Keycode_I,
+    Keycode_J,
+    Keycode_K,
+    Keycode_L,
+    Keycode_M,
+    Keycode_N,
+    Keycode_O,
+    Keycode_P,
+    Keycode_Q,
+    Keycode_R,
+    Keycode_S,
+    Keycode_T,
+    Keycode_U,
+    Keycode_V,
+    Keycode_W,
+    Keycode_X,
+    Keycode_Y,
+    Keycode_Z,
+    Keycode_Count // This is just for the size of enum
+};
+
 struct MouseState
 {
     bool active; // On the window?
-    bool leftClick;
-    bool rightClick;
+    
     // In pixels starting from the top-left corner
     // of the application window. This is guaranteed
     // to be < 0 if the cursor is not on the window
     int64_t xPos;
     int64_t yPos;
-    // Do i need a delta?
 };
 
 // All inactive gamepads will have every property set
@@ -71,8 +104,8 @@ struct InputState
     GamepadState gamepads[MaxActiveControllers];
     MouseState mouse;
     
-    //KeyboardState* keyboards;
-    //int64_t numKeyboards;
+    // This includes mouse buttons
+    bool virtualKeys[Keycode_Count];
 };
 
 // Application management
@@ -103,3 +136,7 @@ InputState OS_PollInput();
 void OS_Sleep(uint64_t millis);
 uint64_t OS_GetTicks();
 double OS_GetElapsedSeconds(uint64_t startTicks, uint64_t endTicks);
+
+void OS_ShowCursor(bool show);
+// Position should be supplied as window relative
+void OS_SetCursorPos(int64_t posX, int64_t posY);

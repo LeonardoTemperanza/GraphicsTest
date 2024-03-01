@@ -2,8 +2,13 @@
 #include "os/os_generic.h"
 #include "simulation.h"
 
-// TODO: when things get big we should create a
-// new file for input stuff
+// TODO: there should be a separate file
+// that deals with input stuff. There should
+// be a clean API that just lets you:
+// 1) poll input (and process it, apply )
+// 2) get input (access the current input state with a function)
+// 3) the input should include: this and last frame's input, as well
+//    as mouse movement deltas
 
 // Deadzones
 const float stickDeadzone = 0.1f;
@@ -159,6 +164,25 @@ void MainUpdate(AppState* state, float deltaTime, InputState input, Arena* permA
     }
     
     UpdateUI(input);
+    
+    static bool lastRMouse = false;
+    if(input.virtualKeys[Keycode_RMouse])
+    {
+        if(!lastRMouse)
+        {
+            state->lockMousePosX = input.mouse.xPos;
+            state->lockMousePosY = input.mouse.yPos;
+        }
+        
+        OS_ShowCursor(false);
+        OS_SetCursorPos(state->lockMousePosX, state->lockMousePosY);
+        lastRMouse = true;
+    }
+    else
+    {
+        OS_ShowCursor(true);
+        lastRMouse = false;
+    }
     
     UpdateCamera(&state->renderSettings.camera, deltaTime, gamepad);
     

@@ -30,6 +30,11 @@ struct AppState
     InputDominator domGamepad;
     InputDominator domKeyboard;
     
+    // If locking the mouse position,
+    // this is the value to set it to
+    s64 lockMousePosX;
+    s64 lockMousePosY;
+    
     RenderSettings renderSettings;
 };
 
