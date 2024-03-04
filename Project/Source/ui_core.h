@@ -92,7 +92,7 @@ struct UI_ParentLL
 #define UI_HashSize 503
 struct UI_Ctx
 {
-    InputState input;
+    OS_InputState input;
     
     // Double buffer the arena for cross frame
     // persistent data.
@@ -167,7 +167,7 @@ b32 UI_Checkbox(b32 curValue, const char* text);
 
 // Common API
 void UI_Init();
-void UI_BeginFrame(InputState input);
+void UI_BeginFrame(OS_InputState input);
 void UI_EndFrame();
 
 // Layout

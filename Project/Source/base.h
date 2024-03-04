@@ -51,6 +51,16 @@ inline u64 Murmur64(void const* data, s64 len) { return Murmur64Seed(data, len, 
 // Simple math functions
 #define Pi 3.14159265358979323846
 
+inline float sqr(float f)
+{
+    return f*f;
+}
+
+inline double sqr(double d)
+{
+    return d*d;
+}
+
 inline float clamp(float v, float min, float max)
 {
     return v < min? min : v > max? max : v;

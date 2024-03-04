@@ -5,14 +5,14 @@
 // TODO: there should be a separate file
 // that deals with input stuff. There should
 // be a clean API that just lets you:
-// 1) poll input (and process it, apply )
+// 1) poll input (and process it, apply deadzones)
 // 2) get input (access the current input state with a function)
 // 3) the input should include: this and last frame's input, as well
 //    as mouse movement deltas
 
 // Deadzones
-const float stickDeadzone = 0.1f;
-const float triggerDeadzone = 0.1f;
+//const float stickDeadzone = 0.1f;
+//const float triggerDeadzone = 0.1f;
 
 AppState InitSimulation()
 {
@@ -22,10 +22,10 @@ AppState InitSimulation()
     return state;
 }
 
-bool IsGamepadStateNull(GamepadState* gamepads, int idx)
+bool IsGamepadStateNull(OS_GamepadState* gamepads, int idx)
 {
     bool null = true;
-    GamepadState& gamepad = gamepads[idx];
+    OS_GamepadState& gamepad = gamepads[idx];
     null &= gamepad.buttons == 0;
     null &= abs(gamepad.leftTrigger)  < triggerDeadzone;
     null &= abs(gamepad.rightTrigger) < triggerDeadzone;
@@ -36,7 +36,7 @@ bool IsGamepadStateNull(GamepadState* gamepads, int idx)
     return !gamepads[idx].active || null;
 }
 
-InputDominator GetDominatingGamepad(InputState input, InputDominator prevDom)
+InputDominator GetDominatingGamepad(OS_InputState input, InputDominator prevDom)
 {
     // By default return the previous one
     InputDominator res = prevDom;
@@ -64,11 +64,11 @@ InputDominator GetDominatingGamepad(InputState input, InputDominator prevDom)
     return res;
 }
 
-void ApplyDeadzone(InputState* input)
+void ApplyDeadzone(OS_InputState* input)
 {
     for(int i = 0; i < MaxActiveControllers; ++i)
     {
-        GamepadState& gamepad = input->gamepads[i];
+        OS_GamepadState& gamepad = input->gamepads[i];
         if(abs(gamepad.leftTrigger)  < triggerDeadzone) gamepad.leftTrigger  = 0;
         if(abs(gamepad.rightTrigger) < triggerDeadzone) gamepad.rightTrigger = 0;
         if(abs(gamepad.leftStickX)   < stickDeadzone)   gamepad.leftStickX   = 0;
@@ -78,22 +78,34 @@ void ApplyDeadzone(InputState* input)
     }
 }
 
-InputDominator GetDominatingKeyboard(InputState input, InputDominator prevDom)
+InputDominator GetDominatingKeyboard(OS_InputState input, InputDominator prevDom)
 {
     TODO;
     return prevDom;
 }
 
-void UpdateCamera(Transform* camera, float deltaTime, GamepadState* gamepad)
+void UpdateCamera(Transform* camera, float deltaTime)
 {
+    // Example API usage
+    Input input = GetInput();
+    
     // Camera rotation
     const float rotateXSpeed = Deg2Rad(120);
     const float rotateYSpeed = Deg2Rad(80);
+    const float mouseSensitivity = Deg2Rad(0.05);  // Degrees per pixel
     static float angleX = 0.0f;
     static float angleY = 0.0f;
     
-    angleX += rotateXSpeed * gamepad->rightStickX * deltaTime;
-    angleY += rotateYSpeed * gamepad->rightStickY * deltaTime;
+    float mouseX = 0.0f;
+    float mouseY = 0.0f;
+    if(input.virtualKeys[Keycode_RMouse])
+    {
+        mouseX = input.mouseDelta.x * mouseSensitivity;
+        mouseY = input.mouseDelta.y * mouseSensitivity;
+    }
+    
+    angleX += rotateXSpeed * input.gamepad.rightStick.x * deltaTime + mouseX;
+    angleY += rotateYSpeed * input.gamepad.rightStick.y * deltaTime + mouseY;
     while(angleX < 0.0f) angleX += 2*Pi;
     while(angleX > 2*Pi) angleX -= 2*Pi;
     
@@ -108,25 +120,31 @@ void UpdateCamera(Transform* camera, float deltaTime, GamepadState* gamepad)
     
     const float moveSpeed = 4.0f;
     const float moveAccel = 30.0f;
+    
+    float keyboardX = input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A];
+    float keyboardY = input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S];
     Vec3 targetVel =
     {
-        .x = gamepad->leftStickX * moveSpeed,
+        .x = (input.gamepad.leftStick.x + keyboardX) * moveSpeed,
         .y = 0.0f,
-        .z = gamepad->leftStickY * moveSpeed
+        .z = (input.gamepad.leftStick.y + keyboardY) * moveSpeed
     };
     
     if(dot(targetVel, targetVel) > moveSpeed * moveSpeed)
         targetVel = normalize(targetVel) * moveSpeed;
     
     targetVel = camera->rotation * targetVel;
-    targetVel.y += (gamepad->rightTrigger - gamepad->leftTrigger) * moveSpeed;
+    targetVel.y += (input.gamepad.rightTrigger - input.gamepad.leftTrigger) * moveSpeed;
+    targetVel.y += (input.virtualKeys[Keycode_E] - input.virtualKeys[Keycode_Q]) * moveSpeed;
     
     curVel = MoveTowards(curVel, targetVel, moveAccel * deltaTime);
     camera->position += curVel * deltaTime;
 }
 
-void UpdateUI(InputState input)
+void UpdateUI()
 {
+    Input input = GetInput();
+    
     // Example of how the UI might work
 #if 0
     UI_BeginFrame(input);
@@ -144,49 +162,29 @@ void UpdateUI(InputState input)
 #endif
 }
 
-void MainUpdate(AppState* state, float deltaTime, InputState input, Arena* permArena, Arena* frameArena)
+void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frameArena)
 {
-    ApplyDeadzone(&input);
+    PollAndProcessInput();
     
-    // Disambiguate between different devices
-    GamepadState* gamepad = nullptr;
-    bool gamepadChanged = false;
-    {
-        InputDominator domGamepad = GetDominatingGamepad(input, state->domGamepad);
-        
-        // This could be useful for displaying some kind of messages
-        gamepadChanged = state->domGamepad.idx != domGamepad.idx && state->domGamepad.active;
-        
-        state->domGamepad = domGamepad;
-        
-        // Currently used gamepad
-        gamepad = &input.gamepads[domGamepad.idx];
-    }
+    UpdateUI();
     
-    UpdateUI(input);
-    
-    static bool lastRMouse = false;
+    // Hide mouse cursor if right clicking on main window
+    Input input = GetInput();
     if(input.virtualKeys[Keycode_RMouse])
     {
-        if(!lastRMouse)
+        if(!input.prev.virtualKeys[Keycode_RMouse])
         {
-            state->lockMousePosX = input.mouse.xPos;
-            state->lockMousePosY = input.mouse.yPos;
+            state->lockMousePosX = input.mouseX;
+            state->lockMousePosY = input.mouseY;
         }
         
         OS_ShowCursor(false);
-        OS_SetCursorPos(state->lockMousePosX, state->lockMousePosY);
-        lastRMouse = true;
+        SetMousePos(state->lockMousePosX, state->lockMousePosY);
     }
-    else
-    {
+    else if(input.prev.virtualKeys[Keycode_RMouse])
         OS_ShowCursor(true);
-        lastRMouse = false;
-    }
     
-    UpdateCamera(&state->renderSettings.camera, deltaTime, gamepad);
-    
-    // Update simulation state
+    UpdateCamera(&state->renderSettings.camera, deltaTime);
     
     // Render settings
     state->renderSettings.horizontalFOV = Deg2Rad(90);

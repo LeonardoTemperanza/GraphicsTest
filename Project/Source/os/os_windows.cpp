@@ -969,12 +969,12 @@ void Win32_HandleWindowMessageRange(UINT min, UINT max)
     }
 }
 
-InputState OS_PollInput()
+OS_InputState OS_PollInput()
 {
     assert(win32.init);
     assert(XUSER_MAX_COUNT <= MaxActiveControllers);
     
-    InputState res = {0};
+    OS_InputState res = {0};
     
     // Gamepad controllers first
     for(int i = 0; i < XUSER_MAX_COUNT; ++i)
@@ -984,7 +984,7 @@ InputState OS_PollInput()
         if(active == ERROR_SUCCESS)
         {
             XINPUT_GAMEPAD* pad = &state.Gamepad;
-            GamepadState& resPad = res.gamepads[i];
+            OS_GamepadState& resPad = res.gamepads[i];
             resPad.active = true;
             
             // Mapping between XInput buttons and our buttons

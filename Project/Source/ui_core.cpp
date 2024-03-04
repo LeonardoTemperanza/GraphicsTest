@@ -163,7 +163,7 @@ void UI_Init()
     ui.prevArena = ArenaVirtualMemInit(GB(4), MB(2));
 }
 
-void UI_BeginFrame(InputState input)
+void UI_BeginFrame(OS_InputState input)
 {
     ui.input = input;
 }

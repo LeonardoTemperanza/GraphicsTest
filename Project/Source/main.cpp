@@ -34,8 +34,6 @@ int main()
         bool quit = OS_HandleWindowEvents();
         if(quit) break;
         
-        InputState input = OS_PollInput();
-        
         // In the first iteration, we simply want to render
         // the initialized state.
         if(!firstIter)
@@ -44,7 +42,7 @@ int main()
             deltaTime = min(maxDeltaTime, OS_GetElapsedSeconds(startTicks, endTicks));
             
             startTicks = OS_GetTicks();
-            MainUpdate(&appState, deltaTime, input, &permArena, &frameArena);
+            MainUpdate(&appState, deltaTime, &permArena, &frameArena);
             OS_SwapBuffers();
         }
         

@@ -69,7 +69,7 @@ enum VirtualKeycode
     Keycode_Count // This is just for the size of enum
 };
 
-struct MouseState
+struct OS_MouseState
 {
     bool active; // On the window?
     
@@ -82,7 +82,7 @@ struct MouseState
 
 // All inactive gamepads will have every property set
 // to 0, so no need to check for the active flag unless needed.
-struct GamepadState
+struct OS_GamepadState
 {
     bool active;
     uint32_t buttons;
@@ -99,10 +99,10 @@ struct GamepadState
 };
 
 #define MaxActiveControllers 8
-struct InputState
+struct OS_InputState
 {
-    GamepadState gamepads[MaxActiveControllers];
-    MouseState mouse;
+    OS_GamepadState gamepads[MaxActiveControllers];
+    OS_MouseState mouse;
     
     // This includes mouse buttons
     bool virtualKeys[Keycode_Count];
@@ -128,7 +128,7 @@ void OS_MemCommit(void* mem, uint64_t size);
 void OS_MemFree(void* mem, uint64_t size);
 
 // Input
-InputState OS_PollInput();
+OS_InputState OS_PollInput();
 
 // Sound
 

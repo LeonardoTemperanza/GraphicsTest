@@ -15,6 +15,7 @@
 #include "stb/stb_image.h"
 #include "base.cpp"
 #include "main.cpp"
+#include "input.cpp"
 #include "simulation.cpp"
 #include "ui_core.cpp"
 
