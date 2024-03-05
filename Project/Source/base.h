@@ -3,7 +3,10 @@
 
 #include <utility>
 #include <stdio.h>
+#include <stdlib.h>
 #include <cstdint>
+#include <cstdint>
+#include <cstring>
 #include "os/os_generic.h"
 
 // Handy typedefs
@@ -60,6 +63,30 @@ inline double sqr(double d)
 {
     return d*d;
 }
+
+#ifndef min
+inline float min(float f1, float f2)
+{
+    return f1 > f2 ? f2 : f1;
+}
+
+inline double min(double f1, double f2)
+{
+    return f1 > f2 ? f2 : f1;
+}
+#endif
+
+#ifndef max
+inline float max(float f1, float f2)
+{
+    return f1 < f2 ? f2 : f1;
+}
+
+inline double max(double f1, double f2)
+{
+    return f1 < f2 ? f2 : f1;
+}
+#endif
 
 inline float clamp(float v, float min, float max)
 {
@@ -344,6 +371,12 @@ void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory,
                            size_t align = ArenaDefAlign);
 void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
                         size_t size, size_t align = ArenaDefAlign);
+
+template<typename t>
+void ArenaPushVar(Arena* arena, t var);
+
+void ArenaWriteToFile(Arena* arena, FILE* file);
+
 // The provided string can also not be null-terminated.
 // The resulting string will be null-terminated
 // automatically.

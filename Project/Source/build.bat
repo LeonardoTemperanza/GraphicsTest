@@ -6,7 +6,8 @@ if not exist ..\Build mkdir ..\Build
 
 pushd ..\Build
 
-set include_dirs=..\Source
+set include_dirs=/I..\Source /I..\Source\include
+set lib_dirs=/LIBPATH:..\Libs
 
 set shader_dir=..\..\Assets\Shaders
 
@@ -16,8 +17,9 @@ call compile_shaders.bat
 popd
 
 REM Compile utility programs
-cl /nologo /std:c++20 ..\Source\utils\bin2h.cpp /Od /I%include_dirs% /link /out:bin2h.exe
+cl /nologo /std:c++20 ..\Source\utils\bin2h.cpp /Od %include_dirs% /link /out:bin2h.exe
 del bin2h.obj
+cl /nologo /Od /std:c++20 /FC ..\Source\utils\model_importer.cpp %include_dirs% /link %lib_dirs% assimp-vc143-mt.lib /out:model_importer.exe
 
 REM Use utility programs
 bin2h.exe %shader_dir%\shader.frag.spv fragShader %shader_dir%\shader.vert.spv vertShader -o ../Source/embedded_files.h
@@ -30,7 +32,7 @@ set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dw
 set output_name=graphics_test.exe
 set gfx_api=/DFORCE_OPENGL
 REM set gfx_api=
-set common=/nologo /std:c++20 %gfx_api% /I%include_dirs% %source_files% /link %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
+set common=/nologo /std:c++20 /FC %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
 
 REM Development build, debug is enabled, profiling and optimization disabled
 cl /Zi /Od %common%

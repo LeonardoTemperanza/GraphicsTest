@@ -597,6 +597,37 @@ inline static uintptr_t AlignForward(uintptr_t ptr, size_t align)
     return ptr;
 }
 
+// Private implementation separate from OS layer because external
+// utility programs might also want to use arenas without including
+// the entire OS layer, which includes stuff like graphics API.
+#ifdef _WIN32
+#include <windows.h>
+static void* ArenaMemReserve(uint64_t size)
+{
+    void* res = VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
+    assert(res && "VirtualAlloc failed.");
+    if(!res) abort();
+    
+    return res;
+}
+
+static void ArenaMemCommit(void* mem, uint64_t size)
+{
+    void* res = VirtualAlloc(mem, size, MEM_COMMIT, PAGE_READWRITE);
+    assert(res && "VirtualAlloc failed.");
+    if(!res) abort();
+}
+
+static void ArenaMemFree(void* mem, uint64_t size)
+{
+    bool ok = VirtualFree(mem, 0, MEM_RELEASE);
+    assert(ok && "VirtualFree failed.");
+    if(!ok) abort();
+}
+#else
+#error "MemReserve, MemCommit, MemFree are not implemented for this OS."
+#endif
+
 void ArenaInit(Arena* arena,
                void* backingBuffer,
                size_t backingBufferLength,
@@ -609,7 +640,7 @@ void ArenaInit(Arena* arena,
     arena->commitSize = commitSize;
     
     if(commitSize > 0)
-        OS_MemCommit(backingBuffer, commitSize);
+        ArenaMemCommit(backingBuffer, commitSize);
 }
 
 Arena ArenaVirtualMemInit(size_t reserveSize, size_t commitSize)
@@ -617,14 +648,14 @@ Arena ArenaVirtualMemInit(size_t reserveSize, size_t commitSize)
     assert(commitSize > 0);
     
     Arena result = {0};
-    result.buffer     = (unsigned char*)OS_MemReserve(reserveSize);
+    result.buffer     = (unsigned char*)ArenaMemReserve(reserveSize);
     result.length     = reserveSize;
     result.offset     = 0;
     result.prevOffset = 0;
     result.commitSize = commitSize;
     
     assert(result.buffer);
-    OS_MemCommit(result.buffer, commitSize);
+    ArenaMemCommit(result.buffer, commitSize);
     
     return result;
 }
@@ -650,7 +681,7 @@ void* ArenaAlloc(Arena* arena, size_t size, size_t align)
             if(commitAligned > arena->offset)
             {
                 size_t toCommit = commitAligned + arena->commitSize;
-                OS_MemCommit(arena->buffer, toCommit);
+                ArenaMemCommit(arena->buffer, toCommit);
             }
         }
         
@@ -692,7 +723,7 @@ void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory, size_t oldSize, size_t
                     if(commitAligned > prevOffset)
                     {
                         size_t toCommit = commitAligned + arena->commitSize;
-                        OS_MemCommit(arena->buffer, toCommit);
+                        ArenaMemCommit(arena->buffer, toCommit);
                     }
                 }
                 
@@ -723,6 +754,19 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy, size_t size, size_t align)
     void* result = ArenaAlloc(arena, size, align);
     memcpy(result, toCopy, size);
     return result;
+}
+
+template<typename t>
+void ArenaPushVar(Arena* arena, t var)
+{
+    t* ptr = (t*)ArenaAlloc(arena, sizeof(t), alignof(t));
+    *ptr = var;
+}
+
+void ArenaWriteToFile(Arena* arena, FILE* file)
+{
+    assert(file);
+    fwrite(arena->buffer, arena->offset, 1, file);
 }
 
 ArenaTemp ArenaTempBegin(Arena* arena)

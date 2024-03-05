@@ -1,15 +1,7 @@
 
 #include "include/glad.c"
 
-#ifdef _WIN32
-#include "os/os_windows.cpp"
-#elif defined(__linux__)
-#error "Linux operating systems not supported."
-#elif defined(__APPLE__)
-#error "Apple Operating systems not supported."
-#else
-#error "Unknown operating system."
-#endif
+#include "os/os_generic.cpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"

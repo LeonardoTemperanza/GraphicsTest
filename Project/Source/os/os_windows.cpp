@@ -5,9 +5,9 @@
 #include <windows.h>
 
 // Opengl includes
-#include <GL/gl.h>
-#include "include/wglext.h"
+//#include <GL/gl.h>
 #include "include/glad.h"
+#include "include/wglext.h"
 
 // D3D11 includes
 #include <d3d11.h>
