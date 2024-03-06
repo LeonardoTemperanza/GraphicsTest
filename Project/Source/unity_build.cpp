@@ -2,6 +2,7 @@
 #include "include/glad.c"
 
 #include "os/os_generic.cpp"
+#include "os/os_app.cpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"

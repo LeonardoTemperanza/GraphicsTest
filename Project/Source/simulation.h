@@ -6,13 +6,26 @@
 
 struct RenderSettings;
 
+// I'm thinking all the assets (models, audio)
+// are loaded via key mechanism and the entity
+// just refers to that key for its model.
+
 struct Particle
 {
     Vec3 position;
     Vec3 color;
 };
 
-
+struct Entity
+{
+    u16 flags;
+    u16 gen;
+    u32 key;
+    
+    Transform transform;
+    
+    //AKey model;
+};
 
 struct AppState
 {

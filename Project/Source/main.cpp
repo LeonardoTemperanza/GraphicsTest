@@ -14,11 +14,8 @@ int main()
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     SetRenderFunctionPointers(usedLib);
-    
     Renderer renderer = InitRenderer(&permArena);
-    
     AppState appState = InitSimulation();
-    
     UI_Init();
     
     OS_ShowWindow();
@@ -29,11 +26,8 @@ int main()
     u64 endTicks    = 0;
     
     bool firstIter = true;
-    while(true)
+    while(bool proceed = OS_HandleWindowEvents())
     {
-        bool quit = OS_HandleWindowEvents();
-        if(quit) break;
-        
         // In the first iteration, we simply want to render
         // the initialized state.
         if(!firstIter)

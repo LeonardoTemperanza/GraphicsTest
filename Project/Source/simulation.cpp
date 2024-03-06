@@ -2,86 +2,12 @@
 #include "os/os_generic.h"
 #include "simulation.h"
 
-// TODO: there should be a separate file
-// that deals with input stuff. There should
-// be a clean API that just lets you:
-// 1) poll input (and process it, apply deadzones)
-// 2) get input (access the current input state with a function)
-// 3) the input should include: this and last frame's input, as well
-//    as mouse movement deltas
-
-// Deadzones
-//const float stickDeadzone = 0.1f;
-//const float triggerDeadzone = 0.1f;
-
 AppState InitSimulation()
 {
     AppState state = {0};
     state.renderSettings.camera.position.z = -10.0f;
     state.renderSettings.camera.rotation = Quat::identity;
     return state;
-}
-
-bool IsGamepadStateNull(OS_GamepadState* gamepads, int idx)
-{
-    bool null = true;
-    OS_GamepadState& gamepad = gamepads[idx];
-    null &= gamepad.buttons == 0;
-    null &= abs(gamepad.leftTrigger)  < triggerDeadzone;
-    null &= abs(gamepad.rightTrigger) < triggerDeadzone;
-    null &= abs(gamepad.leftStickX)   < stickDeadzone;
-    null &= abs(gamepad.leftStickY)   < stickDeadzone;
-    null &= abs(gamepad.rightStickX)  < stickDeadzone;
-    null &= abs(gamepad.rightStickY)  < stickDeadzone;
-    return !gamepads[idx].active || null;
-}
-
-InputDominator GetDominatingGamepad(OS_InputState input, InputDominator prevDom)
-{
-    // By default return the previous one
-    InputDominator res = prevDom;
-    
-    // Find out if its input is null this frame.
-    // If it is, it could potentially be dominated
-    // by some other gamepad.
-    bool gamepadStateNull = IsGamepadStateNull(input.gamepads, prevDom.idx);
-    bool checkForDominator = !prevDom.active || (prevDom.active && gamepadStateNull);
-    if(checkForDominator)
-    {
-        for(int i = 0; i < MaxActiveControllers; ++i)
-        {
-            if(prevDom.active && i == prevDom.idx) continue;
-            
-            if(!IsGamepadStateNull(input.gamepads, i))
-            {
-                res.active = true;
-                res.idx = i;
-                break;
-            }
-        }
-    }
-    
-    return res;
-}
-
-void ApplyDeadzone(OS_InputState* input)
-{
-    for(int i = 0; i < MaxActiveControllers; ++i)
-    {
-        OS_GamepadState& gamepad = input->gamepads[i];
-        if(abs(gamepad.leftTrigger)  < triggerDeadzone) gamepad.leftTrigger  = 0;
-        if(abs(gamepad.rightTrigger) < triggerDeadzone) gamepad.rightTrigger = 0;
-        if(abs(gamepad.leftStickX)   < stickDeadzone)   gamepad.leftStickX   = 0;
-        if(abs(gamepad.leftStickY)   < stickDeadzone)   gamepad.leftStickY   = 0;
-        if(abs(gamepad.rightStickX)  < stickDeadzone)   gamepad.rightStickX  = 0;
-        if(abs(gamepad.rightStickY)  < stickDeadzone)   gamepad.rightStickY  = 0;
-    }
-}
-
-InputDominator GetDominatingKeyboard(OS_InputState input, InputDominator prevDom)
-{
-    TODO;
-    return prevDom;
 }
 
 void UpdateCamera(Transform* camera, float deltaTime)

@@ -1,4 +1,9 @@
 
+// Things I could add
+// 1) I could add some nice to use string utilities
+//    (at least as nice to use as std::string, but
+//     without the unnecessary allocations)
+
 #pragma once
 
 #include <utility>
@@ -373,14 +378,11 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
                         size_t size, size_t align = ArenaDefAlign);
 
 template<typename t>
-void ArenaPushVar(Arena* arena, t var);
+t* ArenaPushVar(Arena* arena, t var);
+char* ArenaPushString(Arena* arena, const char* str);
+char* ArenaPushStringNoNullTerm(Arena* arena, const char* str);
 
 void ArenaWriteToFile(Arena* arena, FILE* file);
-
-// The provided string can also not be null-terminated.
-// The resulting string will be null-terminated
-// automatically.
-char* ArenaPushString(Arena* arena, void* toCopy, size_t size);
 
 // Used to free all the memory within the allocator
 // by setting the buffer offsets to zero

@@ -3,6 +3,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#include "os/os_generic.cpp"
 #include "base.cpp"
 
 /*
@@ -27,11 +28,27 @@ s32 [Bone names]
 aiTextureType texTypes[] =
 {
     aiTextureType_DIFFUSE,
-    aiTextureType_NORMALS
+    aiTextureType_NORMALS,
+    aiTextureType_AMBIENT,
+    aiTextureType_SPECULAR,
+    aiTextureType_EMISSIVE,
+    aiTextureType_HEIGHT,
+    aiTextureType_NONE,
+    aiTextureType_SHININESS,
+    aiTextureType_OPACITY,
+    aiTextureType_DISPLACEMENT,
+    aiTextureType_LIGHTMAP,
+    aiTextureType_REFLECTION,
+    aiTextureType_BASE_COLOR,
+    aiTextureType_NORMAL_CAMERA,
+    aiTextureType_EMISSION_COLOR,
+    aiTextureType_METALNESS,
+    aiTextureType_DIFFUSE_ROUGHNESS,
+    aiTextureType_AMBIENT_OCCLUSION
 };
 
-// The following specification describes the
-// general data layout of the file
+// The following specification (pseudocode)
+// describes the general data layout of the file
 #if 0
 struct Model
 {
@@ -57,47 +74,69 @@ struct Model
     {
         struct Texture
         {
-            // Path to the image (from Assets directory)
-            // This will probably be different
-            // when we move to a package system
-            s32 pathLen;
-            char path[pathLen];
+            // Path of the texture, this will probably be
+            // replaces with a UUID or something. The path
+            // is relative to Assets/Textures. It might
+            // be in "Generated" if inserted automatically
+            // or it might be a user generated thing or something.
+            // if nameLen is 0 it means that it doesn't have this
+            // texture type
+            s32 nameLen;
+            char name[nameLen (which could be 0)];
         };
         
         // Array of textures following 'texTypes'
         Texture textures[..];
     };
     
-    Material materials[numMaterials];
+    Material materials[numMaterials (which could be 0)];
 };
 
 // Version 1...
 
 #endif
 
+std::string RemoveFileExtension(const std::string& fileName);
+std::string RemovePathLastPart(const std::string& fileName);
 void LoadModel();
 void LoadTexture(s32 version);
 
+// Usage:
+// model_importer.exe file_to_import.(obj/fbx/...)
+// The path is relative to the Assets folder
 int main(int argCount, char** args)
 {
-    if(argCount < 3)
+    char* exePathCStr = OS_GetExecutablePath();
+    std::string exePath = exePathCStr;
+    exePath = RemovePathLastPart(exePath);
+    free(exePathCStr);
+    
+    // Force current working directory to be the Assets folder
+    std::string assetsPath = exePath + "/../../Assets/";
+    OS_SetCurrentDirectory(assetsPath.c_str());
+    
+    std::string inModelsPath    = "Models/";
+    std::string outModelsPath   = "Models/Generated/";
+    std::string outTexturesPath = "Textures/";
+    
+    if(argCount < 2)
     {
         fprintf(stderr, "Insufficient arguments\n");
         return 1;
     }
     
-    if(argCount > 3)
+    if(argCount > 2)
     {
         fprintf(stderr, "Too many arguments\n");
         return 1;
     }
     
-    const char* inPath  = args[1];
-    const char* outPath = args[2];
+    const char* modelName = args[1];
     
     Assimp::Importer importer;
     
-    const aiScene* scene = importer.ReadFile(inPath, aiProcess_Triangulate);
+    std::string modelPath = inModelsPath + modelName;
+    const aiScene* scene = importer.ReadFile(modelPath, aiProcess_Triangulate);
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
@@ -105,13 +144,18 @@ int main(int argCount, char** args)
         return 1;
     }
     
-    FILE* outFile = fopen(outPath, "wb");
-    defer { fclose(outFile); };
+    std::string modelNameNoExt = RemoveFileExtension(modelName);
+    std::string outPath = outModelsPath + modelNameNoExt + ".model";
+    printf("%s\n", outPath.c_str());
+    
+    FILE* outFile = fopen(outPath.c_str(), "w+b");
     if(!outFile)
     {
         fprintf(stderr, "Could not write to file.\n");
         return 1;
     }
+    
+    defer { fclose(outFile); };
     
     const int version = 0;
     
@@ -121,6 +165,7 @@ int main(int argCount, char** args)
     ArenaPushVar<s32>(arena, version);
     ArenaPushVar<s32>(arena, scene->mNumMeshes);
     ArenaPushVar<s32>(arena, scene->mNumMaterials);
+    printf("%d\n", scene->mNumMaterials);
     
     // Write mesh verts and indices
     for(int i = 0; i < scene->mNumMeshes; ++i)
@@ -130,6 +175,7 @@ int main(int argCount, char** args)
         ArenaPushVar<s32>(arena, mesh->mNumVertices);
         ArenaPushVar<s32>(arena, mesh->mNumFaces * 3);
         ArenaPushVar<s32>(arena, mesh->mMaterialIndex);
+        
         ArenaPushVar<bool>(arena, mesh->HasTextureCoords(0));
         
         for(int j = 0; j < mesh->mNumVertices; ++j)
@@ -174,13 +220,12 @@ int main(int argCount, char** args)
         for(int j = 0; j < ArrayCount(texTypes); ++j)
         {
             int numTextures = material->GetTextureCount(texTypes[j]);
-            
             if(numTextures > 0)
             {
                 if(numTextures > 1)
                     fprintf(stderr, "This engine's model format currently does not support multiple textures of the same type\n");
                 
-                printf("Material has %d\n", j);
+                printf("Material %d, texture %s\n", i, aiTextureTypeToString(texTypes[j]));
                 
                 aiString path;
                 aiTextureMapping mapping;
@@ -191,15 +236,35 @@ int main(int argCount, char** args)
                     const aiTexture* texture = scene->GetEmbeddedTexture(path.C_Str());
                     if(texture)
                     {
-                        texture->achFormatHint;
-                        texture->mWidth;
-                        texture->pcData;
+                        // Texture is embedded, create a separate texture file
+                        // with the name "dst_file_Diffuse.jpg" or similar
+                        std::string texStr = aiTextureTypeToString(texTypes[j]);
+                        std::string imageName = outTexturesPath + modelNameNoExt + "_" + texStr + "." + texture->achFormatHint;
+                        FILE* image = fopen(imageName.c_str(), "w+b");
+                        if(!image)
+                        {
+                            fprintf(stderr, "Could not write texture file\n");
+                            return -1;
+                        }
+                        
+                        defer { fclose(image); };
+                        fwrite(texture->pcData, texture->mWidth, 1, image);
+                        
+                        // Write the path
+                        ArenaPushVar<s32>(arena, imageName.length());
+                        ArenaPushString(arena, imageName.c_str());
                     }
                     else
                     {
-                        path;
+                        TODO;
+                        fprintf(stderr, "Non embedded textures are currently not supported.");
+                        return -1;
                     }
                 }
+            }
+            else  // No texture of this type
+            {
+                ArenaPushVar<s32>(arena, 0);
             }
         }
         
@@ -209,20 +274,41 @@ int main(int argCount, char** args)
         }
     }
     
-    // Print info about each mesh in the model
-    for(int i = 0; i < scene->mNumMeshes; ++i)
-    {
-        aiMesh* mesh = scene->mMeshes[i];
-        printf("Mesh %d:\n", i+1);
-        printf("    Verts: %d\n", mesh->mNumVertices);
-        printf("    Faces: %d\n", mesh->mNumFaces);
-        
-        if(i < scene->mNumMeshes-1) printf("\n");
-    }
+    ArenaWriteToFile(arena, outFile);
     
     LoadModel();
     
     return 0;
+}
+
+// TODO: make functions like these in custom base layer and then use those
+std::string RemoveFileExtension(const std::string& fileName)
+{
+    size_t lastDot = fileName.find_last_of(".");
+    if (lastDot == std::string::npos) return fileName;
+    return fileName.substr(0, lastDot);
+}
+
+std::string RemovePathLastPart(const std::string& fileName)
+{
+    size_t lastSlash = fileName.find_last_of("/");
+    size_t lastBackslash = fileName.find_last_of("\\");
+    size_t lastSeparator = std::string::npos;
+    
+    bool slashFound = lastSlash != std::string::npos;
+    bool backslashFound = lastBackslash != std::string::npos;
+    
+    if(!slashFound && backslashFound)
+        lastSeparator = lastBackslash;
+    else if(slashFound && !backslashFound)
+        lastSeparator = lastSlash;
+    else if(!slashFound && !backslashFound)
+        lastSeparator = std::string::npos;
+    else
+        lastSeparator = lastSlash > lastBackslash? lastSlash : lastBackslash;
+    
+    if (lastSeparator == std::string::npos) return fileName;
+    return fileName.substr(0, lastSeparator);
 }
 
 void LoadModel()

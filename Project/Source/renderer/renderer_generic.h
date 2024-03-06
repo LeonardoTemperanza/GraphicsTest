@@ -33,3 +33,9 @@ void StubRender(Renderer* r, RenderSettings settings);
 
 Renderer (*InitRenderer)(Arena* arena) = StubInitRenderer;
 void (*Render)(Renderer* r, RenderSettings settings) = StubRender;
+
+// For text editor syntax highlighting
+#if 0
+void InitRenderer();
+void Render();
+#endif

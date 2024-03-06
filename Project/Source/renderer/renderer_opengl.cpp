@@ -152,6 +152,19 @@ gl_Renderer gl_InitRenderer(Arena* permArena)
     return r;
 }
 
+static void gl_RenderModel()
+{
+    // This is test code
+    static bool loadedModel = false;
+    if(!loadedModel)
+    {
+        //LoadModel();
+        loadedModel = true;
+    }
+    
+    // Use the model
+}
+
 void gl_Render(gl_Renderer* r, RenderSettings settings)
 {
     int width, height;
@@ -191,4 +204,6 @@ void gl_Render(gl_Renderer* r, RenderSettings settings)
     glEnable(GL_DEPTH_TEST);
     //glEnable(GL_CULL_FACE);
     glDrawArrays(GL_TRIANGLES, 0, ArrayCount(vertices) / 2);
+    
+    gl_RenderModel();
 }
