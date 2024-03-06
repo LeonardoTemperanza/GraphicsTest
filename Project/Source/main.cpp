@@ -10,6 +10,10 @@ int main()
     OS_GraphicsLib usedLib = OS_Init();
     defer { OS_Cleanup(); };
     
+    // TODO: Get the exe directory so it doesn't
+    // depend on the current working directory
+    OS_SetCurrentDirectory("../../Assets/");
+    
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     

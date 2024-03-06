@@ -744,17 +744,20 @@ char* ArenaPushStringNoNullTerm(Arena* arena, const char* str)
     return ptr;
 }
 
-String test()
-{
-    return {0};
-}
-
 template<typename t>
 t* ArenaPushVar(Arena* arena, t var)
 {
     t* ptr = (t*)ArenaAlloc(arena, sizeof(t), alignof(t));
     *ptr = var;
     return ptr;
+}
+
+template<typename t>
+t ReadAlignedNextValue(uintptr_t* ptr)
+{
+    t* nextPtr = (t*)AlignForward(*ptr, alignof(t));
+    *ptr = (uintptr_t)nextPtr + sizeof(t);
+    return *nextPtr;
 }
 
 void ArenaWriteToFile(Arena* arena, FILE* file)

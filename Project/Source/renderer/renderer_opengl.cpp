@@ -162,7 +162,7 @@ static void gl_RenderModel()
         loadedModel = true;
     }
     
-    // Use the model
+    // Use the model, render it with
 }
 
 void gl_Render(gl_Renderer* r, RenderSettings settings)

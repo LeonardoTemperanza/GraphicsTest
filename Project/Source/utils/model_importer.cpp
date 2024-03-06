@@ -28,23 +28,7 @@ s32 [Bone names]
 aiTextureType texTypes[] =
 {
     aiTextureType_DIFFUSE,
-    aiTextureType_NORMALS,
-    aiTextureType_AMBIENT,
-    aiTextureType_SPECULAR,
-    aiTextureType_EMISSIVE,
-    aiTextureType_HEIGHT,
-    aiTextureType_NONE,
-    aiTextureType_SHININESS,
-    aiTextureType_OPACITY,
-    aiTextureType_DISPLACEMENT,
-    aiTextureType_LIGHTMAP,
-    aiTextureType_REFLECTION,
-    aiTextureType_BASE_COLOR,
-    aiTextureType_NORMAL_CAMERA,
-    aiTextureType_EMISSION_COLOR,
-    aiTextureType_METALNESS,
-    aiTextureType_DIFFUSE_ROUGHNESS,
-    aiTextureType_AMBIENT_OCCLUSION
+    aiTextureType_NORMALS
 };
 
 // The following specification (pseudocode)
@@ -98,8 +82,8 @@ struct Model
 
 std::string RemoveFileExtension(const std::string& fileName);
 std::string RemovePathLastPart(const std::string& fileName);
-void LoadModel();
-void LoadTexture(s32 version);
+
+void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* material, std::string modelName);
 
 // Usage:
 // model_importer.exe file_to_import.(obj/fbx/...)
@@ -117,7 +101,6 @@ int main(int argCount, char** args)
     
     std::string inModelsPath    = "Models/";
     std::string outModelsPath   = "Models/Generated/";
-    std::string outTexturesPath = "Textures/";
     
     if(argCount < 2)
     {
@@ -136,7 +119,8 @@ int main(int argCount, char** args)
     Assimp::Importer importer;
     
     std::string modelPath = inModelsPath + modelName;
-    const aiScene* scene = importer.ReadFile(modelPath, aiProcess_Triangulate);
+    int flags = aiProcess_Triangulate | aiProcess_GenUVCoords;
+    const aiScene* scene = importer.ReadFile(modelPath, flags);
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
@@ -216,67 +200,12 @@ int main(int argCount, char** args)
     for(int i = 0; i < scene->mNumMaterials; ++i)
     {
         const aiMaterial* material = scene->mMaterials[i];
-        
-        for(int j = 0; j < ArrayCount(texTypes); ++j)
-        {
-            int numTextures = material->GetTextureCount(texTypes[j]);
-            if(numTextures > 0)
-            {
-                if(numTextures > 1)
-                    fprintf(stderr, "This engine's model format currently does not support multiple textures of the same type\n");
-                
-                printf("Material %d, texture %s\n", i, aiTextureTypeToString(texTypes[j]));
-                
-                aiString path;
-                aiTextureMapping mapping;
-                u32 uvIndex;
-                float blendFactor;
-                if(material->GetTexture(texTypes[j], 0, &path, &mapping, &uvIndex, &blendFactor) == AI_SUCCESS)
-                {
-                    const aiTexture* texture = scene->GetEmbeddedTexture(path.C_Str());
-                    if(texture)
-                    {
-                        // Texture is embedded, create a separate texture file
-                        // with the name "dst_file_Diffuse.jpg" or similar
-                        std::string texStr = aiTextureTypeToString(texTypes[j]);
-                        std::string imageName = outTexturesPath + modelNameNoExt + "_" + texStr + "." + texture->achFormatHint;
-                        FILE* image = fopen(imageName.c_str(), "w+b");
-                        if(!image)
-                        {
-                            fprintf(stderr, "Could not write texture file\n");
-                            return -1;
-                        }
-                        
-                        defer { fclose(image); };
-                        fwrite(texture->pcData, texture->mWidth, 1, image);
-                        
-                        // Write the path
-                        ArenaPushVar<s32>(arena, imageName.length());
-                        ArenaPushString(arena, imageName.c_str());
-                    }
-                    else
-                    {
-                        TODO;
-                        fprintf(stderr, "Non embedded textures are currently not supported.");
-                        return -1;
-                    }
-                }
-            }
-            else  // No texture of this type
-            {
-                ArenaPushVar<s32>(arena, 0);
-            }
-        }
-        
-        if(material->GetTextureCount(aiTextureType_UNKNOWN) > 0)
-        {
-            fprintf(stderr, "There are textures of unknown type\n");
-        }
+        WriteMaterial(arena, scene, material, modelNameNoExt);
     }
     
     ArenaWriteToFile(arena, outFile);
     
-    LoadModel();
+    //LoadModel();
     
     return 0;
 }
@@ -289,6 +218,7 @@ std::string RemoveFileExtension(const std::string& fileName)
     return fileName.substr(0, lastDot);
 }
 
+// TODO: make functions like these in custom base layer and then use those
 std::string RemovePathLastPart(const std::string& fileName)
 {
     size_t lastSlash = fileName.find_last_of("/");
@@ -317,13 +247,88 @@ void LoadModel()
     printf("Version: %d\n", version);
     
     // Diffuse
-    LoadTexture(version);
+    //LoadTexture(version);
     
     // Normal
-    LoadTexture(version);
+    //LoadTexture(version);
 }
 
 void LoadTexture(s32 version)
 {
     
+}
+
+void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* material, std::string modelName)
+{
+    const std::string outTexturesPath = "Textures/";
+    
+    // Textures
+    for(int j = 0; j < ArrayCount(texTypes); ++j)
+    {
+        int numTextures = material->GetTextureCount(texTypes[j]);
+        if(numTextures > 0)
+        {
+            if(numTextures > 1)
+                fprintf(stderr, "This engine's model format currently does not support multiple textures of the same type\n");
+            
+            aiString path;
+            // What to do with this texture mapping?
+            aiTextureMapping mapping;
+            u32 uvIndex;
+            float blendFactor;
+            if(material->GetTexture(texTypes[j], 0, &path, &mapping, &uvIndex, &blendFactor) == AI_SUCCESS)
+            {
+                const aiTexture* texture = scene->GetEmbeddedTexture(path.C_Str());
+                if(texture)
+                {
+                    // Texture is embedded, create a separate texture file
+                    // with the name "dst_file_Diffuse.jpg" or similar
+                    std::string texStr = aiTextureTypeToString(texTypes[j]);
+                    std::string imageName = outTexturesPath + modelName + "_" + texStr + "." + texture->achFormatHint;
+                    FILE* image = fopen(imageName.c_str(), "w+b");
+                    if(!image)
+                    {
+                        fprintf(stderr, "Could not write texture file\n");
+                        exit(1);
+                    }
+                    
+                    defer { fclose(image); };
+                    fwrite(texture->pcData, texture->mWidth, 1, image);
+                    
+                    // Write the path
+                    ArenaPushVar<s32>(arena, imageName.length());
+                    ArenaPushString(arena, imageName.c_str());
+                }
+                else
+                {
+                    TODO;
+                    fprintf(stderr, "Non embedded textures are currently not supported.");
+                    exit(1);
+                }
+            }
+        }
+        else  // No texture of this type
+        {
+            ArenaPushVar<s32>(arena, 0);
+        }
+    }
+    
+    if(material->GetTextureCount(aiTextureType_UNKNOWN) > 0)
+    {
+        fprintf(stderr, "There are textures of unknown type\n");
+    }
+    
+    // Properties
+    aiColor3D color;
+    aiReturn ret;
+    ret = material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+    if(ret == aiReturn_SUCCESS) printf("test\n");
+    ret = material->Get(AI_MATKEY_COLOR_SPECULAR, color);
+    if(ret == aiReturn_SUCCESS) printf("test\n");
+    ret = material->Get(AI_MATKEY_COLOR_AMBIENT, color);
+    if(ret == aiReturn_SUCCESS) printf("test\n");
+    ret = material->Get(AI_MATKEY_COLOR_EMISSIVE, color);
+    if(ret == aiReturn_SUCCESS) printf("test\n");
+    ret = material->Get(AI_MATKEY_COLOR_TRANSPARENT, color);
+    if(ret == aiReturn_SUCCESS) printf("test\n");
 }

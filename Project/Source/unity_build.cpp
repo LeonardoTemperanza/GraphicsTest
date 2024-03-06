@@ -1,4 +1,6 @@
 
+#define UnityBuild
+
 #include "include/glad.c"
 
 #include "os/os_generic.cpp"
@@ -11,6 +13,7 @@
 #include "input.cpp"
 #include "simulation.cpp"
 #include "ui_core.cpp"
+#include "asset_system.cpp"
 
 #include "renderer/renderer_generic.cpp"
 #include "renderer/renderer_opengl.cpp"

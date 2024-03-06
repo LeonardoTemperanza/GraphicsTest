@@ -379,6 +379,8 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
 
 template<typename t>
 t* ArenaPushVar(Arena* arena, t var);
+template<typename t>
+t ReadAlignedNextValue(uintptr_t* ptr);
 char* ArenaPushString(Arena* arena, const char* str);
 char* ArenaPushStringNoNullTerm(Arena* arena, const char* str);
 
