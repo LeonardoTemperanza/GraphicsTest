@@ -1,13 +1,16 @@
 
 #include "renderer_generic.h"
 
-Renderer StubInitRenderer(Arena* arena) { return {0}; }
-void StubRender(Renderer* r, RenderSettings settings) {};
+// Mhmmm, virtual functions honestly seem better in this specific
+// case... How do C people do this properly?
+
+RendererRef StubInitRenderer(Arena* arena) { return nullptr; }
+void StubRender(RendererRef r, RenderSettings settings) {};
 
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
 {
-#define CastToGenericInit   (Renderer (*)(Arena*))
-#define CastToGenericRender (void (*)(Renderer* r, RenderSettings settings))
+#define CastToGenericInit   (RendererRef (*)(Arena*))
+#define CastToGenericRender (void (*)(RendererRef r, RenderSettings settings))
     switch(gfxLib)
     {
         case GfxLib_None:

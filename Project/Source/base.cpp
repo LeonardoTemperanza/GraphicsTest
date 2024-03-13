@@ -578,6 +578,29 @@ b32 operator ==(String s1, String s2)
     return true;
 }
 
+b32 operator !=(String s1, String s2)
+{
+    return !(s1 == s2);
+}
+
+b32 operator ==(String s1, const char* s2)
+{
+    int i;
+    for(i = 0; i < s1.len && s2[i]; ++i)
+    {
+        if(s1.ptr[i] != s2[i]) return false;
+    }
+    
+    if(i < s1.len || s2[i]) return false;
+    
+    return true;
+}
+
+b32 operator !=(String s1, const char* s2)
+{
+    return !(s1 == s2);
+}
+
 void WriteToFile(String s, FILE* file)
 {
     assert(file);
@@ -694,6 +717,22 @@ void FreeBuffers(StringBuilder* builder)
 inline String ToString(StringBuilder* builder)
 {
     return {.ptr=builder->str.ptr, .len=builder->str.len};
+}
+
+// Consume stream of bytes (generated using StringBuilder likely)
+template<typename t>
+t Next(char** cursor)
+{
+    t* next = (t*)(void*)AlignForward((uintptr_t)(void*)*cursor, alignof(t));
+    *cursor = (char*)(next + sizeof(t));
+    return *next;
+}
+
+String Next(char** cursor, int strLen)
+{
+    String res = {.ptr=*cursor, .len=strLen};
+    *cursor += strLen;
+    return res;
 }
 
 ////
@@ -975,4 +1014,24 @@ ScratchArena::ScratchArena(Arena* a1, Arena* a2, Arena* a3)
 ScratchArena::ScratchArena(int idx)
 {
     this->tempGuard = GetScratchArena(idx);
+}
+
+////
+// Miscellaneous
+String LoadEntireFile(const char* path)
+{
+    String res = {0};
+    FILE* file = fopen(path, "rb");
+    // TODO: Error reporting
+    if(!file) return res;
+    defer { fclose(file); };
+    
+    fseek(file, 0, SEEK_END);
+    res.len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    res.ptr = (char*)malloc(res.len);
+    fread((void*)res.ptr, res.len, 1, file);
+    
+    return res;
 }

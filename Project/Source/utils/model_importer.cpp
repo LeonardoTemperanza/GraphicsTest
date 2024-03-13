@@ -55,36 +55,46 @@ struct Model
     
     Mesh meshes[numMeshes];
     
-    struct Material
+    struct MaterialPath
     {
-        struct Texture
-        {
-            // Path of the texture, this will probably be
-            // replaces with a UUID or something. The path
-            // is relative to Assets/Textures. It might
-            // be in "Generated" if inserted automatically
-            // or it might be a user generated thing or something.
-            // if nameLen is 0 it means that it doesn't have this
-            // texture type
-            s32 nameLen;
-            char name[nameLen (which could be 0)];
-        };
-        
-        // Array of textures following 'texTypes'
-        Texture textures[..];
+        s32 strLen;
+        char str[strLen];
     };
     
-    Material materials[numMaterials (which could be 0)];
+    // For now we're doing just vertices.
+    //MaterialPath[numMeshes];
+};
+
+struct Material
+{
+    struct TexturePath
+    {
+        // Path relative to Assets folder
+        // if nameLen is 0 it means that it doesn't have this
+        // texture type
+        s32 nameLen;
+        char name[nameLen (which could be 0)];
+    };
+    
+    // Array of textures following 'texTypes'
+    TexturePath textures[..];
 };
 
 // Version 1...
 
 #endif
 
+struct Material
+{
+    const aiScene* scene;
+    const aiMaterial* mat;
+};
+
 std::string RemoveFileExtension(const std::string& fileName);
 std::string RemovePathLastPart(const std::string& fileName);
 
-void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* material, std::string modelName);
+void WriteMaterial(String path, Material mat);
+void WriteTexture(String path, Material mat);
 
 // Usage:
 // model_importer.exe file_to_import.(obj/fbx/...)
@@ -100,9 +110,6 @@ int main(int argCount, char** args)
     std::string assetsPath = exePath + "/../../Assets/";
     OS_SetCurrentDirectory(assetsPath.c_str());
     
-    std::string inModelsPath    = "Models/";
-    std::string outModelsPath   = "Models/Generated/";
-    
     if(argCount < 2)
     {
         fprintf(stderr, "Insufficient arguments\n");
@@ -115,11 +122,10 @@ int main(int argCount, char** args)
         return 1;
     }
     
-    const char* modelName = args[1];
+    const char* modelPath = args[1];
     
     Assimp::Importer importer;
     
-    std::string modelPath = inModelsPath + modelName;
     int flags = aiProcess_Triangulate | aiProcess_GenUVCoords;
     const aiScene* scene = importer.ReadFile(modelPath, flags);
     
@@ -129,14 +135,13 @@ int main(int argCount, char** args)
         return 1;
     }
     
-    std::string modelNameNoExt = RemoveFileExtension(modelName);
-    std::string outPath = outModelsPath + modelNameNoExt + ".model";
-    printf("%s\n", outPath.c_str());
+    std::string modelPathNoExt = RemoveFileExtension(modelPath);
+    std::string outPath = modelPathNoExt + ".model";
+    printf("Writing to %s...\n", outPath.c_str());
     
     FILE* outFile = fopen(outPath.c_str(), "w+b");
     if(!outFile)
     {
-        fprintf(stderr, "Could not write to file.\n");
         return 1;
     }
     
@@ -153,7 +158,6 @@ int main(int argCount, char** args)
     Put(&builder, (s32)version);
     Put(&builder, (s32)scene->mNumMeshes);
     Put(&builder, (s32)scene->mNumMaterials);
-    printf("%d\n", scene->mNumMaterials);
     
     // Write mesh verts and indices
     for(int i = 0; i < scene->mNumMeshes; ++i)
@@ -206,6 +210,8 @@ int main(int argCount, char** args)
         const aiMaterial* material = scene->mMaterials[i];
         //WriteMaterial(arena, scene, material, modelNameNoExt);
     }
+    
+    printf("Success!\n");
     
     WriteToFile(ToString(&builder), outFile);
     
@@ -262,8 +268,13 @@ void LoadTexture(s32 version)
     
 }
 
-void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* material, std::string modelName)
+// This stuff should all go to a material file
+void WriteMaterial(String path, Material mat)
 {
+    const aiScene* scene = mat.scene;
+    const aiMaterial* material = mat.mat;
+    
+#if 0
     const std::string outTexturesPath = "Textures/";
     
     // Textures
@@ -322,7 +333,7 @@ void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* materia
         fprintf(stderr, "There are textures of unknown type\n");
     }
     
-    // Properties
+    // Then there's this stuff as well... Properties
     aiColor3D color;
     aiReturn ret;
     ret = material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
@@ -335,4 +346,10 @@ void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* materia
     if(ret == aiReturn_SUCCESS) printf("test\n");
     ret = material->Get(AI_MATKEY_COLOR_TRANSPARENT, color);
     if(ret == aiReturn_SUCCESS) printf("test\n");
+#endif
+}
+
+void WriteTexture()
+{
+    
 }

@@ -21,7 +21,7 @@ UI_Box* UI_MakeBox(UI_BoxFlags flags, String string)
     assert(ui.parentLast);
     
     // Using malloc instead of arena for now...
-    auto box = ArenaAllocType(UI_Box, &ui.arena);
+    auto box = ArenaAllocTyped(UI_Box, &ui.arena);
     memset(box, 0, sizeof(UI_Box));
     
     box->key = UI_KeyFromString(string);
@@ -91,7 +91,7 @@ void UI_BoxEquipChildLayoutAxis(UI_Box* box, Axis2 axis)
 
 UI_Box* UI_PushParent(UI_Box* box)
 {
-    auto node = ArenaAllocType(UI_ParentLL, &ui.arena);
+    auto node = ArenaAllocTyped(UI_ParentLL, &ui.arena);
     memset(node, sizeof(*node), 0);
     
     if(!ui.parentLast)

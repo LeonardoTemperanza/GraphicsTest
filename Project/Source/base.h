@@ -23,6 +23,8 @@ typedef double   f64;
 typedef unsigned char uchar;
 
 // Handy macros
+#define ArrayCount(array) sizeof(array) / sizeof(array[0])
+
 #define TODO assert(!"This is not implemented!")
 
 #define KB(num) ((num)*1024LLU)
@@ -286,6 +288,9 @@ struct String
 };
 
 b32 operator ==(String s1, String s2);
+b32 operator !=(String s1, String s2);
+b32 operator ==(String s1, const char* s2);
+b32 operator !=(String s1, const char* s2);
 void WriteToFile(String s, FILE* file);
 
 ////
@@ -293,7 +298,7 @@ void WriteToFile(String s, FILE* file);
 
 #define ArenaDefAlign sizeof(void*)
 
-#define ArenaAllocType(type, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type), alignof(type))
+#define ArenaAllocTyped(type, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type), alignof(type))
 #define ArenaAllocArray(type, size, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type)*(size), alignof(type));
 
 struct Arena
@@ -504,13 +509,16 @@ template<typename t>
 void Put(StringBuilder* builder, t val);
 void FreeBuffers(StringBuilder* builder);
 String ToString(StringBuilder* builder);
-
-
+// Consume stream of bytes
+template<typename t>
+t Next(const char** cursor);
+String Next(const char** cursor, int strLen);
 
 ////
 // Miscellaneous
 
-#define ArrayCount(array) sizeof(array) / sizeof(array[0])
+// TODO: Error handling
+String LoadEntireFile(const char* path);
 
 // Defer statement (similar to that of Go, Jai and Odin)
 // Usage:

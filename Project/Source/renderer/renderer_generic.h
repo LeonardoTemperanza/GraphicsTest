@@ -19,20 +19,13 @@ struct RenderSettings
 // Function pointers
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib);
 
-struct Renderer
-{
-    union
-    {
-        gl_Renderer glRenderer;
-        d3d11_Renderer d3d11Renderer;
-    };
-};
+typedef void* RendererRef;
 
-Renderer StubInitRenderer(Arena* arena);
-void StubRender(Renderer* r, RenderSettings settings);
+RendererRef StubInitRenderer(Arena* arena);
+void StubRender(RendererRef r, RenderSettings settings);
 
-Renderer (*InitRenderer)(Arena* arena) = StubInitRenderer;
-void (*Render)(Renderer* r, RenderSettings settings) = StubRender;
+RendererRef (*InitRenderer)(Arena* arena) = StubInitRenderer;
+void (*Render)(RendererRef r, RenderSettings settings) = StubRender;
 
 // For text editor syntax highlighting
 #if 0

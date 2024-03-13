@@ -18,7 +18,7 @@ int main()
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     SetRenderFunctionPointers(usedLib);
-    Renderer renderer = InitRenderer(&permArena);
+    RendererRef renderer = InitRenderer(&permArena);
     AppState appState = InitSimulation();
     UI_Init();
     
@@ -44,7 +44,7 @@ int main()
             OS_SwapBuffers();
         }
         
-        Render(&renderer, appState.renderSettings);
+        Render(renderer, appState.renderSettings);
         
         firstIter = false;
     }
