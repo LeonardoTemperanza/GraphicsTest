@@ -14,49 +14,49 @@
 u32 Murmur32Seed(void const* data, s64 len, u32 seed)
 {
     u32 const c1 = 0xcc9e2d51;
-	u32 const c2 = 0x1b873593;
-	u32 const r1 = 15;
-	u32 const r2 = 13;
-	u32 const m  = 5;
-	u32 const n  = 0xe6546b64;
+    u32 const c2 = 0x1b873593;
+    u32 const r1 = 15;
+    u32 const r2 = 13;
+    u32 const m  = 5;
+    u32 const n  = 0xe6546b64;
     
-	s64 i, nblocks = len / 4;
-	u32 hash = seed, k1 = 0;
-	u32 const *blocks = (u32 const*)data;
-	u8 const *tail = (u8 const *)(data) + nblocks*4;
+    s64 i, nblocks = len / 4;
+    u32 hash = seed, k1 = 0;
+    u32 const *blocks = (u32 const*)data;
+    u8 const *tail = (u8 const *)(data) + nblocks*4;
     
-	for (i = 0; i < nblocks; i++) {
-		u32 k = blocks[i];
-		k *= c1;
-		k = (k << r1) | (k >> (32 - r1));
-		k *= c2;
+    for (i = 0; i < nblocks; i++) {
+        u32 k = blocks[i];
+        k *= c1;
+        k = (k << r1) | (k >> (32 - r1));
+        k *= c2;
         
-		hash ^= k;
-		hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
-	}
+        hash ^= k;
+        hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
+    }
     
-	switch (len & 3) {
+    switch (len & 3) {
         case 3:
-		k1 ^= tail[2] << 16;
+        k1 ^= tail[2] << 16;
         case 2:
-		k1 ^= tail[1] << 8;
+        k1 ^= tail[1] << 8;
         case 1:
-		k1 ^= tail[0];
+        k1 ^= tail[0];
         
-		k1 *= c1;
-		k1 = (k1 << r1) | (k1 >> (32 - r1));
-		k1 *= c2;
-		hash ^= k1;
-	}
+        k1 *= c1;
+        k1 = (k1 << r1) | (k1 >> (32 - r1));
+        k1 *= c2;
+        hash ^= k1;
+    }
     
-	hash ^= len;
-	hash ^= (hash >> 16);
-	hash *= 0x85ebca6b;
-	hash ^= (hash >> 13);
-	hash *= 0xc2b2ae35;
-	hash ^= (hash >> 16);
+    hash ^= len;
+    hash ^= (hash >> 16);
+    hash *= 0x85ebca6b;
+    hash ^= (hash >> 13);
+    hash *= 0xc2b2ae35;
+    hash ^= (hash >> 16);
     
-	return hash;
+    return hash;
 }
 
 // From Bill Hall's "gb.h" helper library 
@@ -578,6 +578,144 @@ b32 operator ==(String s1, String s2)
     return true;
 }
 
+void WriteToFile(String s, FILE* file)
+{
+    assert(file);
+    fwrite(s.ptr, s.len, 1, file);
+}
+
+////
+// String construction utils
+
+inline void UseArena(StringBuilder* builder, Arena* arena)
+{
+    builder->arena = arena;
+}
+
+inline void Append(StringBuilder* builder, const char* str)
+{
+    int len = strlen(str);
+    String lenStr = {.ptr=str, .len=len};
+    Append(builder, lenStr);
+}
+
+void Append(StringBuilder* builder, String str)
+{
+    int oldLen = builder->str.len;
+    int newLen = oldLen + str.len;
+    int oldCapacity = builder->str.capacity;
+    
+    if(newLen > builder->str.capacity)
+        builder->str.capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+    
+    builder->str.len = newLen;
+    
+    char* newPtr = nullptr;
+    if(builder->arena)
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 1);
+    else
+        newPtr = (char*)realloc(builder->str.ptr, builder->str.capacity);
+    
+    builder->str.ptr = newPtr;
+    memcpy(builder->str.ptr + oldLen, str.ptr, str.len);
+}
+
+void AppendFmt(StringBuilder* builder, const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    
+    // vasprintf is not widely supported right now, so doing
+    // this instead. TODO: Might just want to implement my own printf
+    // since it's so limited.
+    int len = vsnprintf(nullptr, 0, fmt, args);
+    int oldLen = builder->str.len;
+    int newLen = oldLen + len;
+    int oldCapacity = builder->str.capacity;
+    
+    // Do not call Append to avoid extra allocation
+    if(newLen > builder->str.capacity)
+        builder->str.capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+    
+    builder->str.len = newLen;
+    
+    char* newPtr = nullptr;
+    if(builder->arena)
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 1);
+    else
+        newPtr = (char*)realloc(builder->str.ptr, builder->str.capacity);
+    
+    builder->str.ptr = newPtr;
+    
+    // Insert expanded string into the newly allocated string
+    vsnprintf(builder->str.ptr + oldLen, newLen-oldLen, fmt, args);
+    
+    va_end(args);
+}
+
+template<typename t>
+void Put(StringBuilder* builder, t val)
+{
+    int offset = AlignForward((uintptr_t)(builder->str.ptr + builder->str.len), alignof(t)) - (uintptr_t)(void*)builder->str.ptr;
+    int newLen = offset + sizeof(val);
+    int oldCapacity = builder->str.capacity;
+    
+    // TODO Duplicated code here
+    if(newLen > builder->str.capacity)
+        builder->str.capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+    
+    builder->str.len = newLen;
+    
+    char* newPtr = nullptr;
+    if(builder->arena)
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 1);
+    else
+        newPtr = (char*)realloc(builder->str.ptr, builder->str.capacity);
+    
+    builder->str.ptr = newPtr;
+    
+    // Write the value in the address
+    t* addr = (t*)&builder->str[offset];
+    *addr = val;
+}
+
+void FreeBuffers(StringBuilder* builder)
+{
+    void* old = (void*)builder->str.ptr;
+    builder->str.ptr = nullptr;
+    builder->str.len = 0;
+    
+    // If using an arena, its user will free the contents
+    // of the arena when necessary.
+    if(!builder->arena)
+        free(old);
+}
+
+inline String ToString(StringBuilder* builder)
+{
+    return {.ptr=builder->str.ptr, .len=builder->str.len};
+}
+
+////
+// Basic data structures
+template<typename t>
+void Reserve(Array<t>* array, Arena* arena)
+{
+    TODO;
+}
+
+template<typename t>
+void Append(Array<t>* array, Arena* arena, t el)
+{
+    TODO;
+}
+
+template<typename t>
+Slice<t> ToSlice(Array<t>* array)
+{
+    return {.ptr=array->str.ptr, .len=array->str.len};
+}
+
 ////
 // Memory Allocations
 
@@ -742,22 +880,6 @@ char* ArenaPushStringNoNullTerm(Arena* arena, const char* str)
     char* ptr = (char*)ArenaAlloc(arena, len, 1);
     memcpy(ptr, str, len);
     return ptr;
-}
-
-template<typename t>
-t* ArenaPushVar(Arena* arena, t var)
-{
-    t* ptr = (t*)ArenaAlloc(arena, sizeof(t), alignof(t));
-    *ptr = var;
-    return ptr;
-}
-
-template<typename t>
-t ReadAlignedNextValue(uintptr_t* ptr)
-{
-    t* nextPtr = (t*)AlignForward(*ptr, alignof(t));
-    *ptr = (uintptr_t)nextPtr + sizeof(t);
-    return *nextPtr;
 }
 
 void ArenaWriteToFile(Arena* arena, FILE* file)

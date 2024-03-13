@@ -15,6 +15,6 @@ Model* LoadModel(const char* path, Arena* dst)
     
     uintptr_t c = 0;
     uintptr_t* cursor = &c;
-    s32 version = ReadAlignedNextValue<s32>(cursor);
+    //s32 version = ReadAlignedNextValue<s32>(cursor);
     return res;
 }

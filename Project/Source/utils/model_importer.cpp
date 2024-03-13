@@ -36,6 +36,7 @@ aiTextureType texTypes[] =
 #if 0
 struct Model
 {
+    u8 magicBytes[5] = "model";
     s32 version = 0;
     s32 numMeshes;
     s32 numMaterials;
@@ -143,12 +144,15 @@ int main(int argCount, char** args)
     
     const int version = 0;
     
-    Arena a = ArenaVirtualMemInit(GB(4), MB(2));
-    Arena* arena = &a;
+    Arena arena = ArenaVirtualMemInit(GB(4), MB(2));
+    StringBuilder builder = {0};
+    defer { FreeBuffers(&builder); };
+    UseArena(&builder, &arena);
     
-    ArenaPushVar<s32>(arena, version);
-    ArenaPushVar<s32>(arena, scene->mNumMeshes);
-    ArenaPushVar<s32>(arena, scene->mNumMaterials);
+    Append(&builder, "model");
+    Put(&builder, (s32)version);
+    Put(&builder, (s32)scene->mNumMeshes);
+    Put(&builder, (s32)scene->mNumMaterials);
     printf("%d\n", scene->mNumMaterials);
     
     // Write mesh verts and indices
@@ -156,32 +160,32 @@ int main(int argCount, char** args)
     {
         const aiMesh* mesh = scene->mMeshes[i];
         
-        ArenaPushVar<s32>(arena, mesh->mNumVertices);
-        ArenaPushVar<s32>(arena, mesh->mNumFaces * 3);
-        ArenaPushVar<s32>(arena, mesh->mMaterialIndex);
+        Put(&builder, (s32)mesh->mNumVertices);
+        Put(&builder, (s32)mesh->mNumFaces * 3);
+        Put(&builder, (s32)mesh->mMaterialIndex);
         
-        ArenaPushVar<bool>(arena, mesh->HasTextureCoords(0));
+        Put(&builder, (u8)mesh->HasTextureCoords(0));
         
         for(int j = 0; j < mesh->mNumVertices; ++j)
         {
-            ArenaPushVar<float>(arena, mesh->mVertices[j].x);
-            ArenaPushVar<float>(arena, mesh->mVertices[j].y);
-            ArenaPushVar<float>(arena, mesh->mVertices[j].z);
+            Put(&builder, (float)mesh->mVertices[j].x);
+            Put(&builder, (float)mesh->mVertices[j].y);
+            Put(&builder, (float)mesh->mVertices[j].z);
         }
         for(int j = 0; j < mesh->mNumVertices; ++j)
         {
-            ArenaPushVar<float>(arena, mesh->mNormals[j].x);
-            ArenaPushVar<float>(arena, mesh->mNormals[j].y);
-            ArenaPushVar<float>(arena, mesh->mNormals[j].z);
+            Put(&builder, (float)mesh->mNormals[j].x);
+            Put(&builder, (float)mesh->mNormals[j].y);
+            Put(&builder, (float)mesh->mNormals[j].z);
         }
         
         if(mesh->HasTextureCoords(0))
         {
             for(int j = 0; j < mesh->mNumVertices; ++j)
             {
-                ArenaPushVar<float>(arena, mesh->mTextureCoords[0][j].x);
-                ArenaPushVar<float>(arena, mesh->mTextureCoords[0][j].y);
-                ArenaPushVar<float>(arena, mesh->mTextureCoords[0][j].z);
+                Put(&builder, (float)mesh->mTextureCoords[0][j].x);
+                Put(&builder, (float)mesh->mTextureCoords[0][j].y);
+                Put(&builder, (float)mesh->mTextureCoords[0][j].z);
             }
         }
         
@@ -190,9 +194,9 @@ int main(int argCount, char** args)
             const aiFace& face = mesh->mFaces[i];
             assert(face.mNumIndices == 3);
             
-            ArenaPushVar<s32>(arena, face.mIndices[0]);
-            ArenaPushVar<s32>(arena, face.mIndices[1]);
-            ArenaPushVar<s32>(arena, face.mIndices[2]);
+            Put(&builder, (s32)face.mIndices[0]);
+            Put(&builder, (s32)face.mIndices[1]);
+            Put(&builder, (s32)face.mIndices[2]);
         }
     }
     
@@ -200,10 +204,10 @@ int main(int argCount, char** args)
     for(int i = 0; i < scene->mNumMaterials; ++i)
     {
         const aiMaterial* material = scene->mMaterials[i];
-        WriteMaterial(arena, scene, material, modelNameNoExt);
+        //WriteMaterial(arena, scene, material, modelNameNoExt);
     }
     
-    ArenaWriteToFile(arena, outFile);
+    WriteToFile(ToString(&builder), outFile);
     
     //LoadModel();
     
@@ -296,8 +300,8 @@ void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* materia
                     fwrite(texture->pcData, texture->mWidth, 1, image);
                     
                     // Write the path
-                    ArenaPushVar<s32>(arena, imageName.length());
-                    ArenaPushString(arena, imageName.c_str());
+                    //Put(&builder, (s32)imageName.length);
+                    //Append(&builder, (s32)imageName.c_str());
                 }
                 else
                 {
@@ -309,7 +313,7 @@ void WriteMaterial(Arena* arena, const aiScene* scene, const aiMaterial* materia
         }
         else  // No texture of this type
         {
-            ArenaPushVar<s32>(arena, 0);
+            //ArenaPushVar<s32>(arena, 0);
         }
     }
     

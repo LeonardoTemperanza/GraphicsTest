@@ -1,15 +1,9 @@
 
-// Things I could add
-// 1) I could add some nice to use string utilities
-//    (at least as nice to use as std::string, but
-//     without the unnecessary allocations)
-
 #pragma once
 
 #include <utility>
-#include <stdio.h>
+#include <cstdio>
 #include <stdlib.h>
-#include <cstdint>
 #include <cstdint>
 #include <cstring>
 #include "os/os_generic.h"
@@ -106,6 +100,18 @@ inline bool IsPowerOf2(uint32_t n)
 inline bool IsPowerOf2(uint64_t n)
 {
     return (n & (n-1)) == 0;
+}
+
+inline uint32_t NextPowerOf2(uint32_t n)
+{
+    --n;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    ++n;
+    return n;
 }
 
 inline float Deg2Rad(float deg)
@@ -275,9 +281,12 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
 
 struct String
 {
-    char* ptr;
+    const char* ptr;
     int64_t len;
 };
+
+b32 operator ==(String s1, String s2);
+void WriteToFile(String s, FILE* file);
 
 ////
 // Memory allocation
@@ -295,7 +304,7 @@ struct Arena
     size_t prevOffset;
     
     // Commit memory in blocks of size
-    // commitSize, if == 0, then it never
+    // commitSize; if == 0, then it never
     // commits (useful for stack-allocated arenas)
     size_t commitSize;
 };
@@ -358,8 +367,8 @@ struct ScratchArena
     inline ScratchArena(int idx);
     
     inline ~ScratchArena() { Arena_TempEnd(tempGuard); };
-    inline void Reset() { Arena_TempEnd(tempGuard); };
-    inline Arena* arena() { return tempGuard.arena; };
+    inline void Reset()    { Arena_TempEnd(tempGuard); };
+    inline Arena* arena()    { return tempGuard.arena; };
     inline operator Arena*() { return tempGuard.arena; };
 };
 
@@ -377,10 +386,6 @@ void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory,
 void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
                         size_t size, size_t align = ArenaDefAlign);
 
-template<typename t>
-t* ArenaPushVar(Arena* arena, t var);
-template<typename t>
-t ReadAlignedNextValue(uintptr_t* ptr);
 char* ArenaPushString(Arena* arena, const char* str);
 char* ArenaPushStringNoNullTerm(Arena* arena, const char* str);
 
@@ -443,6 +448,64 @@ struct Slice
     inline t& operator [](int idx) { return ptr[idx]; };
 #endif
 };
+
+// Dynamically growing array, which uses arenas
+// Should be zero initialized
+template<typename t>
+struct Array
+{
+    t* ptr;
+    int32_t len;
+    int32_t capacity;
+    
+#ifdef BoundsChecking
+    // For reading the value
+    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
+#else
+    // For reading the value
+    inline t  operator [](int idx) const { return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { return ptr[idx]; };
+#endif
+};
+
+// Does not exactly reserve "len", but its nearest power of 2
+template<typename t>
+void Reserve(Array<t>* array, Arena* arena, int len);
+template<typename t>
+void Append(Array<t>* array, Arena* arena, t el);
+template<typename t>
+Slice<t> ToSlice(Array<t>* array);
+
+////
+// String construction utils
+
+// Can zero initialize this. This is something that should
+// not be put in a tightly packed structure in memory, because
+// API ergonomics are prioritized over struct size. (The operations
+// themselves are still performant though)
+struct Arena;
+struct StringBuilder
+{
+    Array<char> str;
+    Arena* arena;  // If nullptr, just use malloc and free
+};
+
+inline void UseArena(StringBuilder* builder, Arena* arena);
+void Append(StringBuilder* builder, const char* str);
+void Append(StringBuilder* builder, String str);
+void AppendFmt(StringBuilder* builder, const char* fmt, ...);
+// Insert binary representation of value in string
+// (Useful for serialization)
+// NOTE: inserts padding as necessary
+template<typename t>
+void Put(StringBuilder* builder, t val);
+void FreeBuffers(StringBuilder* builder);
+String ToString(StringBuilder* builder);
+
+
 
 ////
 // Miscellaneous

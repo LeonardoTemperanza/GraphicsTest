@@ -19,7 +19,7 @@ popd
 REM Compile utility programs
 cl /nologo /std:c++20 ..\Source\utils\bin2h.cpp /Od %include_dirs% /link /out:bin2h.exe
 del bin2h.obj
-cl /nologo /Od /std:c++20 /FC ..\Source\utils\model_importer.cpp %include_dirs% /link %lib_dirs% assimp-vc143-mt.lib /out:model_importer.exe
+cl /nologo /Od /Zi /std:c++20 /FC ..\Source\utils\model_importer.cpp %include_dirs% /link %lib_dirs% assimp-vc143-mt.lib /out:model_importer.exe
 
 REM Use utility programs
 bin2h.exe %shader_dir%\shader.frag.spv fragShader %shader_dir%\shader.vert.spv vertShader -o ../Source/embedded_files.h
