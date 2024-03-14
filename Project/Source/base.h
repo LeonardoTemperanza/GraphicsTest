@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <cstdint>
 #include <cstring>
+
 #include "os/os_generic.h"
 
 // Handy typedefs
@@ -294,6 +295,59 @@ b32 operator !=(String s1, const char* s2);
 void WriteToFile(String s, FILE* file);
 
 ////
+// Basic data structures
+struct Arena;
+
+template<typename t>
+struct Slice
+{
+    t* ptr;
+    int64_t len;
+    
+#ifdef BoundsChecking
+    // For reading the value
+    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
+#else
+    // For reading the value
+    inline t  operator [](int idx) const { return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { return ptr[idx]; };
+#endif
+};
+
+// Dynamically growing array, which uses arenas
+// Should be zero initialized
+template<typename t>
+struct Array
+{
+    t* ptr;
+    int32_t len;
+    int32_t capacity;
+    
+#ifdef BoundsChecking
+    // For reading the value
+    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
+#else
+    // For reading the value
+    inline t  operator [](int idx) const { return ptr[idx]; };
+    // For writing to the value (this returns a left-value)
+    inline t& operator [](int idx) { return ptr[idx]; };
+#endif
+};
+
+// Does not exactly reserve "len", but its nearest power of 2
+template<typename t>
+void Reserve(Array<t>* array, Arena* arena, int len);
+template<typename t>
+void Append(Array<t>* array, Arena* arena, t el);
+template<typename t>
+Slice<t> ToSlice(Array<t>* array);
+
+////
 // Memory allocation
 
 #define ArenaDefAlign sizeof(void*)
@@ -393,6 +447,8 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
 
 char* ArenaPushString(Arena* arena, const char* str);
 char* ArenaPushStringNoNullTerm(Arena* arena, const char* str);
+template<typename t>
+Slice<t> ArenaPushSlice(Arena* arena, Slice<t> slice);
 
 void ArenaWriteToFile(Arena* arena, FILE* file);
 
@@ -434,64 +490,12 @@ struct LogError
 };
 
 ////
-// Basic data structures
-template<typename t>
-struct Slice
-{
-    t* ptr;
-    int64_t len;
-    
-#ifdef BoundsChecking
-    // For reading the value
-    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
-    // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
-#else
-    // For reading the value
-    inline t  operator [](int idx) const { return ptr[idx]; };
-    // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { return ptr[idx]; };
-#endif
-};
-
-// Dynamically growing array, which uses arenas
-// Should be zero initialized
-template<typename t>
-struct Array
-{
-    t* ptr;
-    int32_t len;
-    int32_t capacity;
-    
-#ifdef BoundsChecking
-    // For reading the value
-    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
-    // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
-#else
-    // For reading the value
-    inline t  operator [](int idx) const { return ptr[idx]; };
-    // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { return ptr[idx]; };
-#endif
-};
-
-// Does not exactly reserve "len", but its nearest power of 2
-template<typename t>
-void Reserve(Array<t>* array, Arena* arena, int len);
-template<typename t>
-void Append(Array<t>* array, Arena* arena, t el);
-template<typename t>
-Slice<t> ToSlice(Array<t>* array);
-
-////
 // String construction utils
 
 // Can zero initialize this. This is something that should
 // not be put in a tightly packed structure in memory, because
 // API ergonomics are prioritized over struct size. (The operations
 // themselves are still performant though)
-struct Arena;
 struct StringBuilder
 {
     Array<char> str;
@@ -502,6 +506,7 @@ inline void UseArena(StringBuilder* builder, Arena* arena);
 void Append(StringBuilder* builder, const char* str);
 void Append(StringBuilder* builder, String str);
 void AppendFmt(StringBuilder* builder, const char* fmt, ...);
+void NullTerminate(StringBuilder* builder);
 // Insert binary representation of value in string
 // (Useful for serialization)
 // NOTE: inserts padding as necessary
@@ -512,6 +517,8 @@ String ToString(StringBuilder* builder);
 // Consume stream of bytes
 template<typename t>
 t Next(const char** cursor);
+template<typename t>
+t Next(const char** cursor, int count);
 String Next(const char** cursor, int strLen);
 
 ////

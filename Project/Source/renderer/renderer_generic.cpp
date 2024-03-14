@@ -4,13 +4,13 @@
 // Mhmmm, virtual functions honestly seem better in this specific
 // case... How do C people do this properly?
 
-RendererRef StubInitRenderer(Arena* arena) { return nullptr; }
-void StubRender(RendererRef r, RenderSettings settings) {};
+Renderer* StubInitRenderer(Arena* arena) { return nullptr; }
+void StubRender(Renderer* r, RenderSettings settings) {};
 
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
 {
-#define CastToGenericInit   (RendererRef (*)(Arena*))
-#define CastToGenericRender (void (*)(RendererRef r, RenderSettings settings))
+#define CastToGenericInit   (Renderer* (*)(Arena*))
+#define CastToGenericRender (void (*)(Renderer* r, RenderSettings settings))
     switch(gfxLib)
     {
         case GfxLib_None:

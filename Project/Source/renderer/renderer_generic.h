@@ -13,19 +13,18 @@ struct RenderSettings
     Slice<Particle> particles;
 };
 
+struct Renderer {};
 #include "renderer_opengl.h"
 #include "renderer_d3d11.h"
 
 // Function pointers
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib);
 
-typedef void* RendererRef;
+Renderer* StubInitRenderer(Arena* arena);
+void StubRender(Renderer* r, RenderSettings settings);
 
-RendererRef StubInitRenderer(Arena* arena);
-void StubRender(RendererRef r, RenderSettings settings);
-
-RendererRef (*InitRenderer)(Arena* arena) = StubInitRenderer;
-void (*Render)(RendererRef r, RenderSettings settings) = StubRender;
+Renderer* (*InitRenderer)(Arena* arena) = StubInitRenderer;
+void (*Render)(Renderer* r, RenderSettings settings) = StubRender;
 
 // For text editor syntax highlighting
 #if 0

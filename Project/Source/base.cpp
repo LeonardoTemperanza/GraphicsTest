@@ -702,6 +702,11 @@ void Put(StringBuilder* builder, t val)
     *addr = val;
 }
 
+void NullTerminate(StringBuilder* builder)
+{
+    Put(builder, '\0');
+}
+
 void FreeBuffers(StringBuilder* builder)
 {
     void* old = (void*)builder->str.ptr;
@@ -726,6 +731,14 @@ t Next(char** cursor)
     t* next = (t*)(void*)AlignForward((uintptr_t)(void*)*cursor, alignof(t));
     *cursor = (char*)(next + sizeof(t));
     return *next;
+}
+
+template<typename t>
+Slice<t> Next(char** cursor, int count)
+{
+    t* next = (t*)(void*)AlignForward((uintptr_t)(void*)*cursor, alignof(t));
+    *cursor = (char*)(next + count);
+    return {.ptr=next, .len=count};
 }
 
 String Next(char** cursor, int strLen)
@@ -919,6 +932,14 @@ char* ArenaPushStringNoNullTerm(Arena* arena, const char* str)
     char* ptr = (char*)ArenaAlloc(arena, len, 1);
     memcpy(ptr, str, len);
     return ptr;
+}
+
+template<typename t>
+Slice<t> ArenaPushSlice(Arena* arena, Slice<t> slice)
+{
+    t* ptr = (t*)ArenaAlloc(arena, slice.len, alignof(t));
+    memcpy(ptr, slice.ptr, slice.len);
+    return {.ptr=ptr, .len=slice.len};
 }
 
 void ArenaWriteToFile(Arena* arena, FILE* file)

@@ -28,10 +28,24 @@ enum AssetTag
 
 #include "base.h"
 
+struct Material
+{
+    int testt;
+};
+
+struct Mesh
+{
+    bool hasTextureCoords;
+    
+    Slice<Vec3> verts;
+    Slice<Vec3> textureCoords;
+    Slice<s32>  indices;
+};
+
 struct Model
 {
-    Slice<Vec3> verts;
-    Slice<s32>  indices;
+    Slice<Mesh>     meshes;
+    Slice<Material> material;
 };
 
 Model* LoadModel(const char* path, Arena* dst);

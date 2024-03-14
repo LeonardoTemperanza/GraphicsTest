@@ -115,13 +115,12 @@ gl_Renderer* gl_InitRenderer(Arena* permArena)
     glEnableVertexArrayAttrib(r->vao, 0);
     glVertexArrayAttribBinding(r->vao, 0, 0);
     glVertexArrayAttribFormat(r->vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-    glVertexArrayVertexBuffer(r->vao, 0, r->vbo, 0, 6*sizeof(GLfloat));
     
     glEnableVertexArrayAttrib(r->vao, 1);
     glVertexArrayAttribBinding(r->vao, 1, 0);
     glVertexArrayAttribFormat(r->vao, 1, 3, GL_FLOAT, GL_FALSE, 0);
-    glVertexArrayVertexBuffer(r->vao, 0, r->vbo, 0, 6*sizeof(GLfloat));
     
+    glVertexArrayVertexBuffer(r->vao, 0, r->vbo, 0, 6*sizeof(GLfloat));
     //glVertexArrayElementBuffer(r->vao, r->ebo);
     
     // Specialize and link SPIR-V shader
@@ -155,16 +154,61 @@ gl_Renderer* gl_InitRenderer(Arena* permArena)
 
 static Arena rendererArena = ArenaVirtualMemInit(GB(4), MB(2));
 
-static void gl_RenderModel()
+struct MeshRenderInfo
+{
+    GLuint vao;
+    GLuint vbo;
+    GLuint ebo;
+};
+
+static void gl_RenderModel(gl_Renderer* r)
 {
     // This is test code
     static Model* model = nullptr;
+    static Slice<MeshRenderInfo> infos = {0};
     if(!model)
     {
-        model = LoadModel("W:/GraphicsTest/Assets/Raptoid/Raptoid.model", &rendererArena);
+        // TODO: relative path doesn't work
+        model = LoadModel("Raptoid/Raptoid.model", &rendererArena);
+        if(!model) return;
+        
+        infos.len = model->meshes.len;
+        infos.ptr = ArenaAllocArray(MeshRenderInfo, infos.len * sizeof(MeshRenderInfo), &rendererArena);
+        
+        for(int i = 0; i < infos.len; ++i)
+        {
+            auto& info = infos[i];
+            auto& mesh = model->meshes[i];
+            
+            glCreateVertexArrays(1, &info.vao);
+            GLuint bufferIds[2];
+            glCreateBuffers(2, bufferIds);
+            info.vbo = bufferIds[0];
+            info.ebo = bufferIds[1];
+            
+            // Bind the vao and stuff
+            glNamedBufferData(info.vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
+            glNamedBufferData(info.ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
+            
+            glVertexArrayVertexBuffer(info.vao, 0, info.vbo, 0, sizeof(mesh.verts[0]));
+            glVertexArrayElementBuffer(info.vao, info.ebo);
+        }
     }
     
-    // Use the model, render it with
+    // Use the model, render it
+    glUseProgram(r->shaderProgram);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    
+    for(int i = 0; i < model->meshes.len; ++i)
+    {
+        OS_DebugMessage("rendering a mesh!!!\n");
+        
+        auto& mesh = model->meshes[i];
+        
+        glBindVertexArray(infos[i].vao);
+        glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, mesh.indices.ptr);
+    }
 }
 
 void gl_Render(gl_Renderer* r, RenderSettings settings)
@@ -207,5 +251,5 @@ void gl_Render(gl_Renderer* r, RenderSettings settings)
     //glEnable(GL_CULL_FACE);
     glDrawArrays(GL_TRIANGLES, 0, ArrayCount(vertices) / 2);
     
-    gl_RenderModel();
+    gl_RenderModel(r);
 }

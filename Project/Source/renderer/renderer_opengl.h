@@ -1,7 +1,7 @@
 
 #pragma once
 
-struct gl_Renderer
+struct gl_Renderer : public Renderer
 {
     GLuint vao;
     GLuint vbo;

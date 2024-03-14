@@ -6,10 +6,13 @@ Model* LoadModel(const char* path, Arena* dst)
     auto res = ArenaAllocTyped(Model, dst);
     memset(res, 0, sizeof(*res));
     
-    FILE* modelFile = fopen(path, "r+b");
+    FILE* modelFile = fopen(path, "rb");
     // TODO: Error reporting
     if(!modelFile)
+    {
+        OS_DebugMessage("File not found.\n");
         return res;
+    }
     
     defer { fclose(modelFile); };
     
@@ -36,11 +39,22 @@ Model* LoadModel(const char* path, Arena* dst)
         return res;
     }
     
-    s32 version = Next<s32>(cursor);
+    s32 version      = Next<s32>(cursor);
+    s32 numMeshes    = Next<s32>(cursor);
+    s32 numMaterials = Next<s32>(cursor);
+    res->meshes.ptr  = ArenaAllocArray(Mesh, numMeshes, dst);
+    res->meshes.len  = numMeshes;
+    
     char buffer[1024];
-    snprintf(buffer, 1024, "Read version is: %d\n", version);
+    snprintf(buffer, 1024, "Version: %d, Num meshes: %d, Num materials: %d\n", version, numMeshes, numMaterials);
+    OS_DebugMessage(buffer);
     
-    
+    for(int i = 0; i < numMeshes; ++i)
+    {
+        auto& mesh = res->meshes[i];
+        Slice<Vec3> verts = Next<Vec3>(cursor, numMeshes);
+        mesh.verts = ArenaPushSlice(dst, verts);
+    }
     
     return res;
 }

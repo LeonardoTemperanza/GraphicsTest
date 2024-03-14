@@ -5,20 +5,47 @@
 #include "renderer/renderer_generic.h"
 #include "ui_core.h"
 
+void SetWorkingDirToAssets()
+{
+    StringBuilder assetsPath = {0};
+    defer { FreeBuffers(&assetsPath); };
+    
+    char* exePath = OS_GetExecutablePath();
+    defer { free(exePath); };
+    
+    // Get rid of the .exe file itself in the path
+    int len = strlen(exePath);
+    int lastSeparator = len - 1;
+    for(int i = len-1; i >= 0; --i)
+    {
+        if(exePath[i] == '/' || exePath[i] == '\\')
+        {
+            lastSeparator = i;
+            break;
+        }
+    }
+    
+    String exePathNoFile = {.ptr=exePath, .len=lastSeparator+1};
+    Append(&assetsPath, exePathNoFile);
+    Append(&assetsPath, "../../Assets/");
+    NullTerminate(&assetsPath);
+    OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
+}
+
 int main()
 {
     OS_GraphicsLib usedLib = OS_Init();
     defer { OS_Cleanup(); };
     
-    // TODO: Get the exe directory so it doesn't
-    // depend on the current working directory
-    OS_SetCurrentDirectory("../../Assets/");
+    SetWorkingDirToAssets();
+    
+    char* curDir = OS_GetCurrentDirectory();
     
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     SetRenderFunctionPointers(usedLib);
-    RendererRef renderer = InitRenderer(&permArena);
+    Renderer* renderer = InitRenderer(&permArena);
     AppState appState = InitSimulation();
     UI_Init();
     

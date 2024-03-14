@@ -3,7 +3,7 @@
 
 #include "renderer_generic.h"
 
-struct d3d11_Renderer
+struct d3d11_Renderer : public Renderer
 {
     ID3D11Texture2D* framebuffer;
     ID3D11Texture2D* depthBuffer;
