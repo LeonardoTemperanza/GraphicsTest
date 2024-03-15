@@ -65,6 +65,13 @@ Model* LoadModel(const char* path, Arena* dst)
         mesh.verts   = ArenaPushSlice(dst, verts);
         mesh.indices = ArenaPushSlice(dst, indices);
         mesh.normals = ArenaPushSlice(dst, normals);
+        
+        // @temp This model i'm using for testing is huge
+        if(strcmp(path, "Raptoid/Raptoid.model") == 0)
+        {
+            for(int i = 0; i < mesh.verts.len; ++i)
+                mesh.verts[i] *= 0.01;
+        }
     }
     
     return res;

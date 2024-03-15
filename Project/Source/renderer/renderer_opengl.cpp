@@ -158,8 +158,8 @@ struct MeshRenderInfo
 {
     GLuint vao;
     GLuint vbo;
+    GLuint vbo2;
     GLuint ebo;
-    GLuint normalBuf;
 };
 
 static void gl_RenderModel(gl_Renderer* r)
@@ -170,11 +170,11 @@ static void gl_RenderModel(gl_Renderer* r)
     if(!model)
     {
         // TODO: relative path doesn't work
-        model = LoadModel("Raptoid/Raptoid.model", &rendererArena);
+        model = LoadModel("Gun/Gun.model", &rendererArena);
         if(!model) return;
         
         infos.len = model->meshes.len;
-        infos.ptr = ArenaAllocArray(MeshRenderInfo, infos.len * sizeof(MeshRenderInfo), &rendererArena);
+        infos.ptr = ArenaAllocArray(MeshRenderInfo, infos.len, &rendererArena);
         
         for(int i = 0; i < infos.len; ++i)
         {
@@ -182,16 +182,15 @@ static void gl_RenderModel(gl_Renderer* r)
             auto& mesh = model->meshes[i];
             
             glCreateVertexArrays(1, &info.vao);
-            GLuint bufferIds[3];
-            glCreateBuffers(3, bufferIds);
+            GLuint bufferIds[2];
+            glCreateBuffers(2, bufferIds);
             info.vbo = bufferIds[0];
             info.ebo = bufferIds[1];
-            info.normalBuf = bufferIds[2];
             
             // Bind the vao and stuff
             glNamedBufferData(info.vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
             glNamedBufferData(info.ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
-            glNamedBufferData(info.normalBuf, mesh.normals.len * sizeof(mesh.normals[0]), mesh.normals.ptr, GL_STATIC_DRAW);
+            
             
             glEnableVertexArrayAttrib(info.vao, 0);
             glVertexArrayAttribBinding(info.vao, 0, 0);
@@ -202,21 +201,21 @@ static void gl_RenderModel(gl_Renderer* r)
             glVertexArrayAttribFormat(info.vao, 1, 3, GL_FLOAT, GL_FALSE, 0);
             
             glVertexArrayVertexBuffer(info.vao, 0, info.vbo, 0, sizeof(mesh.verts[0]));
+            //sglVertexArrayVertexBuffer(info.vao, 0, info.vbo2, 0, sizeof(mesh.normals[0]));
             glVertexArrayElementBuffer(info.vao, info.ebo);
         }
     }
     
-    // Use the model, render it
     glUseProgram(r->shaderProgram);
-    glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
     
     for(int i = 0; i < model->meshes.len; ++i)
     {
         auto& mesh = model->meshes[i];
         
         glBindVertexArray(infos[i].vao);
-        glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, mesh.indices.ptr);
+        glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
     }
 }
 
@@ -258,7 +257,7 @@ void gl_Render(gl_Renderer* r, RenderSettings settings)
     glBindVertexArray(r->vao);
     glEnable(GL_DEPTH_TEST);
     //glEnable(GL_CULL_FACE);
-    glDrawArrays(GL_TRIANGLES, 0, ArrayCount(vertices) / 2);
+    //glDrawArrays(GL_TRIANGLES, 0, ArrayCount(vertices) / 2);
     
     gl_RenderModel(r);
 }
