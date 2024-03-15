@@ -31,7 +31,7 @@ Model* LoadModel(const char* path, Arena* dst)
         cursor = &c;
     }
     
-    String magicBytes = Next(cursor, sizeof("model")-1);
+    String magicBytes = Next(cursor, sizeof("model")-1);  // Excluding null terminator
     // TODO: Error reporting
     if(magicBytes != "model")
     {
@@ -52,8 +52,19 @@ Model* LoadModel(const char* path, Arena* dst)
     for(int i = 0; i < numMeshes; ++i)
     {
         auto& mesh = res->meshes[i];
-        Slice<Vec3> verts = Next<Vec3>(cursor, numMeshes);
-        mesh.verts = ArenaPushSlice(dst, verts);
+        
+        s32 numVerts    = Next<s32>(cursor);
+        s32 numIndices  = Next<s32>(cursor);
+        s32 materialIdx = Next<s32>(cursor);
+        bool hasTextureCoords = Next<bool>(cursor);
+        
+        Slice<Vec3> verts     = Next<Vec3>(cursor, numVerts);
+        Slice<Vec3> normals   = Next<Vec3>(cursor, numVerts);
+        Slice<Vec3> texCoords = Next<Vec3>(cursor, numVerts * hasTextureCoords);
+        Slice<s32>  indices   = Next<s32>(cursor, numIndices);
+        mesh.verts   = ArenaPushSlice(dst, verts);
+        mesh.indices = ArenaPushSlice(dst, indices);
+        mesh.normals = ArenaPushSlice(dst, normals);
     }
     
     return res;

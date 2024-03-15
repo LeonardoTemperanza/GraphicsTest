@@ -40,6 +40,7 @@ struct Mesh
     Slice<Vec3> verts;
     Slice<Vec3> textureCoords;
     Slice<s32>  indices;
+    Slice<Vec3> normals;
 };
 
 struct Model

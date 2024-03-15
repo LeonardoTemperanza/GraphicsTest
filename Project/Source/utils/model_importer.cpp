@@ -126,7 +126,10 @@ int main(int argCount, char** args)
     
     Assimp::Importer importer;
     
-    int flags = aiProcess_Triangulate | aiProcess_GenUVCoords;
+    printf("Loading and preprocessing model %s...\n", modelPath);
+    
+    int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices |
+        aiProcess_GenUVCoords;
     const aiScene* scene = importer.ReadFile(modelPath, flags);
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -165,7 +168,7 @@ int main(int argCount, char** args)
         const aiMesh* mesh = scene->mMeshes[i];
         
         Put(&builder, (s32)mesh->mNumVertices);
-        Put(&builder, (s32)mesh->mNumFaces * 3);
+        Put(&builder, (s32)(mesh->mNumFaces * 3));
         Put(&builder, (s32)mesh->mMaterialIndex);
         
         Put(&builder, (u8)mesh->HasTextureCoords(0));
@@ -195,7 +198,7 @@ int main(int argCount, char** args)
         
         for(int j = 0; j < mesh->mNumFaces; ++j)
         {
-            const aiFace& face = mesh->mFaces[i];
+            const aiFace& face = mesh->mFaces[j];
             assert(face.mNumIndices == 3);
             
             Put(&builder, (s32)face.mIndices[0]);

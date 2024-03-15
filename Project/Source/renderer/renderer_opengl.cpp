@@ -159,6 +159,7 @@ struct MeshRenderInfo
     GLuint vao;
     GLuint vbo;
     GLuint ebo;
+    GLuint normalBuf;
 };
 
 static void gl_RenderModel(gl_Renderer* r)
@@ -181,14 +182,24 @@ static void gl_RenderModel(gl_Renderer* r)
             auto& mesh = model->meshes[i];
             
             glCreateVertexArrays(1, &info.vao);
-            GLuint bufferIds[2];
-            glCreateBuffers(2, bufferIds);
+            GLuint bufferIds[3];
+            glCreateBuffers(3, bufferIds);
             info.vbo = bufferIds[0];
             info.ebo = bufferIds[1];
+            info.normalBuf = bufferIds[2];
             
             // Bind the vao and stuff
             glNamedBufferData(info.vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
             glNamedBufferData(info.ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
+            glNamedBufferData(info.normalBuf, mesh.normals.len * sizeof(mesh.normals[0]), mesh.normals.ptr, GL_STATIC_DRAW);
+            
+            glEnableVertexArrayAttrib(info.vao, 0);
+            glVertexArrayAttribBinding(info.vao, 0, 0);
+            glVertexArrayAttribFormat(info.vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+            
+            glEnableVertexArrayAttrib(info.vao, 1);
+            glVertexArrayAttribBinding(info.vao, 1, 0);
+            glVertexArrayAttribFormat(info.vao, 1, 3, GL_FLOAT, GL_FALSE, 0);
             
             glVertexArrayVertexBuffer(info.vao, 0, info.vbo, 0, sizeof(mesh.verts[0]));
             glVertexArrayElementBuffer(info.vao, info.ebo);
@@ -197,13 +208,11 @@ static void gl_RenderModel(gl_Renderer* r)
     
     // Use the model, render it
     glUseProgram(r->shaderProgram);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
     
     for(int i = 0; i < model->meshes.len; ++i)
     {
-        OS_DebugMessage("rendering a mesh!!!\n");
-        
         auto& mesh = model->meshes[i];
         
         glBindVertexArray(infos[i].vao);

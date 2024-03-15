@@ -729,7 +729,7 @@ template<typename t>
 t Next(char** cursor)
 {
     t* next = (t*)(void*)AlignForward((uintptr_t)(void*)*cursor, alignof(t));
-    *cursor = (char*)(next + sizeof(t));
+    *cursor = (char*)(next + 1);
     return *next;
 }
 
@@ -937,8 +937,8 @@ char* ArenaPushStringNoNullTerm(Arena* arena, const char* str)
 template<typename t>
 Slice<t> ArenaPushSlice(Arena* arena, Slice<t> slice)
 {
-    t* ptr = (t*)ArenaAlloc(arena, slice.len, alignof(t));
-    memcpy(ptr, slice.ptr, slice.len);
+    t* ptr = (t*)ArenaAllocArray(t, slice.len, arena);
+    memcpy(ptr, slice.ptr, slice.len * sizeof(t));
     return {.ptr=ptr, .len=slice.len};
 }
 
