@@ -1,13 +1,14 @@
 
 #pragma once
 
-#include "renderer_generic.h"
+struct Arena;
+union Renderer;
 
-struct d3d11_Renderer : public Renderer
+struct d3d11_Renderer
 {
     ID3D11Texture2D* framebuffer;
     ID3D11Texture2D* depthBuffer;
 };
 
-d3d11_Renderer* d3d11_InitRenderer(Arena* permArena);
-void d3d11_Render(d3d11_Renderer* r, RenderSettings renderSettings);
+void d3d11_InitRenderer(Renderer* renderer, Arena* renderArena);
+void d3d11_Render(Renderer* renderer, RenderSettings renderSettings);

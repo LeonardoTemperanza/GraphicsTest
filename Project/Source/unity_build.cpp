@@ -1,6 +1,17 @@
 
 #define UnityBuild
 
+// Supported Graphics APIs
+#ifdef _WIN32
+#define OS_SupportD3D11
+#define OS_SupportOpenGL
+#elif defined(__linux__)
+#define OS_SupportOpenGL
+#elif defined(__APPLE__)
+#define OS_SupportMetal
+#else
+#endif
+
 #include "include/glad.c"
 
 #include "os/os_generic.cpp"

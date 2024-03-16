@@ -3,11 +3,10 @@
 
 D3D11_Context Win32_GetD3D11Context();
 
-d3d11_Renderer* d3d11_InitRenderer(Arena* permArena)
+void d3d11_InitRenderer(Renderer* renderer, Arena* permArena)
 {
     // @temp Maybe some of this stuff can be moved to the win32 layer
-    
-    auto res = (d3d11_Renderer*)malloc(sizeof(d3d11_Renderer));
+    d3d11_Renderer* res = &renderer->d3d11Renderer;
     memset(res, 0, sizeof(d3d11_Renderer));
     
     D3D11_Context ctx = Win32_GetD3D11Context();
@@ -35,11 +34,9 @@ d3d11_Renderer* d3d11_InitRenderer(Arena* permArena)
         ID3D11DepthStencilView* depthStencilView;
         ctx.device->CreateDepthStencilView(res->depthBuffer, nullptr, &depthStencilView);
     }
-    
-    return {0};
 }
 
-void d3d11_Render(d3d11_Renderer* r, RenderSettings renderSettings)
+void d3d11_Render(Renderer* renderer, RenderSettings renderSettings)
 {
     
 }

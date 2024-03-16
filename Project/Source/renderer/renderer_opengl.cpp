@@ -1,6 +1,6 @@
 
 #include "base.h"
-#include "renderer_opengl.h"
+#include "renderer_generic.h"
 #include "embedded_files.h"
 #include "embedded_models.h"
 
@@ -92,9 +92,9 @@ float vertices[] = {
     -0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  1.0f,  0.0f
 };
 
-gl_Renderer* gl_InitRenderer(Arena* permArena)
+void gl_InitRenderer(Renderer* renderer, Arena* renderArena)
 {
-    auto r = (gl_Renderer*)malloc(sizeof(gl_Renderer));
+    gl_Renderer* r = &renderer->glRenderer;
     memset(r, 0, sizeof(gl_Renderer));
     
     // Allocate buffers
@@ -149,7 +149,6 @@ gl_Renderer* gl_InitRenderer(Arena* permArena)
     
     glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBindingPoint, r->frameUbo);
     glUniformBlockBinding(r->shaderProgram, r->perFrameUniformIdx, perFrameBindingPoint);
-    return r;
 }
 
 static Arena rendererArena = ArenaVirtualMemInit(GB(4), MB(2));
@@ -191,7 +190,6 @@ static void gl_RenderModel(gl_Renderer* r)
             glNamedBufferData(info.vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
             glNamedBufferData(info.ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
             
-            
             glEnableVertexArrayAttrib(info.vao, 0);
             glVertexArrayAttribBinding(info.vao, 0, 0);
             glVertexArrayAttribFormat(info.vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
@@ -219,8 +217,10 @@ static void gl_RenderModel(gl_Renderer* r)
     }
 }
 
-void gl_Render(gl_Renderer* r, RenderSettings settings)
+void gl_Render(Renderer* renderer, RenderSettings settings)
 {
+    gl_Renderer* r = &renderer->glRenderer;
+    
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     glViewport(0, 0, width, height);
