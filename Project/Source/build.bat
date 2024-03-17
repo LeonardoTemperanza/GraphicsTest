@@ -43,4 +43,6 @@ if %build_ret%==0 (
 REM call graphics_test.exe
 )
 
+echo Done.
+
 popd

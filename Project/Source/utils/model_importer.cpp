@@ -218,8 +218,6 @@ int main(int argCount, char** args)
     
     WriteToFile(ToString(&builder), outFile);
     
-    //LoadModel();
-    
     return 0;
 }
 
@@ -252,23 +250,6 @@ std::string RemovePathLastPart(const std::string& fileName)
     
     if (lastSeparator == std::string::npos) return fileName;
     return fileName.substr(0, lastSeparator);
-}
-
-void LoadModel()
-{
-    int version = 0;
-    printf("Version: %d\n", version);
-    
-    // Diffuse
-    //LoadTexture(version);
-    
-    // Normal
-    //LoadTexture(version);
-}
-
-void LoadTexture(s32 version)
-{
-    
 }
 
 // This stuff should all go to a material file

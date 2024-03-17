@@ -4,98 +4,12 @@
 #include "embedded_files.h"
 #include "embedded_models.h"
 
-// Cube
-float vertices[] = {
-    -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,
-    0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
-    0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
-    0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
-    -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
-    -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 
-    
-    -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f,  0.0f, 1.0f,
-    
-    -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-    -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,
-    
-    0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-    0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-    0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-    0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,
-    0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-    0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,
-    
-    -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-    0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-    0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,
-    
-    -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-    0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-    0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,
-    
-    
-    -0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  0.0f,  0.0f, -1.0f,
-    0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  0.0f,  0.0f, -1.0f, 
-    0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  0.0f, -1.0f, 
-    0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  0.0f, -1.0f, 
-    -0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  0.0f, -1.0f, 
-    -0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  0.0f,  0.0f, -1.0f, 
-    
-    -0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  0.0f,  0.0f, 1.0f,
-    0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  0.0f,  0.0f, 1.0f,
-    0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  0.0f,  0.0f, 1.0f,
-    0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  0.0f,  0.0f, 1.0f,
-    -0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  0.0f,  0.0f, 1.0f,
-    -0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  0.0f,  0.0f, 1.0f,
-    
-    -0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f, -1.0f,  0.0f,  0.0f,
-    -0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f, -1.0f,  0.0f,  0.0f,
-    -0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f, -1.0f,  0.0f,  0.0f,
-    -0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f, -1.0f,  0.0f,  0.0f,
-    -0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f, -1.0f,  0.0f,  0.0f,
-    -0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f, -1.0f,  0.0f,  0.0f,
-    
-    0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  1.0f,  0.0f,  0.0f,
-    0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  1.0f,  0.0f,  0.0f,
-    0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  1.0f,  0.0f,  0.0f,
-    0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  1.0f,  0.0f,  0.0f,
-    0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  1.0f,  0.0f,  0.0f,
-    0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  1.0f,  0.0f,  0.0f,
-    
-    -0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  0.0f, -1.0f,  0.0f,
-    0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  0.0f, -1.0f,  0.0f,
-    0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  0.0f, -1.0f,  0.0f,
-    0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  0.0f, -1.0f,  0.0f,
-    -0.5f+2.0f, -0.5f+2.0f,  0.5f+2.0f,  0.0f, -1.0f,  0.0f,
-    -0.5f+2.0f, -0.5f+2.0f, -0.5f+2.0f,  0.0f, -1.0f,  0.0f,
-    
-    -0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  1.0f,  0.0f,
-    0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  1.0f,  0.0f,
-    0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  0.0f,  1.0f,  0.0f,
-    0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  0.0f,  1.0f,  0.0f,
-    -0.5f+2.0f,  0.5f+2.0f,  0.5f+2.0f,  0.0f,  1.0f,  0.0f,
-    -0.5f+2.0f,  0.5f+2.0f, -0.5f+2.0f,  0.0f,  1.0f,  0.0f
-};
-
-void gl_InitRenderer(Renderer* renderer, Arena* renderArena)
+void gl_InitRenderer()
 {
-    gl_Renderer* r = &renderer->glRenderer;
+    gl_Renderer* r = &renderer.glRenderer;
     memset(r, 0, sizeof(gl_Renderer));
+    
+    // This loading stuff should actually be moved to "load scene" or something
     
     // Allocate buffers
     glCreateVertexArrays(1, &r->vao);
@@ -106,11 +20,12 @@ void gl_InitRenderer(Renderer* renderer, Arena* renderArena)
     r->appUbo = buffers[1];
     r->frameUbo = buffers[2];
     
-    glNamedBufferData(r->vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    //glNamedBufferData(r->vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
     //glNamedBufferData(r->ebo, sizeof(indices), indices, GL_STATIC_DRAW);
     //glNamedBufferData(r->appUbo, sizeof(PerAppUniforms), nullptr, GL_DYNAMIC_DRAW);
     glNamedBufferData(r->frameUbo, sizeof(PerFrameUniforms), nullptr, GL_DYNAMIC_DRAW);
     
+#if 0
     // TODO: The binding needs to match the one in the shaders. There should be a common .h file used in both.
     glEnableVertexArrayAttrib(r->vao, 0);
     glVertexArrayAttribBinding(r->vao, 0, 0);
@@ -122,6 +37,7 @@ void gl_InitRenderer(Renderer* renderer, Arena* renderArena)
     
     glVertexArrayVertexBuffer(r->vao, 0, r->vbo, 0, 6*sizeof(GLfloat));
     //glVertexArrayElementBuffer(r->vao, r->ebo);
+#endif
     
     // Specialize and link SPIR-V shader
     GLint compileStatus = 0;
@@ -161,15 +77,24 @@ struct MeshRenderInfo
     GLuint ebo;
 };
 
-static void gl_RenderModel(gl_Renderer* r)
+Model* gl_LoadModel(const char* name)
 {
+    TODO;
+    return nullptr;
+    //LoadModelAsset();
+}
+
+static void gl_RenderModel(Model* model)
+{
+    gl_Renderer* r = &renderer.glRenderer;
+    
     // This is test code
+#if 0
     static Model* model = nullptr;
     static Slice<MeshRenderInfo> infos = {0};
     if(!model)
     {
-        // TODO: relative path doesn't work
-        model = LoadModel("Gun/Gun.model", &rendererArena);
+        model = LoadModelAsset("Gun/Gun.model", &rendererArena);
         if(!model) return;
         
         infos.len = model->meshes.len;
@@ -215,11 +140,13 @@ static void gl_RenderModel(gl_Renderer* r)
         glBindVertexArray(infos[i].vao);
         glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
     }
+#endif
 }
 
-void gl_Render(Renderer* renderer, RenderSettings settings)
+#if 0
+void gl_Render(RenderSettings settings)
 {
-    gl_Renderer* r = &renderer->glRenderer;
+    gl_Renderer* r = &renderer.glRenderer;
     
     int width, height;
     OS_GetClientAreaSize(&width, &height);
@@ -259,5 +186,11 @@ void gl_Render(Renderer* renderer, RenderSettings settings)
     //glEnable(GL_CULL_FACE);
     //glDrawArrays(GL_TRIANGLES, 0, ArrayCount(vertices) / 2);
     
-    gl_RenderModel(r);
+    //gl_RenderModel();
+}
+#endif
+
+void gl_Cleanup()
+{
+    
 }

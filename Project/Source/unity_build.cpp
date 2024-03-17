@@ -12,6 +12,11 @@
 #else
 #endif
 
+// Misc preprocessor directives
+#if !defined(Development) && !defined(Release)
+#define Development
+#endif
+
 #include "include/glad.c"
 
 #include "os/os_generic.cpp"
@@ -22,10 +27,8 @@
 #include "base.cpp"
 #include "main.cpp"
 #include "input.cpp"
-#include "simulation.cpp"
+#include "core.cpp"
 #include "ui_core.cpp"
 #include "asset_system.cpp"
 
 #include "renderer/renderer_generic.cpp"
-#include "renderer/renderer_opengl.cpp"
-#include "renderer/renderer_d3d11.cpp"

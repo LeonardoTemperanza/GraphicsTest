@@ -24,5 +24,7 @@ struct PerFrameUniforms
     Mat4 view2Proj;
 };
 
-void gl_InitRenderer(Renderer* renderer, Arena* renderArena);
-void gl_Render(Renderer* renderer, RenderSettings settings);
+void gl_InitRenderer();
+void gl_Render(RenderSettings settings);
+void gl_LoadModel();
+void gl_Cleanup();

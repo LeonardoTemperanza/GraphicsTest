@@ -1,13 +1,51 @@
 
 #include "os/os_generic.h"
-#include "simulation.h"
+#include "core.h"
 
 AppState InitSimulation()
 {
     AppState state = {0};
     state.renderSettings.camera.position.z = -10.0f;
     state.renderSettings.camera.rotation = Quat::identity;
+    
+    // Let's load the scene here
+    Model* gunModel = LoadModelByName("gun_model");  // This also has "gun_model"/idx in there
+    Model* raptoidModel = LoadModelByName("raptoid_model");
+    
+    // Let's organize the code with arenas later, right now i would just like to get
+    // the general idea.
+    auto entities = (Entity*)malloc(1000*sizeof(Entity));
+    memset(entities, 0, sizeof(Entity)*1000);
+    state.entities.len = 2;
+    state.entities.ptr = entities;
+    
+    entities[0].id = 0;
+    entities[1].id = 1;
+    
+    entities[0].rot = Quat::identity;
+    entities[1].rot = Quat::identity;
+    
+    entities[0].model = gunModel;
+    entities[1].model = raptoidModel;
+    
     return state;
+}
+
+void UpdateEntities(AppState* state, float deltaTime)
+{
+    auto& entities = state->entities;
+    
+    // Update entity 0
+    {
+        auto& entity = entities[0];
+        entity.pos.x += sin(deltaTime);
+    }
+    
+    // Update entity 1
+    {
+        auto& entity = entities[1];
+        entity.pos.y += sin(deltaTime);
+    }
 }
 
 void UpdateCamera(Transform* camera, float deltaTime)
@@ -47,8 +85,14 @@ void UpdateCamera(Transform* camera, float deltaTime)
     const float moveSpeed = 4.0f;
     const float moveAccel = 30.0f;
     
-    float keyboardX = input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A];
-    float keyboardY = input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S];
+    float keyboardX = 0.0f;
+    float keyboardY = 0.0f;
+    if(input.virtualKeys[Keycode_RMouse])
+    {
+        keyboardX = input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A];
+        keyboardY = input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S];
+    }
+    
     Vec3 targetVel =
     {
         .x = (input.gamepad.leftStick.x + keyboardX) * moveSpeed,
@@ -111,9 +155,22 @@ void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frame
         OS_ShowCursor(true);
     
     UpdateCamera(&state->renderSettings.camera, deltaTime);
+    UpdateEntities(state, deltaTime);
     
     // Render settings
     state->renderSettings.horizontalFOV = Deg2Rad(90);
     state->renderSettings.nearClipPlane = 0.5f;
     state->renderSettings.farClipPlane  = 1000.0f;
+}
+
+void MainRender(AppState* appState, RenderSettings settings)
+{
+    glClearColor(0.6f, 0.4f, 0.6f, 1.0f);
+    
+    auto& entities = appState->entities;
+    for(int i = 0; i < entities.len; ++i)
+    {
+        if(entities[i].model)
+            RenderModel(entities[i].model);
+    }
 }

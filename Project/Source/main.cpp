@@ -1,36 +1,11 @@
 
 #include "base.h"
 #include "os/os_generic.h"
-#include "simulation.h"
+#include "core.h"
 #include "renderer/renderer_generic.h"
 #include "ui_core.h"
 
-void SetWorkingDirToAssets()
-{
-    StringBuilder assetsPath = {0};
-    defer { FreeBuffers(&assetsPath); };
-    
-    char* exePath = OS_GetExecutablePath();
-    defer { free(exePath); };
-    
-    // Get rid of the .exe file itself in the path
-    int len = strlen(exePath);
-    int lastSeparator = len - 1;
-    for(int i = len-1; i >= 0; --i)
-    {
-        if(exePath[i] == '/' || exePath[i] == '\\')
-        {
-            lastSeparator = i;
-            break;
-        }
-    }
-    
-    String exePathNoFile = {.ptr=exePath, .len=lastSeparator+1};
-    Append(&assetsPath, exePathNoFile);
-    Append(&assetsPath, "../../Assets/");
-    NullTerminate(&assetsPath);
-    OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
-}
+void SetWorkingDirToAssets();
 
 int main()
 {
@@ -45,8 +20,7 @@ int main()
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     SetRenderFunctionPointers(usedLib);
-    Renderer renderer = {0};
-    InitRenderer(&renderer, &permArena);
+    InitRenderer();
     
     AppState appState = InitSimulation();
     
@@ -74,10 +48,37 @@ int main()
             OS_SwapBuffers();
         }
         
-        Render(&renderer, appState.renderSettings);
+        MainRender(&appState, appState.renderSettings);
         
         firstIter = false;
     }
     
     return 0;
+}
+
+void SetWorkingDirToAssets()
+{
+    StringBuilder assetsPath = {0};
+    defer { FreeBuffers(&assetsPath); };
+    
+    char* exePath = OS_GetExecutablePath();
+    defer { free(exePath); };
+    
+    // Get rid of the .exe file itself in the path
+    int len = strlen(exePath);
+    int lastSeparator = len - 1;
+    for(int i = len-1; i >= 0; --i)
+    {
+        if(exePath[i] == '/' || exePath[i] == '\\')
+        {
+            lastSeparator = i;
+            break;
+        }
+    }
+    
+    String exePathNoFile = {.ptr=exePath, .len=lastSeparator+1};
+    Append(&assetsPath, exePathNoFile);
+    Append(&assetsPath, "../../Assets/");
+    NullTerminate(&assetsPath);
+    OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
 }

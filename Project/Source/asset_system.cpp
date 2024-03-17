@@ -1,7 +1,14 @@
 
 #include "asset_system.h"
 
-Model* LoadModel(const char* path, Arena* dst)
+Model* LoadModelAssetByName(const char* name)
+{
+    // This will do the name->path mapping
+    TODO;
+    return nullptr;
+}
+
+Model* LoadModelAsset(const char* path, Arena* dst)
 {
     auto res = ArenaAllocTyped(Model, dst);
     memset(res, 0, sizeof(*res));

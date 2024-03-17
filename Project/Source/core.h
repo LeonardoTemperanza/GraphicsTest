@@ -6,6 +6,20 @@
 
 struct RenderSettings;
 
+enum EntityFlags
+{
+    EntityFlags_Dirty       = 1 << 0,
+    EntityFlags_Destroyed   = 1 << 1,
+    EntityFlags_Transparent = 1 << 2
+};
+
+struct EntityKey
+{
+    u16 id;
+    u16 gen;
+};
+
+struct Model;
 struct Entity
 {
     Vec3 pos;
@@ -13,13 +27,17 @@ struct Entity
     Vec3 scale;
     
     u32 flags;
-    u16 key;
-    u16 gen;
+    EntityKey key;
     
-    Model* model;
+    Model* model;  // Can be nullptr for lights, sound effects, etc.
     
-    // There will be many more of course
-    
+    u16 mountEntityId;
+    u16 mountBoneId;
+};
+
+struct Door
+{
+    Entity* base;
 };
 
 struct AppState
@@ -29,11 +47,12 @@ struct AppState
     s64 lockMousePosX;
     s64 lockMousePosY;
     
+    Slice<Entity> entities;
     RenderSettings renderSettings;
 };
 
-AppState InitSimulation();
-
 // Main simulation
+AppState InitSimulation();
 void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frameArena);
+void MainRender(AppState* state, RenderSettings settings);
 void UpdateCamera(Transform* camera, float deltaTime);

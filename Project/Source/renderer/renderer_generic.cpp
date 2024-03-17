@@ -1,9 +1,20 @@
 
 #include "renderer_generic.h"
 
-void StubInitRenderer(Renderer* renderer, Arena* renderArena) {};
-void StubRender(Renderer* renderer, RenderSettings settings) {};
-void StubCleanup(Renderer* renderer, Arena* renderArena) {};
+static Renderer renderer;
+
+#ifdef OS_SupportOpenGL
+#include "renderer/renderer_opengl.cpp"
+#endif
+#ifdef OS_SupportD3D11
+#include "renderer/renderer_d3d11.cpp"
+#endif
+
+void StubInitRenderer() {}
+void StubRender(RenderSettings settings) {}
+void StubCreateGPUBuffers(Model* model) {}
+void StubRenderModel(Model* model) {}
+void StubCleanup() {}
 
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
 {
@@ -11,20 +22,28 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
     {
         case GfxLib_None:
         {
-            InitRenderer = StubInitRenderer;
-            Render = StubRender;
+            InitRenderer       = StubInitRenderer;
+            CreateGPUBuffers   = StubCreateGPUBuffers;
+            RenderModelRelease = StubRenderModel;
+            CleanupRenderer    = StubCleanup;
             break;
         }
         case GfxLib_OpenGL:
         {
-            InitRenderer = gl_InitRenderer;
-            Render = gl_Render;
+            InitRenderer       = gl_InitRenderer;
+            CreateGPUBuffers   = StubCreateGPUBuffers;
+            RenderModelRelease = gl_RenderModel;
+            CleanupRenderer    = gl_Cleanup;
+            TODO; // Missing create gpu buffers
             break;
         }
         case GfxLib_D3D11:
         {
-            InitRenderer = d3d11_InitRenderer;
-            Render = d3d11_Render;
+            InitRenderer       = d3d11_InitRenderer;
+            CreateGPUBuffers   = StubCreateGPUBuffers;
+            RenderModelRelease = StubRenderModel;
+            CleanupRenderer    = StubCleanup;
+            TODO; // Missing a bunch of stuff
             break;
         }
         default:
@@ -33,4 +52,27 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
             OS_FatalError("This Graphics API is currently not supported.");
         }
     }
+}
+
+Model* LoadModelByName(const char* name)
+{
+    Model* model = LoadModelAssetByName(name);
+    CreateGPUBuffers(model);
+    return model;
+}
+
+Model* LoadModel(const char* path)
+{
+    Model* model = LoadModelAsset(path, nullptr);
+    CreateGPUBuffers(model);
+    return model;
+}
+
+void RenderModelDevelopment(Model* model)
+{
+    // Hot reload the model if necessary
+    // if(relevant files changed) LoadModelByName()...
+    TODO;
+    
+    RenderModelRelease(model);
 }
