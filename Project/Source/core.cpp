@@ -19,8 +19,8 @@ AppState InitSimulation()
     state.entities.len = 2;
     state.entities.ptr = entities;
     
-    entities[0].id = 0;
-    entities[1].id = 1;
+    entities[0].key.id = 0;
+    entities[1].key.id = 1;
     
     entities[0].rot = Quat::identity;
     entities[1].rot = Quat::identity;

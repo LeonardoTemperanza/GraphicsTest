@@ -47,7 +47,7 @@ struct Mesh
     Slice<Vec3> textureCoords;
     Slice<s32>  indices;
     
-    MeshGfxHandles gfxHandles;
+    // Some union here for the various graphics APIs?
     
     Material* material;
 };

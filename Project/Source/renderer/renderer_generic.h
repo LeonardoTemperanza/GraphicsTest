@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "base.h"
 #include "asset_system.h"
 
 struct RenderSettings
@@ -9,8 +10,6 @@ struct RenderSettings
     float horizontalFOV;
     float nearClipPlane;
     float farClipPlane;
-    
-    Slice<Particle> particles;
 };
 
 #ifdef OS_SupportOpenGL
@@ -32,35 +31,28 @@ union Renderer
 
 typedef u32 MeshGfxHandles;
 
-#if 0
-union MeshGfxHandles
-{
-#ifdef OS_SupportOpenGL
-    gl_Mesh glMesh;
-#endif
-#ifdef OS_SupportD3D11
-    d3d11_Mesh d3d11Mesh;
-#endif
-};
-#endif
-
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib);
 Model* LoadModel(const char* path);
 Model* LoadModelByName(const char* name);
 void RenderModelDevelopment(Model* model);
 
 // Function pointers. Macros could be used here to save some time
-void StubInitRenderer();
-void StubRender(RenderSettings settings);
-void StubCreateGPUBuffers(Model* model);
-void StubRenderModel(Model* model);
-void StubCleanup();
+#define InitRenderer_Signature(name) void name()
+typedef InitRenderer_Signature(InitRenderer_Type);
+#define Render_Signature(name) void name(RenderSettings renderSettings)
+typedef Render_Signature(Render_Type);
+#define CreateGPUBuffers_Signature(name) void name(Model* model)
+typedef CreateGPUBuffers_Signature(CreateGPUBuffers_Type);
+#define RenderModelRelease_Signature(name) void name(Model* model)
+typedef RenderModelRelease_Signature(RenderModelRelease_Type);
+#define Cleanup_Signature(name) void name()
+typedef Cleanup_Signature(Cleanup_Type);
 
-void (*InitRenderer)() = StubInitRenderer;
-void (*Render)(RenderSettings settings) = StubRender;
-void (*CreateGPUBuffers)(Model* model) = StubCreateGPUBuffers;
-void (*RenderModelRelease)(Model* model) = StubRenderModel;
-void (*CleanupRenderer)() = StubCleanup;
+extern InitRenderer_Type* InitRenderer;
+extern Render_Type* Render;
+extern CreateGPUBuffers_Type* CreateGPUBuffers;
+extern RenderModelRelease_Type* RenderModelRelease;
+extern Cleanup_Type* Cleanup;
 
 #ifdef Development
 #define RenderModel(model) RenderModelDevelopment(model)

@@ -10,6 +10,18 @@ static Renderer renderer;
 #include "renderer/renderer_d3d11.cpp"
 #endif
 
+InitRenderer_Signature(InitRenderer_Stub) {}
+Render_Signature(Render_Stub) {}
+CreateGPUBuffers_Signature(CreateGPUBuffers_Stub) {}
+RenderModelRelease_Signature(RenderModelRelease_Stub) {}
+Cleanup_Signature(Cleanup_Stub) {}
+
+InitRenderer_Type* InitRenderer = InitRenderer_Stub;
+Render_Type* Render = Render_Stub;
+CreateGPUBuffers_Type* CreateGPUBuffers = CreateGPUBuffers_Stub;
+RenderModelRelease_Type* RenderModelRelease = RenderModelRelease_Stub;
+Cleanup_Type* Cleanup = Cleanup_Stub;
+
 void StubInitRenderer() {}
 void StubRender(RenderSettings settings) {}
 void StubCreateGPUBuffers(Model* model) {}
@@ -25,7 +37,7 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
             InitRenderer       = StubInitRenderer;
             CreateGPUBuffers   = StubCreateGPUBuffers;
             RenderModelRelease = StubRenderModel;
-            CleanupRenderer    = StubCleanup;
+            Cleanup = StubCleanup;
             break;
         }
         case GfxLib_OpenGL:
@@ -33,7 +45,7 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
             InitRenderer       = gl_InitRenderer;
             CreateGPUBuffers   = StubCreateGPUBuffers;
             RenderModelRelease = gl_RenderModel;
-            CleanupRenderer    = gl_Cleanup;
+            Cleanup = gl_Cleanup;
             TODO; // Missing create gpu buffers
             break;
         }
@@ -42,7 +54,7 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
             InitRenderer       = d3d11_InitRenderer;
             CreateGPUBuffers   = StubCreateGPUBuffers;
             RenderModelRelease = StubRenderModel;
-            CleanupRenderer    = StubCleanup;
+            Cleanup = StubCleanup;
             TODO; // Missing a bunch of stuff
             break;
         }
