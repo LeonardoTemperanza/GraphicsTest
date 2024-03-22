@@ -77,10 +77,6 @@ struct InputCtx
     // the deadzone values, etc.
 };
 
-static const float stickDeadzone = 0.1f;
-static const float triggerDeadzone = 0.1f;
-static InputCtx inputCtx;
-
 void PollAndProcessInput();
 Input GetInput();
 void SetMousePos(s64 mouseX, s64 mouseY);

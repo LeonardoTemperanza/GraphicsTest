@@ -205,6 +205,7 @@ struct Mat4
         {
             Vec4 c1, c2, c3, c4;
         };
+        float m[4][4];  // Since it's in column major order, first index is the column and the second one is the row
     };
     
     // This "constructor" allows to specify the elements in the
@@ -225,6 +226,9 @@ struct Mat4
     
     static const Mat4 identity;
 };
+
+Mat4& operator *=(Mat4& m1, Mat4 m2);
+Mat4 operator *(Mat4 m1, Mat4 m2);
 
 struct Quat
 {
@@ -256,6 +260,10 @@ struct Transform
     Quat rotation;
     Vec3 scale;
 };
+
+Mat4 RotationMatrix(Quat rot);
+Mat4 ScaleMatrix(Vec3 scale);
+Mat4 PositionMatrix(Vec3 pos);
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 
@@ -353,7 +361,9 @@ Slice<t> ToSlice(Array<t>* array);
 #define ArenaDefAlign sizeof(void*)
 
 #define ArenaAllocTyped(type, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type), alignof(type))
+#define ArenaZAllocTyped(type, arenaPtr) (type*)ArenaZAlloc(arenaPtr, sizeof(type), alignof(type))
 #define ArenaAllocArray(type, size, arenaPtr) (type*)ArenaAlloc(arenaPtr, sizeof(type)*(size), alignof(type));
+#define ArenaZAllocArray(type, size, arenaPtr) (type*)ArenaZAlloc(arenaPtr, sizeof(type)*(size), alignof(type));
 
 struct Arena
 {
@@ -369,8 +379,8 @@ struct Arena
 };
 
 // Can be used like:
-// ArenaTemp tempGaurd = Arena_TempBegin(arena);
-// defer(Arena_TempEnd(tempGuard);
+// ArenaTemp tempGuard = Arena_TempBegin(arena);
+// defer { Arena_TempEnd(tempGuard); };
 struct ArenaTemp
 {
     Arena* arena;
@@ -439,14 +449,20 @@ void ArenaInit(Arena* arena, void* backingBuffer,
 Arena ArenaVirtualMemInit(size_t reserveSize, size_t commitSize);
 void* ArenaAlloc(Arena* arena,
                  size_t size, size_t align = ArenaDefAlign);
+void* ArenaZAlloc(Arena* arena, size_t size, size_t align = ArenaDefAlign);
 void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory,
                            size_t oldSize, size_t newSize,
                            size_t align = ArenaDefAlign);
+void* ArenaResizeAndZeroLastAlloc(Arena* arena, void* oldMemory,
+                                  size_t oldSize, size_t newSize,
+                                  size_t align = ArenaDefAlign);
 void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
                         size_t size, size_t align = ArenaDefAlign);
 
+char* ArenaPushNullTermString(Arena* arena, const char* str);
 char* ArenaPushString(Arena* arena, const char* str);
-char* ArenaPushStringNoNullTerm(Arena* arena, const char* str);
+char* ArenaPushNullTermString(Arena* arena, String str);
+String ArenaPushString(Arena* arena, String str);
 template<typename t>
 Slice<t> ArenaPushSlice(Arena* arena, Slice<t> slice);
 

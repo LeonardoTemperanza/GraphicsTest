@@ -1,6 +1,8 @@
 
 #include "asset_system.h"
 
+static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
+
 Model* LoadModelAssetByName(const char* name)
 {
     // This will do the name->path mapping
@@ -8,10 +10,21 @@ Model* LoadModelAssetByName(const char* name)
     return nullptr;
 }
 
-Model* LoadModelAsset(const char* path, Arena* dst)
+void MaybeReloadModelAsset(Model* model)
 {
-    auto res = ArenaAllocTyped(Model, dst);
-    memset(res, 0, sizeof(*res));
+    
+}
+
+void LoadScene(const char* path)
+{
+    
+}
+
+Model* LoadModelAsset(const char* path)
+{
+    ScratchArena scratch;
+    
+    auto res = ArenaZAllocTyped(Model, &sceneArena);
     
     FILE* modelFile = fopen(path, "rb");
     // TODO: Error reporting
@@ -49,12 +62,23 @@ Model* LoadModelAsset(const char* path, Arena* dst)
     s32 version      = Next<s32>(cursor);
     s32 numMeshes    = Next<s32>(cursor);
     s32 numMaterials = Next<s32>(cursor);
-    res->meshes.ptr  = ArenaAllocArray(Mesh, numMeshes, dst);
+    res->meshes.ptr  = ArenaZAllocArray(Mesh, numMeshes, &sceneArena);
     res->meshes.len  = numMeshes;
     
     char buffer[1024];
     snprintf(buffer, 1024, "Version: %d, Num meshes: %d, Num materials: %d\n", version, numMeshes, numMaterials);
     OS_DebugMessage(buffer);
+    
+    Material** materials = ArenaZAllocArray(Material*, numMaterials, scratch);
+    for(int i = 0; i < numMaterials; ++i)
+    {
+        s32 pathLen = Next<s32>(cursor);
+        String path = Next(cursor, pathLen);
+        
+        char* pathNullTerm = ArenaPushNullTermString(scratch, path);
+        if(pathNullTerm[0] != '\0')
+            materials[i] = LoadMaterialAsset(pathNullTerm);
+    }
     
     for(int i = 0; i < numMeshes; ++i)
     {
@@ -65,21 +89,99 @@ Model* LoadModelAsset(const char* path, Arena* dst)
         s32 materialIdx = Next<s32>(cursor);
         bool hasTextureCoords = Next<bool>(cursor);
         
-        Slice<Vec3> verts     = Next<Vec3>(cursor, numVerts);
-        Slice<Vec3> normals   = Next<Vec3>(cursor, numVerts);
-        Slice<Vec3> texCoords = Next<Vec3>(cursor, numVerts * hasTextureCoords);
-        Slice<s32>  indices   = Next<s32>(cursor, numIndices);
-        mesh.verts   = ArenaPushSlice(dst, verts);
-        mesh.indices = ArenaPushSlice(dst, indices);
-        mesh.normals = ArenaPushSlice(dst, normals);
+        Slice<Vertex> verts = Next<Vertex>(cursor, numVerts);
+        Slice<s32> indices  = Next<s32>(cursor, numIndices);
         
-        // @temp This model i'm using for testing is huge
-        if(strcmp(path, "Raptoid/Raptoid.model") == 0)
-        {
-            for(int i = 0; i < mesh.verts.len; ++i)
-                mesh.verts[i] *= 0.01;
-        }
+        mesh.verts   = ArenaPushSlice(&sceneArena, verts);
+        mesh.indices = ArenaPushSlice(&sceneArena, indices);
+        mesh.isCPUStorageLoaded = true;
+        
+        mesh.material = materials[materialIdx];
     }
     
+    SetupGPUResources(res, &sceneArena);
+    
     return res;
+}
+
+Material* LoadMaterialAsset(const char* path)
+{
+    ScratchArena scratch;
+    
+    Material* mat = ArenaZAllocTyped(Material, &sceneArena);
+    
+    FILE* matFile = fopen(path, "rb");
+    // TODO: Error reporting
+    if(!matFile)
+    {
+        OS_DebugMessage("File not found.\n");
+        return mat;
+    }
+    
+    defer { fclose(matFile); };
+    
+    String contents = LoadEntireFile(path);
+    if(!contents.ptr)
+    {
+        OS_DebugMessage("Could not even load file...\n");
+        return mat;
+    }
+    
+    defer { free((void*)contents.ptr); };
+    
+    char** cursor;
+    {
+        char* c = (char*)contents.ptr;
+        cursor = &c;
+    }
+    
+    String magicBytes = Next(cursor, sizeof("material")-1);  // Excluding null terminator
+    // TODO: Error reporting
+    if(magicBytes != "material")
+    {
+        OS_DebugMessage("This thing is not even a material...\n");
+        return mat;
+    }
+    
+    s32 numTextures = Next<s32>(cursor);
+    Texture** textures = ArenaZAllocTyped(Texture*, &sceneArena);
+    mat->textures = {.ptr=textures, .len=numTextures};
+    for(int i = 0; i < numTextures; ++i)
+    {
+        s32 pathLen = Next<s32>(cursor);
+        String path = Next(cursor, pathLen);
+        
+        char* pathNullTerm = ArenaPushNullTermString(scratch, path);
+        if(pathNullTerm[0] != '\0')
+            mat->textures[i] = LoadTextureAsset(pathNullTerm);
+    }
+    
+    return mat;
+}
+
+Texture* LoadTextureAsset(const char* path)
+{
+    Texture* texture = ArenaZAllocTyped(Texture, &sceneArena);
+    
+    String stbImage = {0};
+    stbImage.ptr = (char*)stbi_load(path, &texture->width, &texture->height, &texture->numChannels, 0);
+    stbImage.len = texture->width * texture->height * 3;  // RGB for each pixel
+    
+    // Copy back to the arena and free the buffer that was allocated by stb_image
+    // @performance Is there something better we could do here?
+    // Maybe modify stb_image.h ?
+    texture->blob = ArenaPushString(&sceneArena, stbImage);
+    stbi_image_free((void*)stbImage.ptr);
+    return texture;
+}
+
+void ReloadGPUResources()
+{
+    // Loop through all assets which need to reallocate their GPU resources
+    TODO;
+}
+
+void UnloadScene()
+{
+    ArenaFreeAll(&sceneArena);
 }

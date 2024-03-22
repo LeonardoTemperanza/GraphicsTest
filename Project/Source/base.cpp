@@ -366,6 +366,29 @@ Vec4& operator /=(Vec4& v, float f)
     return v;
 }
 
+// @performance
+Mat4& operator *=(Mat4& m1, Mat4 m2)
+{
+    m1 = m1 * m2;
+    return m1;
+}
+
+Mat4 operator *(Mat4 m1, Mat4 m2)
+{
+    for(int i = 0; i < 4; ++i)
+    {
+        for(int j = 0; j < 4; ++j)
+        {
+            float res = 0.0f;
+            for(int k = 0; k < 4; ++k)
+                res += m1.m[k][i] * m2.m[j][k];
+            
+            m1.m[j][i] = res;
+        }
+    }
+    return m1;
+}
+
 Quat& operator *=(Quat& a, Quat b)
 {
     a.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
@@ -529,8 +552,37 @@ Mat4 RotationMatrix(Quat q)
      xy + wz,          1.0f - (xx + zz), yz - wx,          0.0f,
      xz - wy,          yz + wx,          1.0f - (xx + yy), 0.0f,
      0.0f,             0.0f,             0.0f,             1.0f);
-    
     return res;
+}
+
+Mat4 ScaleMatrix(Vec3 scale)
+{
+    Mat4 res;
+    res.set
+    (scale.x, 0.0f,    0.0f,    0.0f,
+     0.0f,    scale.y, 0.0f,    0.0f,
+     0.0f,    0.0f,    scale.z, 0.0f,
+     0.0f,    0.0f,    0.0f,    1.0f);
+    return res;
+}
+
+Mat4 PositionMatrix(Vec3 pos)
+{
+    Mat4 res;
+    res.set
+    (1.0f, 0.0f, 0.0f, pos.x,
+     0.0f, 1.0f, 0.0f, pos.y,
+     0.0f, 0.0f, 1.0f, pos.z,
+     0.0f, 0.0f, 0.0f, 1.0f);
+    return res;
+}
+
+Mat4 Model2WorldMatrix(Vec3 pos, Quat rot, Vec3 scale)
+{
+    Mat4 mat = ScaleMatrix(scale);
+    mat = RotationMatrix(rot) * mat;
+    mat = PositionMatrix(pos) * mat;
+    return mat;
 }
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
@@ -658,7 +710,7 @@ void AppendFmt(StringBuilder* builder, const char* fmt, ...)
     
     // Do not call Append to avoid extra allocation
     if(newLen > builder->str.capacity)
-        builder->str.capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+        builder->str.capacity = NextPowerOf2(newLen);
     
     builder->str.len = newLen;
     
@@ -685,7 +737,7 @@ void Put(StringBuilder* builder, t val)
     
     // TODO Duplicated code here
     if(newLen > builder->str.capacity)
-        builder->str.capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+        builder->str.capacity = NextPowerOf2(newLen);
     
     builder->str.len = newLen;
     
@@ -858,7 +910,14 @@ void* ArenaAlloc(Arena* arena, size_t size, size_t align)
         return ptr;
     }
     
-    return 0;
+    return nullptr;
+}
+
+void* ArenaZAlloc(Arena* arena, size_t size, size_t align)
+{
+    void* ptr = ArenaAlloc(arena, size, align);
+    memset(ptr, 0, size);
+    return ptr;
 }
 
 void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory, size_t oldSize, size_t newSize, size_t align)
@@ -906,8 +965,15 @@ void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory, size_t oldSize, size_t
         }
     }
     
-    assert(false && "Arena exceeded memory limit");
-    return 0;
+    assert(!"Arena exceeded memory limit");
+    return nullptr;
+}
+
+void* ArenaResizeAndZeroLastAlloc(Arena* arena, void* oldMemory, size_t oldSize, size_t newSize, size_t align)
+{
+    void* ptr = ArenaResizeLastAlloc(arena, oldMemory, oldSize, newSize, align);
+    memset(ptr, 0, newSize);
+    return ptr;
 }
 
 void* ArenaAllocAndCopy(Arena* arena, void* toCopy, size_t size, size_t align)
@@ -917,7 +983,7 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy, size_t size, size_t align)
     return result;
 }
 
-char* ArenaPushString(Arena* arena, const char* str)
+char* ArenaPushNullTermString(Arena* arena, const char* str)
 {
     int len = strlen(str);
     char* ptr = (char*)ArenaAlloc(arena, len+1, 1);
@@ -926,7 +992,22 @@ char* ArenaPushString(Arena* arena, const char* str)
     return ptr;
 }
 
-char* ArenaPushStringNoNullTerm(Arena* arena, const char* str)
+String ArenaPushString(Arena* arena, String str)
+{
+    char* ptr = (char*)ArenaAlloc(arena, str.len, 1);
+    memcpy(ptr, str.ptr, str.len);
+    return {.ptr=ptr, .len=str.len};
+}
+
+char* ArenaPushNullTermString(Arena* arena, String str)
+{
+    char* ptr = (char*)ArenaAlloc(arena, str.len+1, 1);
+    ptr[str.len] = '\0';
+    memcpy(ptr, str.ptr, str.len);
+    return ptr;
+}
+
+char* ArenaPushString(Arena* arena, const char* str)
 {
     int len = strlen(str);
     char* ptr = (char*)ArenaAlloc(arena, len, 1);
@@ -965,8 +1046,16 @@ void ArenaTempEnd(ArenaTemp tmp)
     tmp.arena->prevOffset = tmp.prevOffset;
 }
 
+// NOTE: Remember to keep all scratch arenas initialized at
+// the start of the program.
 #define NumScratchArenas 4
-static thread_local Arena scratchArenas[NumScratchArenas];
+static thread_local Arena scratchArenas[NumScratchArenas] =
+{
+    ArenaVirtualMemInit(GB(4), MB(2)),
+    ArenaVirtualMemInit(GB(4), MB(2)),
+    ArenaVirtualMemInit(GB(4), MB(2)),
+    ArenaVirtualMemInit(GB(4), MB(2))
+};
 
 // Some procedures might accept arenas as arguments,
 // for dynamically allocated results yielded to the caller.
@@ -1000,6 +1089,7 @@ ArenaTemp GetScratchArena(Arena** conflictArray, int count)
             break;
         }
     }
+    
     
     return ArenaTempBegin(result);
 }

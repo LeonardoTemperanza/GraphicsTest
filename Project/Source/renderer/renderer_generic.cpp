@@ -12,21 +12,15 @@ static Renderer renderer;
 
 InitRenderer_Signature(InitRenderer_Stub) {}
 Render_Signature(Render_Stub) {}
-CreateGPUBuffers_Signature(CreateGPUBuffers_Stub) {}
+SetupGPUResources_Signature(SetupGPUResources_Stub) {}
 RenderModelRelease_Signature(RenderModelRelease_Stub) {}
 Cleanup_Signature(Cleanup_Stub) {}
 
 InitRenderer_Type* InitRenderer = InitRenderer_Stub;
 Render_Type* Render = Render_Stub;
-CreateGPUBuffers_Type* CreateGPUBuffers = CreateGPUBuffers_Stub;
+SetupGPUResources_Type* SetupGPUResources = SetupGPUResources_Stub;
 RenderModelRelease_Type* RenderModelRelease = RenderModelRelease_Stub;
 Cleanup_Type* Cleanup = Cleanup_Stub;
-
-void StubInitRenderer() {}
-void StubRender(RenderSettings settings) {}
-void StubCreateGPUBuffers(Model* model) {}
-void StubRenderModel(Model* model) {}
-void StubCleanup() {}
 
 void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
 {
@@ -34,27 +28,25 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
     {
         case GfxLib_None:
         {
-            InitRenderer       = StubInitRenderer;
-            CreateGPUBuffers   = StubCreateGPUBuffers;
-            RenderModelRelease = StubRenderModel;
-            Cleanup = StubCleanup;
+            InitRenderer       = InitRenderer_Stub;
+            Render             = Render_Stub;
+            SetupGPUResources  = SetupGPUResources_Stub;
+            Cleanup            = Cleanup_Stub;
             break;
         }
         case GfxLib_OpenGL:
         {
             InitRenderer       = gl_InitRenderer;
-            CreateGPUBuffers   = StubCreateGPUBuffers;
-            RenderModelRelease = gl_RenderModel;
-            Cleanup = gl_Cleanup;
-            TODO; // Missing create gpu buffers
+            Render             = gl_Render;
+            SetupGPUResources  = gl_SetupGPUResources;
+            Cleanup            = gl_Cleanup;
             break;
         }
         case GfxLib_D3D11:
         {
             InitRenderer       = d3d11_InitRenderer;
-            CreateGPUBuffers   = StubCreateGPUBuffers;
-            RenderModelRelease = StubRenderModel;
-            Cleanup = StubCleanup;
+            Render             = d3d11_Render;
+            Cleanup            = Cleanup_Stub;
             TODO; // Missing a bunch of stuff
             break;
         }
@@ -69,14 +61,14 @@ void SetRenderFunctionPointers(OS_GraphicsLib gfxLib)
 Model* LoadModelByName(const char* name)
 {
     Model* model = LoadModelAssetByName(name);
-    CreateGPUBuffers(model);
+    //CreateGPUBuffers(model);
     return model;
 }
 
 Model* LoadModel(const char* path)
 {
-    Model* model = LoadModelAsset(path, nullptr);
-    CreateGPUBuffers(model);
+    Model* model = LoadModelAsset(path);
+    //CreateGPUBuffers(model);
     return model;
 }
 

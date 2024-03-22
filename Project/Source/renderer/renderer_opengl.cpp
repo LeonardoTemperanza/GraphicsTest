@@ -2,43 +2,33 @@
 #include "base.h"
 #include "renderer_generic.h"
 #include "embedded_files.h"
-#include "embedded_models.h"
 
-void gl_InitRenderer()
+static Arena rendererArena = ArenaVirtualMemInit(GB(4), MB(2));
+
+// The structure here should be changed so that
+// the renderer operates on large amounts of data
+// at a time, because these are all function pointers,
+// so it's not very fast to repeatedly call these in a loop
+
+InitRenderer_Signature(gl_InitRenderer)
 {
     gl_Renderer* r = &renderer.glRenderer;
     memset(r, 0, sizeof(gl_Renderer));
     
-    // This loading stuff should actually be moved to "load scene" or something
-    
     // Allocate buffers
-    glCreateVertexArrays(1, &r->vao);
-    GLuint buffers[4];
-    glCreateBuffers(3, buffers);
-    r->vbo = buffers[0];
-    //r->ebo = buffers[1];
-    r->appUbo = buffers[1];
-    r->frameUbo = buffers[2];
+    constexpr int numBuffers = 3;
+    GLuint buffers[numBuffers];
+    glCreateBuffers(numBuffers, buffers);
+    r->appUbo = buffers[0];
+    r->frameUbo = buffers[1];
+    r->objUbo = buffers[2];
+    static_assert(2 < numBuffers);
     
-    //glNamedBufferData(r->vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    //glNamedBufferData(r->ebo, sizeof(indices), indices, GL_STATIC_DRAW);
     //glNamedBufferData(r->appUbo, sizeof(PerAppUniforms), nullptr, GL_DYNAMIC_DRAW);
     glNamedBufferData(r->frameUbo, sizeof(PerFrameUniforms), nullptr, GL_DYNAMIC_DRAW);
+    glNamedBufferData(r->objUbo, sizeof(PerObjectUniforms), nullptr, GL_DYNAMIC_DRAW);
     
-#if 0
-    // TODO: The binding needs to match the one in the shaders. There should be a common .h file used in both.
-    glEnableVertexArrayAttrib(r->vao, 0);
-    glVertexArrayAttribBinding(r->vao, 0, 0);
-    glVertexArrayAttribFormat(r->vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-    
-    glEnableVertexArrayAttrib(r->vao, 1);
-    glVertexArrayAttribBinding(r->vao, 1, 0);
-    glVertexArrayAttribFormat(r->vao, 1, 3, GL_FLOAT, GL_FALSE, 0);
-    
-    glVertexArrayVertexBuffer(r->vao, 0, r->vbo, 0, 6*sizeof(GLfloat));
-    //glVertexArrayElementBuffer(r->vao, r->ebo);
-#endif
-    
+    // @temp This will be later moved to the asset loader (loading and initializing a shader)
     // Specialize and link SPIR-V shader
     GLint compileStatus = 0;
     r->vertShader = glCreateShader(GL_VERTEX_SHADER);
@@ -56,26 +46,22 @@ void gl_InitRenderer()
     
     // TODO: Do uniforms really have to be dynamically queried in opengl 4.6?
     int perFrameBindingPoint = 0;
-    
-    r->perFrameUniformIdx = glGetUniformBlockIndex(r->shaderProgram, "PerFrame");
+    GLuint perFrameUniformIdx = glGetUniformBlockIndex(r->shaderProgram, "PerFrame");
     // @hack On my laptop (Redmibook 14 AMD Windows 11) this returns -1
     // for some reason... I guess if this happens just set it to 0
     // and just hope for the best?
-    if(r->perFrameUniformIdx == -1) r->perFrameUniformIdx = 0;
+    if(perFrameUniformIdx == -1) perFrameUniformIdx = 0;
     
     glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBindingPoint, r->frameUbo);
-    glUniformBlockBinding(r->shaderProgram, r->perFrameUniformIdx, perFrameBindingPoint);
+    glUniformBlockBinding(r->shaderProgram, perFrameUniformIdx, perFrameBindingPoint);
+    
+    int perObjBindingPoint = 1;
+    GLuint perObjUniformIdx = glGetUniformBlockIndex(r->shaderProgram, "PerObj");
+    if(perObjUniformIdx == -1) perObjUniformIdx = 1;
+    
+    glBindBufferBase(GL_UNIFORM_BUFFER, perObjBindingPoint, r->objUbo);
+    glUniformBlockBinding(r->shaderProgram, perObjUniformIdx, perObjBindingPoint);
 }
-
-static Arena rendererArena = ArenaVirtualMemInit(GB(4), MB(2));
-
-struct MeshRenderInfo
-{
-    GLuint vao;
-    GLuint vbo;
-    GLuint vbo2;
-    GLuint ebo;
-};
 
 Model* gl_LoadModel(const char* name)
 {
@@ -84,69 +70,10 @@ Model* gl_LoadModel(const char* name)
     //LoadModelAsset();
 }
 
-static void gl_RenderModel(Model* model)
+Render_Signature(gl_Render)
 {
     gl_Renderer* r = &renderer.glRenderer;
-    
-    // This is test code
-#if 0
-    static Model* model = nullptr;
-    static Slice<MeshRenderInfo> infos = {0};
-    if(!model)
-    {
-        model = LoadModelAsset("Gun/Gun.model", &rendererArena);
-        if(!model) return;
-        
-        infos.len = model->meshes.len;
-        infos.ptr = ArenaAllocArray(MeshRenderInfo, infos.len, &rendererArena);
-        
-        for(int i = 0; i < infos.len; ++i)
-        {
-            auto& info = infos[i];
-            auto& mesh = model->meshes[i];
-            
-            glCreateVertexArrays(1, &info.vao);
-            GLuint bufferIds[2];
-            glCreateBuffers(2, bufferIds);
-            info.vbo = bufferIds[0];
-            info.ebo = bufferIds[1];
-            
-            // Bind the vao and stuff
-            glNamedBufferData(info.vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
-            glNamedBufferData(info.ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
-            
-            glEnableVertexArrayAttrib(info.vao, 0);
-            glVertexArrayAttribBinding(info.vao, 0, 0);
-            glVertexArrayAttribFormat(info.vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-            
-            glEnableVertexArrayAttrib(info.vao, 1);
-            glVertexArrayAttribBinding(info.vao, 1, 0);
-            glVertexArrayAttribFormat(info.vao, 1, 3, GL_FLOAT, GL_FALSE, 0);
-            
-            glVertexArrayVertexBuffer(info.vao, 0, info.vbo, 0, sizeof(mesh.verts[0]));
-            //sglVertexArrayVertexBuffer(info.vao, 0, info.vbo2, 0, sizeof(mesh.normals[0]));
-            glVertexArrayElementBuffer(info.vao, info.ebo);
-        }
-    }
-    
-    glUseProgram(r->shaderProgram);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    
-    for(int i = 0; i < model->meshes.len; ++i)
-    {
-        auto& mesh = model->meshes[i];
-        
-        glBindVertexArray(infos[i].vao);
-        glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
-    }
-#endif
-}
-
-#if 0
-void gl_Render(RenderSettings settings)
-{
-    gl_Renderer* r = &renderer.glRenderer;
+    auto& settings = renderSettings;
     
     int width, height;
     OS_GetClientAreaSize(&width, &height);
@@ -177,18 +104,135 @@ void gl_Render(RenderSettings settings)
     u.view2Proj = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
     
+    // Pre-render stuff
     glClearColor(0.12f, 0.3f, 0.25f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     
     glUseProgram(r->shaderProgram);
-    glBindVertexArray(r->vao);
     glEnable(GL_DEPTH_TEST);
-    //glEnable(GL_CULL_FACE);
-    //glDrawArrays(GL_TRIANGLES, 0, ArrayCount(vertices) / 2);
+    glEnable(GL_CULL_FACE);
     
-    //gl_RenderModel();
+    // Draw all models
+    for(int i = 0; i < entities.len; ++i)
+        gl_RenderModel(entities[i].model, entities[i].pos, entities[i].rot, entities[i].scale);
 }
+
+void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
+{
+    gl_Renderer* r = &renderer.glRenderer;
+    
+    // Try to hot-reload if we're in development mode
+#ifdef Development
+    // Do some reloading stuff etc.
+    MaybeReloadModelAsset(model);
 #endif
+    
+    // Scale, rotation and then position
+    PerObjectUniforms objUniforms = {0};
+    objUniforms.model2World = Model2WorldMatrix(pos, rot, scale);
+    
+    glNamedBufferSubData(r->objUbo, 0, sizeof(objUniforms), &objUniforms);
+    
+    for(int i = 0; i < model->meshes.len; ++i)
+    {
+        auto& mesh = model->meshes[i];
+        gl_MeshInfo* meshInfo = (gl_MeshInfo*)mesh.gfxInfo;
+        
+        // shaderProgram should be a material's property
+        glUseProgram(r->shaderProgram);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+        
+        glUseProgram(r->shaderProgram);
+        
+        glBindVertexArray(meshInfo->vao);
+        
+        if(mesh.material && mesh.material->textures.len > 0 && mesh.material->textures[0])
+        {
+            auto texInfo = (gl_TextureInfo*)mesh.material->textures[0]->gfxInfo;
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texInfo->objId);
+        }
+        
+        glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
+        
+        glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+}
+
+SetupGPUResources_Signature(gl_SetupGPUResources)
+{
+    // Setup textures
+    for(int i = 0; i < model->meshes.len; ++i)
+    {
+        auto material = model->meshes[i].material;
+        for(int j = 0; j < material->textures.len; ++j)
+        {
+            auto texture = material->textures[j];
+            if(texture && !texture->allocatedOnGPU)
+            {
+                auto texInfo = ArenaZAllocTyped(gl_TextureInfo, arena);
+                texture->gfxInfo = (void*)texInfo;
+                
+                GLuint texId;
+                glGenTextures(1, &texId);
+                texInfo->objId = texId;
+                
+                // TODO: Use bindless API?
+                glBindTexture(GL_TEXTURE_2D, texId);
+                {
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture->width, texture->height, 0, GL_RGB, GL_UNSIGNED_BYTE, texture->blob.ptr);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+                }
+                glBindTexture(GL_TEXTURE_2D, 0);
+                
+                texture->allocatedOnGPU = true;
+            }
+        }
+    }
+    
+    // Setup meshes
+    for(int i = 0; i < model->meshes.len; ++i)
+    {
+        auto& mesh = model->meshes[i];
+        
+        auto meshInfo = ArenaZAllocTyped(gl_MeshInfo, arena);
+        mesh.gfxInfo = meshInfo;
+        
+        glCreateVertexArrays(1, &meshInfo->vao);
+        GLuint bufferIds[2];
+        glCreateBuffers(2, bufferIds);
+        meshInfo->vbo = bufferIds[0];
+        meshInfo->ebo = bufferIds[1];
+        
+        glNamedBufferData(meshInfo->vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
+        glNamedBufferData(meshInfo->ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
+        
+        // Position
+        glEnableVertexArrayAttrib(meshInfo->vao, 0);
+        glVertexArrayAttribBinding(meshInfo->vao, 0, 0);
+        glVertexArrayAttribFormat(meshInfo->vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+        
+        // Normal
+        glEnableVertexArrayAttrib(meshInfo->vao, 1);
+        glVertexArrayAttribBinding(meshInfo->vao, 1, 0);
+        glVertexArrayAttribFormat(meshInfo->vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
+        
+        // Texture coords
+        glEnableVertexArrayAttrib(meshInfo->vao, 2);
+        glVertexArrayAttribBinding(meshInfo->vao, 2, 0);
+        glVertexArrayAttribFormat(meshInfo->vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, texCoord));
+        
+        glVertexArrayVertexBuffer(meshInfo->vao, 0, meshInfo->vbo, 0, sizeof(mesh.verts[0]));
+        glVertexArrayElementBuffer(meshInfo->vao, meshInfo->ebo);
+    }
+}
 
 void gl_Cleanup()
 {

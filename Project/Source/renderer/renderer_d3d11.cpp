@@ -3,7 +3,7 @@
 
 D3D11_Context Win32_GetD3D11Context();
 
-void d3d11_InitRenderer()
+InitRenderer_Signature(d3d11_InitRenderer)
 {
     // @temp Maybe some of this stuff can be moved to the win32 layer
     d3d11_Renderer* res = &renderer.d3d11Renderer;
@@ -36,7 +36,7 @@ void d3d11_InitRenderer()
     }
 }
 
-void d3d11_Render(RenderSettings renderSettings)
+Render_Signature(d3d11_Render)
 {
     
 }

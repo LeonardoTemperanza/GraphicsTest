@@ -6,6 +6,9 @@
 #include "os/os_generic.cpp"
 #include "base.cpp"
 
+#include <iostream>
+#include <format>
+
 /*
 
  Animation file format
@@ -34,6 +37,15 @@ aiTextureType texTypes[] =
 // The following specification (pseudocode)
 // describes the general data layout of the file
 #if 0
+struct PathName
+{
+    // Path relative to Assets folder
+    // if nameLen is 0 it means that it doesn't have this
+    // texture type
+    s32 nameLen;
+    char name[nameLen (which could be 0)];
+};
+
 struct Model
 {
     u8 magicBytes[5] = "model";
@@ -41,60 +53,50 @@ struct Model
     s32 numMeshes;
     s32 numMaterials;
     
+    PathName materialPaths[numMaterials];
+    
     struct Mesh
     {
+        struct Vertex
+        {
+            Vec3 pos;
+            Vec3 normal;
+            Vec3 texCoord;
+        };
+        
         s32 numVerts;
         s32 numIndices;
         s32 materialIdx;
         bool hasTextureCoords;
-        Vec3 verts[numVerts];   // AOS
-        Vec3 normals[numVerts]; // AOS
-        Vec3 textureCoords[numVerts or 0];  // AOS
+        Vertex verts[numVerts];
         s32 indices[numIndices];  // Grouped in 3 to form a triangle
     };
     
     Mesh meshes[numMeshes];
-    
-    struct MaterialPath
-    {
-        s32 strLen;
-        char str[strLen];
-    };
-    
-    // For now we're doing just vertices.
-    //MaterialPath[numMeshes];
 };
 
 struct Material
 {
-    struct TexturePath
-    {
-        // Path relative to Assets folder
-        // if nameLen is 0 it means that it doesn't have this
-        // texture type
-        s32 nameLen;
-        char name[nameLen (which could be 0)];
-    };
+    s32 numTextures;
+    PathName textures[numTextures];
+    //PathName shader;
+};
+
+struct Shader
+{
+    // Some info on the shader here...
+    s32 numTextures;
     
-    // Array of textures following 'texTypes'
-    TexturePath textures[..];
 };
 
 // Version 1...
 
 #endif
 
-struct Material
-{
-    const aiScene* scene;
-    const aiMaterial* mat;
-};
-
 std::string RemoveFileExtension(const std::string& fileName);
 std::string RemovePathLastPart(const std::string& fileName);
 
-void WriteMaterial(String path, Material mat);
-void WriteTexture(String path, Material mat);
+bool WriteMaterial(const char* path, const aiScene* scene, const aiMaterial* material);
 
 // Usage:
 // model_importer.exe file_to_import.(obj/fbx/...)
@@ -122,14 +124,16 @@ int main(int argCount, char** args)
         return 1;
     }
     
+    printf("Running version %d of the model importer.\n", 0);
+    
     const char* modelPath = args[1];
     
     Assimp::Importer importer;
     
     printf("Loading and preprocessing model %s...\n", modelPath);
     
-    int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices |
-        aiProcess_GenUVCoords;
+    int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_GenSmoothNormals | 
+        aiProcess_GenUVCoords | aiProcess_MakeLeftHanded | aiProcess_FlipUVs | aiProcess_GlobalScale | aiProcess_PreTransformVertices;
     const aiScene* scene = importer.ReadFile(modelPath, flags);
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -145,6 +149,7 @@ int main(int argCount, char** args)
     FILE* outFile = fopen(outPath.c_str(), "w+b");
     if(!outFile)
     {
+        fprintf(stderr, "Error writing to file %s.\n", outPath.c_str());
         return 1;
     }
     
@@ -162,7 +167,29 @@ int main(int argCount, char** args)
     Put(&builder, (s32)scene->mNumMeshes);
     Put(&builder, (s32)scene->mNumMaterials);
     
+    // Write material paths
+    
+    for(int i = 0; i < scene->mNumMaterials; ++i)
+    {
+        // Decide the path, write the material file
+        std::string materialPath = modelPathNoExt + std::format("_material{}.mat", i);
+        bool ok = WriteMaterial(materialPath.c_str(), scene, scene->mMaterials[i]);
+        if(!ok) return 1;
+        
+        Put(&builder, (s32)materialPath.size());
+        Append(&builder, materialPath.c_str());
+    }
+    
     // Write mesh verts and indices
+    struct Vertex
+    {
+        Vec3 pos;
+        Vec3 normal;
+        Vec3 texCoord;
+    };
+    
+    aiNode* root = scene->mRootNode;
+    
     for(int i = 0; i < scene->mNumMeshes; ++i)
     {
         const aiMesh* mesh = scene->mMeshes[i];
@@ -170,30 +197,26 @@ int main(int argCount, char** args)
         Put(&builder, (s32)mesh->mNumVertices);
         Put(&builder, (s32)(mesh->mNumFaces * 3));
         Put(&builder, (s32)mesh->mMaterialIndex);
-        
         Put(&builder, (u8)mesh->HasTextureCoords(0));
         
         for(int j = 0; j < mesh->mNumVertices; ++j)
         {
-            Put(&builder, (float)mesh->mVertices[j].x);
-            Put(&builder, (float)mesh->mVertices[j].y);
-            Put(&builder, (float)mesh->mVertices[j].z);
-        }
-        for(int j = 0; j < mesh->mNumVertices; ++j)
-        {
-            Put(&builder, (float)mesh->mNormals[j].x);
-            Put(&builder, (float)mesh->mNormals[j].y);
-            Put(&builder, (float)mesh->mNormals[j].z);
-        }
-        
-        if(mesh->HasTextureCoords(0))
-        {
-            for(int j = 0; j < mesh->mNumVertices; ++j)
+            Vertex vert = {0};
+            vert.pos.x = mesh->mVertices[j].x;
+            vert.pos.y = mesh->mVertices[j].y;
+            vert.pos.z = mesh->mVertices[j].z;
+            vert.normal.x = mesh->mNormals[j].x;
+            vert.normal.y = mesh->mNormals[j].y;
+            vert.normal.z = mesh->mNormals[j].z;
+            
+            if(mesh->HasTextureCoords(0))
             {
-                Put(&builder, (float)mesh->mTextureCoords[0][j].x);
-                Put(&builder, (float)mesh->mTextureCoords[0][j].y);
-                Put(&builder, (float)mesh->mTextureCoords[0][j].z);
+                vert.texCoord.x = mesh->mTextureCoords[0][j].x;
+                vert.texCoord.y = mesh->mTextureCoords[0][j].y;
+                vert.texCoord.z = mesh->mTextureCoords[0][j].z;
             }
+            
+            Put(&builder, vert);
         }
         
         for(int j = 0; j < mesh->mNumFaces; ++j)
@@ -207,17 +230,9 @@ int main(int argCount, char** args)
         }
     }
     
-    // Write materials
-    for(int i = 0; i < scene->mNumMaterials; ++i)
-    {
-        const aiMaterial* material = scene->mMaterials[i];
-        //WriteMaterial(arena, scene, material, modelNameNoExt);
-    }
-    
-    printf("Success!\n");
-    
+    printf("Writing to file...\n");
     WriteToFile(ToString(&builder), outFile);
-    
+    printf("Success!\n");
     return 0;
 }
 
@@ -253,87 +268,105 @@ std::string RemovePathLastPart(const std::string& fileName)
 }
 
 // This stuff should all go to a material file
-void WriteMaterial(String path, Material mat)
+bool WriteMaterial(const char* path, const aiScene* scene, const aiMaterial* material)
 {
-    const aiScene* scene = mat.scene;
-    const aiMaterial* material = mat.mat;
+    ScratchArena scratch;
     
-#if 0
-    const std::string outTexturesPath = "Textures/";
+    FILE* matFile = fopen(path, "w+b");
+    if(!matFile)
+    {
+        fprintf(stderr, "Error: Could not write to file.\n");
+        return false;
+    }
+    
+    defer { fclose(matFile); };
+    
+    StringBuilder builder = {0};
+    UseArena(&builder, scratch);
+    
+    s32 numTextures = ArrayCount(texTypes);
+    Append(&builder, "material");
+    Put(&builder, (s32)numTextures);
     
     // Textures
-    for(int j = 0; j < ArrayCount(texTypes); ++j)
+    for(int j = 0; j < numTextures; ++j)
     {
-        int numTextures = material->GetTextureCount(texTypes[j]);
-        if(numTextures > 0)
+        int count = material->GetTextureCount(texTypes[j]);
+        if(count > 0)
         {
-            if(numTextures > 1)
-                fprintf(stderr, "This engine's model format currently does not support multiple textures of the same type\n");
+            if(count > 1)
+            {
+                fprintf(stderr, "This engine's model format currently does not support multiple textures of the same type. The ones following the first will be ignored.\n");
+            }
             
-            aiString path;
+            aiString texPath;
             // What to do with this texture mapping?
             aiTextureMapping mapping;
             u32 uvIndex;
             float blendFactor;
-            if(material->GetTexture(texTypes[j], 0, &path, &mapping, &uvIndex, &blendFactor) == AI_SUCCESS)
+            if(material->GetTexture(texTypes[j], 0, &texPath, &mapping, &uvIndex, &blendFactor) == AI_SUCCESS)
             {
-                const aiTexture* texture = scene->GetEmbeddedTexture(path.C_Str());
+                const aiTexture* texture = scene->GetEmbeddedTexture(texPath.C_Str());
+                
+                // Create a separate texture file
+                // with the name "dst_file_Diffuse.jpg" or similar
+                std::string texStr = aiTextureTypeToString(texTypes[j]);
+                printf("Found texture type: %s.\n", texStr.c_str());
+                
                 if(texture)
                 {
-                    // Texture is embedded, create a separate texture file
-                    // with the name "dst_file_Diffuse.jpg" or similar
-                    std::string texStr = aiTextureTypeToString(texTypes[j]);
-                    std::string imageName = outTexturesPath + modelName + "_" + texStr + "." + texture->achFormatHint;
-                    FILE* image = fopen(imageName.c_str(), "w+b");
+                    std::string outPath = RemoveFileExtension(path) + "_" + texStr + "." + texture->achFormatHint;
+                    FILE* image = fopen(outPath.c_str(), "w+b");
                     if(!image)
                     {
                         fprintf(stderr, "Could not write texture file\n");
-                        exit(1);
+                        return false;
                     }
                     
                     defer { fclose(image); };
                     fwrite(texture->pcData, texture->mWidth, 1, image);
                     
                     // Write the path
-                    //Put(&builder, (s32)imageName.length);
-                    //Append(&builder, (s32)imageName.c_str());
+                    Put(&builder, (s32)outPath.size());
+                    Append(&builder, outPath.c_str());
                 }
                 else
                 {
-                    TODO;
-                    fprintf(stderr, "Non embedded textures are currently not supported.");
-                    exit(1);
+                    // @temporary , will want to move this file to the Assets directory later
+                    
+                    // Write the path directly
+                    Put(&builder, (s32)texPath.length);
+                    Append(&builder, texPath.C_Str());
+                    
+                    //fprintf(stderr, "Non embedded textures are currently not supported.");
                 }
             }
         }
         else  // No texture of this type
         {
-            //ArenaPushVar<s32>(arena, 0);
+            Put(&builder, (s32)0);
         }
     }
     
     if(material->GetTextureCount(aiTextureType_UNKNOWN) > 0)
-    {
-        fprintf(stderr, "There are textures of unknown type\n");
-    }
+        fprintf(stderr, "There are textures of unknown type, they will be ignored.\n");
     
     // Then there's this stuff as well... Properties
+#if 0
     aiColor3D color;
     aiReturn ret;
     ret = material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
-    if(ret == aiReturn_SUCCESS) printf("test\n");
+    if(ret == aiReturn_SUCCESS) printf("Diffuse color defined!\n");
     ret = material->Get(AI_MATKEY_COLOR_SPECULAR, color);
-    if(ret == aiReturn_SUCCESS) printf("test\n");
+    if(ret == aiReturn_SUCCESS) printf("Specular color defined!\n");
     ret = material->Get(AI_MATKEY_COLOR_AMBIENT, color);
-    if(ret == aiReturn_SUCCESS) printf("test\n");
+    if(ret == aiReturn_SUCCESS) printf("Ambient color defined!\n");
     ret = material->Get(AI_MATKEY_COLOR_EMISSIVE, color);
-    if(ret == aiReturn_SUCCESS) printf("test\n");
+    if(ret == aiReturn_SUCCESS) printf("Emissive color defined!\n");
     ret = material->Get(AI_MATKEY_COLOR_TRANSPARENT, color);
-    if(ret == aiReturn_SUCCESS) printf("test\n");
+    if(ret == aiReturn_SUCCESS) printf("Transparent color defined!\n");
 #endif
-}
-
-void WriteTexture()
-{
     
+    WriteToFile(ToString(&builder), matFile);
+    return true;
 }

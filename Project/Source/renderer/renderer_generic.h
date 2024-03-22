@@ -12,6 +12,20 @@ struct RenderSettings
     float farClipPlane;
 };
 
+struct Entity;
+
+// Function pointers
+#define InitRenderer_Signature(name) void name()
+typedef InitRenderer_Signature(InitRenderer_Type);
+#define Render_Signature(name) void name(Slice<Entity> entities, RenderSettings renderSettings)
+typedef Render_Signature(Render_Type);
+#define SetupGPUResources_Signature(name) void name(Model* model, Arena* arena)
+typedef SetupGPUResources_Signature(SetupGPUResources_Type);
+#define RenderModelRelease_Signature(name) void name(Model* model)
+typedef RenderModelRelease_Signature(RenderModelRelease_Type);
+#define Cleanup_Signature(name) void name()
+typedef Cleanup_Signature(Cleanup_Type);
+
 #ifdef OS_SupportOpenGL
 #include "renderer_opengl.h"
 #endif
@@ -36,21 +50,9 @@ Model* LoadModel(const char* path);
 Model* LoadModelByName(const char* name);
 void RenderModelDevelopment(Model* model);
 
-// Function pointers. Macros could be used here to save some time
-#define InitRenderer_Signature(name) void name()
-typedef InitRenderer_Signature(InitRenderer_Type);
-#define Render_Signature(name) void name(RenderSettings renderSettings)
-typedef Render_Signature(Render_Type);
-#define CreateGPUBuffers_Signature(name) void name(Model* model)
-typedef CreateGPUBuffers_Signature(CreateGPUBuffers_Type);
-#define RenderModelRelease_Signature(name) void name(Model* model)
-typedef RenderModelRelease_Signature(RenderModelRelease_Type);
-#define Cleanup_Signature(name) void name()
-typedef Cleanup_Signature(Cleanup_Type);
-
 extern InitRenderer_Type* InitRenderer;
 extern Render_Type* Render;
-extern CreateGPUBuffers_Type* CreateGPUBuffers;
+extern SetupGPUResources_Type* SetupGPUResources;
 extern RenderModelRelease_Type* RenderModelRelease;
 extern Cleanup_Type* Cleanup;
 

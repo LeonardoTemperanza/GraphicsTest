@@ -54,5 +54,5 @@ struct AppState
 // Main simulation
 AppState InitSimulation();
 void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frameArena);
-void MainRender(AppState* state, RenderSettings settings);
 void UpdateCamera(Transform* camera, float deltaTime);
+

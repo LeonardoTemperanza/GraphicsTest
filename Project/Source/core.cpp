@@ -9,12 +9,12 @@ AppState InitSimulation()
     state.renderSettings.camera.rotation = Quat::identity;
     
     // Let's load the scene here
-    Model* gunModel = LoadModelByName("gun_model");  // This also has "gun_model"/idx in there
-    Model* raptoidModel = LoadModelByName("raptoid_model");
+    //Model* gunModel = LoadModelAsset("Gun/Gun.model");
+    Model* raptoidModel = LoadModelAsset("Raptoid/Raptoid.model");
     
     // Let's organize the code with arenas later, right now i would just like to get
     // the general idea.
-    auto entities = (Entity*)malloc(1000*sizeof(Entity));
+    auto entities = (Entity*)calloc(1000, sizeof(Entity));
     memset(entities, 0, sizeof(Entity)*1000);
     state.entities.len = 2;
     state.entities.ptr = entities;
@@ -22,10 +22,13 @@ AppState InitSimulation()
     entities[0].key.id = 0;
     entities[1].key.id = 1;
     
+    entities[0].pos = {.x=1.0f, .y=0.0f, .z=3.0f};
     entities[0].rot = Quat::identity;
     entities[1].rot = Quat::identity;
+    entities[0].scale = {.x=1.0f, .y=1.0f, .z=1.0f};
+    entities[1].scale = {.x=1.0f, .y=1.0f, .z=1.0f};
     
-    entities[0].model = gunModel;
+    entities[0].model = raptoidModel;
     entities[1].model = raptoidModel;
     
     return state;
@@ -37,20 +40,23 @@ void UpdateEntities(AppState* state, float deltaTime)
     
     // Update entity 0
     {
+        static float f = 0.0f;
         auto& entity = entities[0];
-        entity.pos.x += sin(deltaTime);
+        f += deltaTime;
+        entity.pos.x += cos(f) * 0.05f;
     }
     
     // Update entity 1
     {
+        static float f = 0.0f;
         auto& entity = entities[1];
-        entity.pos.y += sin(deltaTime);
+        f += deltaTime;
+        entity.pos.y += cos(f) * 0.05f;
     }
 }
 
 void UpdateCamera(Transform* camera, float deltaTime)
 {
-    // Example API usage
     Input input = GetInput();
     
     // Camera rotation
@@ -159,18 +165,6 @@ void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frame
     
     // Render settings
     state->renderSettings.horizontalFOV = Deg2Rad(90);
-    state->renderSettings.nearClipPlane = 0.5f;
+    state->renderSettings.nearClipPlane = 0.001f;
     state->renderSettings.farClipPlane  = 1000.0f;
-}
-
-void MainRender(AppState* appState, RenderSettings settings)
-{
-    glClearColor(0.6f, 0.4f, 0.6f, 1.0f);
-    
-    auto& entities = appState->entities;
-    for(int i = 0; i < entities.len; ++i)
-    {
-        if(entities[i].model)
-            RenderModel(entities[i].model);
-    }
 }

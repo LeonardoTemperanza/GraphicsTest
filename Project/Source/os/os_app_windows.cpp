@@ -231,9 +231,9 @@ static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, 
     OS_DebugMessage(message);
     OS_DebugMessage("\n");
     
-    if (severity == GL_DEBUG_SEVERITY_HIGH || severity == GL_DEBUG_SEVERITY_MEDIUM)
+    if(type == GL_DEBUG_TYPE_ERROR && severity == GL_DEBUG_SEVERITY_HIGH)
     {
-        if (OS_IsDebuggerPresent())
+        if(OS_IsDebuggerPresent())
         {
             assert(!"OpenGL error - check the callstack in debugger");
         }

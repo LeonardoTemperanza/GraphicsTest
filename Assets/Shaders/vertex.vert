@@ -3,8 +3,10 @@
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec3 aTextureCoord;
 
 layout (location = 0) out vec3 fragNormal;
+layout (location = 1) out vec3 fragTextureCoord;
 
 struct DirectionalLight
 {
@@ -23,9 +25,16 @@ layout(std140, binding = 0) uniform PerFrame
     DirectionalLight dirLight;
 };
 
+layout(std140, binding = 1) uniform PerObj
+{
+    mat4 model2World;
+};
+
 void main()
 {
-    vec4 viewPos = world2View * vec4(aPos.x, aPos.y, aPos.z, 1.0f);
+    vec4 viewPos = world2View * (model2World * vec4(aPos.x, aPos.y, aPos.z, 1.0f));
     gl_Position = view2Proj * viewPos;
+    
     fragNormal = aNormal;
+    fragTextureCoord = aTextureCoord;
 }

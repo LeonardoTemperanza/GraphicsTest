@@ -14,8 +14,6 @@ int main()
     
     SetWorkingDirToAssets();
     
-    char* curDir = OS_GetCurrentDirectory();
-    
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
@@ -48,7 +46,7 @@ int main()
             OS_SwapBuffers();
         }
         
-        MainRender(&appState, appState.renderSettings);
+        Render(appState.entities, appState.renderSettings);
         
         firstIter = false;
     }
