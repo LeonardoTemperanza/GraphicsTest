@@ -29,6 +29,7 @@ layout(std140, binding = 1) uniform PerObj
 };
 
 layout(binding = 0) uniform sampler2D diffuseTexture;
+layout(binding = 1) uniform sampler2D normalsTexture;
 
 void main()
 {

@@ -165,7 +165,7 @@ Texture* LoadTextureAsset(const char* path)
     
     String stbImage = {0};
     stbImage.ptr = (char*)stbi_load(path, &texture->width, &texture->height, &texture->numChannels, 0);
-    stbImage.len = texture->width * texture->height * 3;  // RGB for each pixel
+    stbImage.len = texture->width * texture->height * texture->numChannels;  // 1 byte for each channel and pixel in the image
     
     // Copy back to the arena and free the buffer that was allocated by stb_image
     // @performance Is there something better we could do here?

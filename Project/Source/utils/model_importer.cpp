@@ -96,7 +96,7 @@ struct Shader
 std::string RemoveFileExtension(const std::string& fileName);
 std::string RemovePathLastPart(const std::string& fileName);
 
-bool WriteMaterial(const char* path, const aiScene* scene, const aiMaterial* material);
+bool WriteMaterial(const char* modelPath, int materialIdx, const char* path, const aiScene* scene, const aiMaterial* material);
 
 // Usage:
 // model_importer.exe file_to_import.(obj/fbx/...)
@@ -173,7 +173,7 @@ int main(int argCount, char** args)
     {
         // Decide the path, write the material file
         std::string materialPath = modelPathNoExt + std::format("_material{}.mat", i);
-        bool ok = WriteMaterial(materialPath.c_str(), scene, scene->mMaterials[i]);
+        bool ok = WriteMaterial(modelPath, i, materialPath.c_str(), scene, scene->mMaterials[i]);
         if(!ok) return 1;
         
         Put(&builder, (s32)materialPath.size());
@@ -215,6 +215,13 @@ int main(int argCount, char** args)
                 vert.texCoord.y = mesh->mTextureCoords[0][j].y;
                 vert.texCoord.z = mesh->mTextureCoords[0][j].z;
             }
+            
+            // Add these???
+            mesh->mTangents[j].x;
+            mesh->mTangents[j].y;
+            mesh->mTangents[j].z;
+            
+            mesh->mBitangents[j];
             
             Put(&builder, vert);
         }
@@ -268,7 +275,7 @@ std::string RemovePathLastPart(const std::string& fileName)
 }
 
 // This stuff should all go to a material file
-bool WriteMaterial(const char* path, const aiScene* scene, const aiMaterial* material)
+bool WriteMaterial(const char* modelPath, int materialIdx, const char* path, const aiScene* scene, const aiMaterial* material)
 {
     ScratchArena scratch;
     
@@ -280,6 +287,29 @@ bool WriteMaterial(const char* path, const aiScene* scene, const aiMaterial* mat
     }
     
     defer { fclose(matFile); };
+    
+    int shadingModel = 0;
+    material->Get(AI_MATKEY_SHADING_MODEL, shadingModel);
+    
+    const char* shadingModeStr = nullptr;
+    switch(shadingModel)
+    {
+        case aiShadingMode_Phong:
+        {
+            shadingModeStr = "Phong";
+            break;
+        }
+        case aiShadingMode_PBR_BRDF:
+        {
+            shadingModeStr = "PBR BRDF";
+            break;
+        }
+    }
+    
+    if(shadingModeStr)
+        printf("Shading mode: %s\n", shadingModeStr);
+    else
+        fprintf(stderr, "Material %d of model %s uses unknown shading mode.\n", materialIdx, modelPath);
     
     StringBuilder builder = {0};
     UseArena(&builder, scratch);
@@ -332,26 +362,27 @@ bool WriteMaterial(const char* path, const aiScene* scene, const aiMaterial* mat
                 }
                 else
                 {
-                    // @temporary , will want to move this file to the Assets directory later
-                    
-                    // Write the path directly
-                    Put(&builder, (s32)texPath.length);
-                    Append(&builder, texPath.C_Str());
-                    
-                    //fprintf(stderr, "Non embedded textures are currently not supported.");
+                    // Not embedded, just use a default texture for now
+                    const char* defaultTexturePath = "Assets/Default/white.png";
+                    Put(&builder, (s32)strlen(defaultTexturePath));
+                    Append(&builder, defaultTexturePath);
                 }
             }
         }
         else  // No texture of this type
         {
-            Put(&builder, (s32)0);
+            const char* defaultTexturePath = "Assets/Default/white.png";
+            fprintf(stderr, "Material %d of model %s does not contain the texture type '%s', which is needed by the %s shader. This has been set to the default texture ('%s').\n", materialIdx, modelPath, aiTextureTypeToString(texTypes[j]), "lit", defaultTexturePath);
+            
+            Put(&builder, (s32)strlen(defaultTexturePath));
+            Append(&builder, defaultTexturePath);
         }
     }
     
     if(material->GetTextureCount(aiTextureType_UNKNOWN) > 0)
         fprintf(stderr, "There are textures of unknown type, they will be ignored.\n");
     
-    // Then there's this stuff as well... Properties
+    // Then there's this stuff as well... Properties. Not sure if it's useful to support this stuff or not.
 #if 0
     aiColor3D color;
     aiReturn ret;
