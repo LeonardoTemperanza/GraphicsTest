@@ -89,22 +89,13 @@ Render_Signature(gl_Render)
     
     Transform camera = settings.camera;
     
-    // Model is assumed to be already in world space.
-    // World->View, followed by View->Projection
-    
     PerFrameUniforms u;
     u.world2View = World2ViewMatrix(camera.position, camera.rotation);
-    // Positive Z = forward in this coordinate system, and in opengl it's the opposite.
-    // So we scale z by -1.0f, after having applied all the other transformations
-    u.world2View.m31 *= -1.0f;
-    u.world2View.m32 *= -1.0f;
-    u.world2View.m33 *= -1.0f;
-    u.world2View.m34 *= -1.0f;
-    
-    u.view2Proj = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
+    u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
+    u.viewPos    = camera.position;
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
     
-    // Pre-render stuff
+    // Preparing render
     glClearColor(0.12f, 0.3f, 0.25f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     
@@ -119,6 +110,8 @@ Render_Signature(gl_Render)
 
 void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
 {
+    if(!model) return;
+    
     gl_Renderer* r = &renderer.glRenderer;
     
     // Try to hot-reload if we're in development mode
@@ -167,6 +160,7 @@ SetupGPUResources_Signature(gl_SetupGPUResources)
     for(int i = 0; i < model->meshes.len; ++i)
     {
         auto material = model->meshes[i].material;
+        
         for(int j = 0; j < material->textures.len; ++j)
         {
             auto texture = material->textures[j];
@@ -227,7 +221,17 @@ SetupGPUResources_Signature(gl_SetupGPUResources)
         // Texture coords
         glEnableVertexArrayAttrib(meshInfo->vao, 2);
         glVertexArrayAttribBinding(meshInfo->vao, 2, 0);
-        glVertexArrayAttribFormat(meshInfo->vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, texCoord));
+        glVertexArrayAttribFormat(meshInfo->vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, texCoord));
+        
+        // Tangents
+        glEnableVertexArrayAttrib(meshInfo->vao, 3);
+        glVertexArrayAttribBinding(meshInfo->vao, 3, 0);
+        glVertexArrayAttribFormat(meshInfo->vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, tangent));
+        
+        // Bitangents
+        glEnableVertexArrayAttrib(meshInfo->vao, 4);
+        glVertexArrayAttribBinding(meshInfo->vao, 4, 0);
+        glVertexArrayAttribFormat(meshInfo->vao, 4, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, bitangent));
         
         glVertexArrayVertexBuffer(meshInfo->vao, 0, meshInfo->vbo, 0, sizeof(mesh.verts[0]));
         glVertexArrayElementBuffer(meshInfo->vao, meshInfo->ebo);

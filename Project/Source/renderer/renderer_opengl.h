@@ -18,6 +18,7 @@ struct PerFrameUniforms
 {
     Mat4 world2View;
     Mat4 view2Proj;
+    Vec3 viewPos;
 };
 
 struct PerObjectUniforms

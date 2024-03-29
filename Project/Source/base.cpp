@@ -375,18 +375,19 @@ Mat4& operator *=(Mat4& m1, Mat4 m2)
 
 Mat4 operator *(Mat4 m1, Mat4 m2)
 {
+    Mat4 res;
     for(int i = 0; i < 4; ++i)
     {
         for(int j = 0; j < 4; ++j)
         {
-            float res = 0.0f;
-            for(int k = 0; k < 4; ++k)
-                res += m1.m[k][i] * m2.m[j][k];
+            res.m[j][i] = 0.0f;
             
-            m1.m[j][i] = res;
+            for(int k = 0; k < 4; ++k)
+                res.m[j][i] += m1.m[k][i] * m2.m[j][k];
         }
     }
-    return m1;
+    
+    return res;
 }
 
 Quat& operator *=(Quat& a, Quat b)
@@ -456,9 +457,6 @@ Quat inverse(Quat q)
 
 Quat slerp(Quat q1, Quat q2, float t)
 {
-    // Check that this works
-    TODO;
-    
     float lengthSqr1 = q1.x*q1.x + q1.y*q1.y + q1.z*q1.z + q1.w*q1.w;
     float lengthSqr2 = q2.x*q2.x + q2.y*q2.y + q2.z*q2.z + q2.w*q2.w;
     if(lengthSqr1 == 0.0f)
@@ -505,10 +503,27 @@ Quat slerp(Quat q1, Quat q2, float t)
     return Quat::identity;
 }
 
+// https://stackoverflow.com/questions/46156903/how-to-lerp-between-two-quaternions
 Quat lerp(Quat q1, Quat q2, float t)
 {
-    TODO;
-    return Quat::identity;
+    float dotQ = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    if(dotQ < 0.0f)
+    {
+        // Negate q2
+        q2.x = -q2.x;
+        q2.y = -q2.y;
+        q2.z = -q2.z;
+        q2.w = -q2.w;
+    }
+    
+    // res = q1 + t(q2 - q1)  -->  res = q1 - t(q1 - q2)
+    // The latter is slightly better on x64
+    Quat res;
+    res.x = q1.x - t*(q1.x - q2.x);
+    res.y = q1.y - t*(q1.y - q2.y);
+    res.z = q1.z - t*(q1.z - q2.z);
+    res.w = q1.w - t*(q1.w - q2.w);
+    return normalize(res);
 }
 
 Quat AngleAxis(Vec3 axis, float angle)
@@ -579,22 +594,19 @@ Mat4 PositionMatrix(Vec3 pos)
 
 Mat4 Model2WorldMatrix(Vec3 pos, Quat rot, Vec3 scale)
 {
-    Mat4 mat = ScaleMatrix(scale);
-    mat = RotationMatrix(rot) * mat;
-    mat = PositionMatrix(pos) * mat;
-    return mat;
+    return PositionMatrix(pos) * RotationMatrix(normalize(rot)) * ScaleMatrix(scale);
 }
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
 {
     // Inverse rotation matrix
+    //Mat4 res = Mat4::identity;
     Mat4 res = RotationMatrix(normalize(inverse(camRot)));
-    
-    // Apply inverse of translation after having applied inverse of rotation
-    Vec3& p = camPos;
-    res.m14 = res.m11 * -p.x + res.m12 * -p.y + res.m13 * -p.z;
-    res.m24 = res.m21 * -p.x + res.m22 * -p.y + res.m23 * -p.z;
-    res.m34 = res.m31 * -p.x + res.m32 * -p.y + res.m33 * -p.z;
+    // Apply inverse of translation before having applied inverse of rotation
+    // NOTE: The camera appeared slightly shifted forward (it could not turn in place)
+    // but applying a position matrix of -1 along the z axis seems to fix the issue. Why
+    // is that?
+    res = res * PositionMatrix(-camPos);
     return res; 
 }
 
@@ -603,15 +615,18 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
     const float n = nearClip;
     const float f = farClip;
     const float r = n * tan(fov / 2.0f);
+    const float l = -r;
     const float t = r / aspectRatio;
+    const float b = -t;
     
-    // This is the View->Projection matrix
+    // @temp NOTE: negated third column for opengl, change later
+    
     Mat4 res;
     res.set
-    (n/r, 0,   0,            0,
-     0,   n/t, 0,            0,
-     0,   0,   -(f+n)/(f-n), -2*f*n/(f-n),
-     0,   0,   -1,            1);
+    (2*n/(r-l), 0,         -(r+l)/(r-l),  0,
+     0,         2*n/(t-b), -(t+b)/(t-b),  0,
+     0,         0,         +(f+n)/(f-n), -2*f*n/(f-n),
+     0,         0,         +1,           0);
     
     return res;
 }

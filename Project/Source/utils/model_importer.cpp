@@ -61,7 +61,7 @@ struct Model
         {
             Vec3 pos;
             Vec3 normal;
-            Vec3 texCoord;
+            Vec2 texCoord;
         };
         
         s32 numVerts;
@@ -133,7 +133,7 @@ int main(int argCount, char** args)
     printf("Loading and preprocessing model %s...\n", modelPath);
     
     int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_GenSmoothNormals | 
-        aiProcess_GenUVCoords | aiProcess_MakeLeftHanded | aiProcess_FlipUVs | aiProcess_GlobalScale | aiProcess_PreTransformVertices;
+        aiProcess_GenUVCoords | aiProcess_MakeLeftHanded | aiProcess_FlipUVs | aiProcess_GlobalScale | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace;
     const aiScene* scene = importer.ReadFile(modelPath, flags);
     
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
@@ -180,12 +180,15 @@ int main(int argCount, char** args)
         Append(&builder, materialPath.c_str());
     }
     
+    // TODO: This struct should be in a shared header file with the asset loader
     // Write mesh verts and indices
     struct Vertex
     {
         Vec3 pos;
         Vec3 normal;
-        Vec3 texCoord;
+        Vec2 texCoord;
+        Vec3 tangent;
+        Vec3 bitangent;
     };
     
     aiNode* root = scene->mRootNode;
@@ -213,15 +216,14 @@ int main(int argCount, char** args)
             {
                 vert.texCoord.x = mesh->mTextureCoords[0][j].x;
                 vert.texCoord.y = mesh->mTextureCoords[0][j].y;
-                vert.texCoord.z = mesh->mTextureCoords[0][j].z;
             }
             
-            // Add these???
-            mesh->mTangents[j].x;
-            mesh->mTangents[j].y;
-            mesh->mTangents[j].z;
-            
-            mesh->mBitangents[j];
+            vert.tangent.x = mesh->mTangents[j].x;
+            vert.tangent.y = mesh->mTangents[j].y;
+            vert.tangent.z = mesh->mTangents[j].z;
+            vert.bitangent.x = mesh->mBitangents[j].x;
+            vert.bitangent.y = mesh->mBitangents[j].y;
+            vert.bitangent.z = mesh->mBitangents[j].z;
             
             Put(&builder, vert);
         }

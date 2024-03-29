@@ -15,21 +15,27 @@ AppState InitSimulation()
     // Let's organize the code with arenas later, right now i would just like to get
     // the general idea.
     auto entities = (Entity*)calloc(1000, sizeof(Entity));
-    memset(entities, 0, sizeof(Entity)*1000);
-    state.entities.len = 2;
+    state.entities.len = 3;
     state.entities.ptr = entities;
     
     entities[0].key.id = 0;
     entities[1].key.id = 1;
+    entities[2].key.id = 2;
     
     entities[0].pos = {.x=1.0f, .y=0.0f, .z=3.0f};
+    entities[1].pos = {.x=0.0f, .y=0.0f, .z=-3.0f};
+    
     entities[0].rot = Quat::identity;
     entities[1].rot = Quat::identity;
+    entities[2].rot = Quat::identity;
+    
     entities[0].scale = {.x=1.0f, .y=1.0f, .z=1.0f};
     entities[1].scale = {.x=1.0f, .y=1.0f, .z=1.0f};
+    entities[2].scale = {.x=1.0f, .y=1.0f, .z=1.0f};
     
     entities[0].model = raptoidModel;
     entities[1].model = raptoidModel;
+    entities[2].model = raptoidModel;
     
     return state;
 }
@@ -40,18 +46,34 @@ void UpdateEntities(AppState* state, float deltaTime)
     
     // Update entity 0
     {
-        static float f = 0.0f;
+        static float t = 0.0f;
         auto& entity = entities[0];
-        f += deltaTime;
-        entity.pos.x += cos(f) * 0.05f;
+        t += deltaTime;
+        entity.pos.x += cos(t) * 0.05f;
+        entity.scale.x += cos(t) * 0.005f;
     }
     
     // Update entity 1
     {
-        static float f = 0.0f;
+        static float t = 0.0f;
         auto& entity = entities[1];
-        f += deltaTime;
-        entity.pos.y += cos(f) * 0.05f;
+        
+        t += deltaTime;
+        if(t > 10)
+            t -= 10;
+        
+        Vec3 to = Vec3::left;
+        if(t > 5)
+            to = Vec3::right;
+        
+        //entity.pos.x += cos(t) * 0.05f;
+        entity.rot = RotateTowards(entity.rot, AngleAxis(to, Deg2Rad(90)), deltaTime);
+        //entity.scale.x += cos(t) * 0.01f;
+    }
+    
+    // Update entity 2
+    {
+        auto& entity = entities[2];
     }
 }
 
@@ -165,6 +187,6 @@ void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frame
     
     // Render settings
     state->renderSettings.horizontalFOV = Deg2Rad(90);
-    state->renderSettings.nearClipPlane = 0.001f;
+    state->renderSettings.nearClipPlane = 0.1f;
     state->renderSettings.farClipPlane  = 1000.0f;
 }

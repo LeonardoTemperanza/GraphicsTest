@@ -49,7 +49,9 @@ struct Vertex
 {
     Vec3 pos;
     Vec3 normal;
-    Vec3 texCoord;
+    Vec2 texCoord;
+    Vec3 tangent;
+    Vec3 bitangent;
 };
 
 struct Mesh
