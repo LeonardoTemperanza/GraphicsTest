@@ -45,7 +45,7 @@ struct Material
 };
 
 // Vertex data might vary depending on the usage
-struct Vertex
+struct Vertex_v0
 {
     Vec3 pos;
     Vec3 normal;
@@ -53,6 +53,8 @@ struct Vertex
     Vec3 tangent;
     Vec3 bitangent;
 };
+
+typedef Vertex_v0 Vertex;
 
 struct Mesh
 {

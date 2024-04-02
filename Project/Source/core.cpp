@@ -11,11 +11,13 @@ AppState InitSimulation()
     // Let's load the scene here
     //Model* gunModel = LoadModelAsset("Gun/Gun.model");
     Model* raptoidModel = LoadModelAsset("Raptoid/Raptoid.model");
+    //Model* sphereModel = LoadModelAsset("Common/sphere.model");
+    Model* sphereModel = raptoidModel;
     
     // Let's organize the code with arenas later, right now i would just like to get
     // the general idea.
     auto entities = (Entity*)calloc(1000, sizeof(Entity));
-    state.entities.len = 3;
+    state.entities.len = 4;
     state.entities.ptr = entities;
     
     entities[0].key.id = 0;
@@ -36,6 +38,12 @@ AppState InitSimulation()
     entities[0].model = raptoidModel;
     entities[1].model = raptoidModel;
     entities[2].model = raptoidModel;
+    
+    entities[3].key.id = 3;
+    entities[3].model = sphereModel;
+    entities[3].pos = {.x=0.0f, .y=3.0f, .z=0.0f};
+    entities[3].rot = Quat::identity;
+    entities[3].scale = {.x=1.0f, .y=1.0f, .z=1.0f};
     
     return state;
 }
@@ -62,9 +70,9 @@ void UpdateEntities(AppState* state, float deltaTime)
         if(t > 10)
             t -= 10;
         
-        Vec3 to = Vec3::left;
+        Vec3 to = Vec3::up;
         if(t > 5)
-            to = Vec3::right;
+            to = Vec3::down;
         
         //entity.pos.x += cos(t) * 0.05f;
         entity.rot = RotateTowards(entity.rot, AngleAxis(to, Deg2Rad(90)), deltaTime);

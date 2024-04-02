@@ -140,11 +140,19 @@ void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
         
         glBindVertexArray(meshInfo->vao);
         
-        if(mesh.material && mesh.material->textures.len > 0 && mesh.material->textures[0])
+        auto material = mesh.material;
+        if(material)
         {
-            auto texInfo = (gl_TextureInfo*)mesh.material->textures[0]->gfxInfo;
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texInfo->objId);
+            for(int i = 0; i < material->textures.len; ++i)
+            {
+                auto texture = material->textures[i];
+                if(texture)
+                {
+                    auto texInfo = (gl_TextureInfo*)texture->gfxInfo;
+                    glActiveTexture(GL_TEXTURE0 + i);
+                    glBindTexture(GL_TEXTURE_2D, texInfo->objId);
+                }
+            }
         }
         
         glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
@@ -181,6 +189,7 @@ SetupGPUResources_Signature(gl_SetupGPUResources)
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                     
+                    // TODO: Based on the number of channels, might want to change this
                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture->width, texture->height, 0, GL_RGB, GL_UNSIGNED_BYTE, texture->blob.ptr);
                     glGenerateMipmap(GL_TEXTURE_2D);
                 }

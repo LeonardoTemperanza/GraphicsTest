@@ -32,8 +32,11 @@ int main()
     u64 endTicks    = 0;
     
     bool firstIter = true;
-    while(bool proceed = OS_HandleWindowEvents())
+    while(true)
     {
+        bool proceed = OS_HandleWindowEvents();
+        if(!proceed) break;
+        
         // In the first iteration, we simply want to render
         // the initialized state.
         if(!firstIter)

@@ -5,9 +5,11 @@
 
 #include "os/os_generic.cpp"
 #include "base.cpp"
+#include "asset_system.h"
 
 #include <iostream>
-#include <format>
+
+const char* defaultTexturePath = "Default/white.png";
 
 /*
 
@@ -57,18 +59,11 @@ struct Model
     
     struct Mesh
     {
-        struct Vertex
-        {
-            Vec3 pos;
-            Vec3 normal;
-            Vec2 texCoord;
-        };
-        
         s32 numVerts;
         s32 numIndices;
         s32 materialIdx;
         bool hasTextureCoords;
-        Vertex verts[numVerts];
+        Vertex_v0 verts[numVerts];  // From asset_system.h
         s32 indices[numIndices];  // Grouped in 3 to form a triangle
     };
     
@@ -125,12 +120,14 @@ int main(int argCount, char** args)
     }
     
     printf("Running version %d of the model importer.\n", 0);
+    fflush(stdout);
     
     const char* modelPath = args[1];
     
     Assimp::Importer importer;
     
     printf("Loading and preprocessing model %s...\n", modelPath);
+    fflush(stdout);
     
     int flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_GenSmoothNormals | 
         aiProcess_GenUVCoords | aiProcess_MakeLeftHanded | aiProcess_FlipUVs | aiProcess_GlobalScale | aiProcess_PreTransformVertices | aiProcess_CalcTangentSpace;
@@ -172,24 +169,15 @@ int main(int argCount, char** args)
     for(int i = 0; i < scene->mNumMaterials; ++i)
     {
         // Decide the path, write the material file
-        std::string materialPath = modelPathNoExt + std::format("_material{}.mat", i);
+        std::string materialStr = "_material";
+        materialStr += std::to_string(i);
+        std::string materialPath = modelPathNoExt + materialStr + ".mat";
         bool ok = WriteMaterial(modelPath, i, materialPath.c_str(), scene, scene->mMaterials[i]);
         if(!ok) return 1;
         
         Put(&builder, (s32)materialPath.size());
         Append(&builder, materialPath.c_str());
     }
-    
-    // TODO: This struct should be in a shared header file with the asset loader
-    // Write mesh verts and indices
-    struct Vertex
-    {
-        Vec3 pos;
-        Vec3 normal;
-        Vec2 texCoord;
-        Vec3 tangent;
-        Vec3 bitangent;
-    };
     
     aiNode* root = scene->mRootNode;
     
@@ -204,7 +192,7 @@ int main(int argCount, char** args)
         
         for(int j = 0; j < mesh->mNumVertices; ++j)
         {
-            Vertex vert = {0};
+            Vertex_v0 vert = {0};
             vert.pos.x = mesh->mVertices[j].x;
             vert.pos.y = mesh->mVertices[j].y;
             vert.pos.z = mesh->mVertices[j].z;
@@ -364,20 +352,23 @@ bool WriteMaterial(const char* modelPath, int materialIdx, const char* path, con
                 }
                 else
                 {
-                    // Not embedded, just use a default texture for now
-                    const char* defaultTexturePath = "Assets/Default/white.png";
-                    Put(&builder, (s32)strlen(defaultTexturePath));
-                    Append(&builder, defaultTexturePath);
+                    // Not embedded, just use the default texture for now
+                    fprintf(stderr, "Material %d of model %s has a non-embedded texture of type '%s'. Non-embedded textures are temporarily not supported. This has been set to the default texture ('%s').\n", materialIdx, modelPath, aiTextureTypeToString(texTypes[j]), "phong", defaultTexturePath);
+                    
+                    Put(&builder, (s32)0);
+                    
+                    //Put(&builder, (s32)strlen(defaultTexturePath));
+                    //Append(&builder, defaultTexturePath);
                 }
             }
         }
         else  // No texture of this type
         {
-            const char* defaultTexturePath = "Assets/Default/white.png";
-            fprintf(stderr, "Material %d of model %s does not contain the texture type '%s', which is needed by the %s shader. This has been set to the default texture ('%s').\n", materialIdx, modelPath, aiTextureTypeToString(texTypes[j]), "lit", defaultTexturePath);
+            fprintf(stderr, "Material %d of model %s does not contain the texture type '%s', which is needed by the '%s' shader. This has been set to the default texture ('%s').\n", materialIdx, modelPath, aiTextureTypeToString(texTypes[j]), "phong", defaultTexturePath);
             
-            Put(&builder, (s32)strlen(defaultTexturePath));
-            Append(&builder, defaultTexturePath);
+            Put(&builder, (s32)0);
+            //Put(&builder, (s32)strlen(defaultTexturePath));
+            //Append(&builder, defaultTexturePath);
         }
     }
     

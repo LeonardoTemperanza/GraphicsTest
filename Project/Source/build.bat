@@ -45,4 +45,8 @@ REM call graphics_test.exe
 
 echo Done.
 
+REM echo Importing models:
+
+REM model_importer.exe Raptoid/Raptoid.fbx
+
 popd
