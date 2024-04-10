@@ -35,6 +35,7 @@ struct Texture
     void* gfxInfo;
 };
 
+// This can be a plain text file which 
 struct Material
 {
     Asset asset;
@@ -51,15 +52,32 @@ struct Vertex_v0
     Vec3 normal;
     Vec2 texCoord;
     Vec3 tangent;
-    Vec3 bitangent;
 };
 
 typedef Vertex_v0 Vertex;
 
+#define MaxBonesInfluence
+struct AnimVert_v0
+{
+    Vec3 pos;
+    Vec3 normal;
+    Vec2 texCoord;
+    Vec3 tangent;
+    
+    struct BoneWeight
+    {
+        int boneIdx;
+        float weight;
+    } boneWeights[MaxBonesInfluence];
+};
+
+typedef AnimVert_v0 AnimVert;
+
 struct Mesh
 {
-    bool isCPUStorageLoaded;  // CPU storage might be freed right after copying to GPU, we'll see.
+    bool isCPUStorageLoaded;
     bool hasTextureCoords;
+    bool hasBones;
     
     Slice<Vertex> verts;
     Slice<s32> indices;
@@ -67,15 +85,17 @@ struct Mesh
     // API dependent info here
     void* gfxInfo;
     
-    Material* material;
+    int materialIdx;
 };
 
 struct Model
 {
     Asset asset;
     Slice<Mesh> meshes;
+    Slice<Material> materials;
 };
 
 Model* LoadModelAsset(const char* path);
-Material* LoadMaterialAsset(const char* path);
+Material LoadMaterialAsset(const char* path);
 Texture* LoadTextureAsset(const char* path);
+void SetMaterial(Model* model, Material* material, int idx);

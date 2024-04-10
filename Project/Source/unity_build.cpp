@@ -30,5 +30,6 @@
 #include "core.cpp"
 #include "ui_core.cpp"
 #include "asset_system.cpp"
+#include "parser.cpp"
 
 #include "renderer/renderer_generic.cpp"

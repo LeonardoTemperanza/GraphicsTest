@@ -1,0 +1,17 @@
+
+material_name: pbr_base
+
+shader: shader_string_id
+
+uniforms
+{
+    roughness: 2.0
+    metalness: 1.5
+    is_bird: true
+}
+
+textures
+{
+    texture_string_id1
+    texture_string_id2
+}

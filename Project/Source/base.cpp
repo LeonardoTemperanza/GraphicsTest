@@ -633,6 +633,18 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
 
 ////
 // String utils
+bool StringBeginsWith(String s, char* beginsWith)
+{
+    TODO;
+    return true;
+}
+
+bool StringBeginsWith(String s, String beginsWith)
+{
+    TODO;
+    return true;
+}
+
 b32 operator ==(String s1, String s2)
 {
     if(s1.len != s2.len) return false;

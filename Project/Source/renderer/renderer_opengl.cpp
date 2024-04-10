@@ -140,6 +140,7 @@ void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
         
         glBindVertexArray(meshInfo->vao);
         
+#if 0
         auto material = mesh.material;
         if(material)
         {
@@ -154,6 +155,7 @@ void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
                 }
             }
         }
+#endif
         
         glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
         
@@ -165,6 +167,7 @@ void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
 SetupGPUResources_Signature(gl_SetupGPUResources)
 {
     // Setup textures
+#if 0
     for(int i = 0; i < model->meshes.len; ++i)
     {
         auto material = model->meshes[i].material;
@@ -199,6 +202,7 @@ SetupGPUResources_Signature(gl_SetupGPUResources)
             }
         }
     }
+#endif
     
     // Setup meshes
     for(int i = 0; i < model->meshes.len; ++i)
@@ -236,11 +240,6 @@ SetupGPUResources_Signature(gl_SetupGPUResources)
         glEnableVertexArrayAttrib(meshInfo->vao, 3);
         glVertexArrayAttribBinding(meshInfo->vao, 3, 0);
         glVertexArrayAttribFormat(meshInfo->vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, tangent));
-        
-        // Bitangents
-        glEnableVertexArrayAttrib(meshInfo->vao, 4);
-        glVertexArrayAttribBinding(meshInfo->vao, 4, 0);
-        glVertexArrayAttribFormat(meshInfo->vao, 4, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, bitangent));
         
         glVertexArrayVertexBuffer(meshInfo->vao, 0, meshInfo->vbo, 0, sizeof(mesh.verts[0]));
         glVertexArrayElementBuffer(meshInfo->vao, meshInfo->ebo);

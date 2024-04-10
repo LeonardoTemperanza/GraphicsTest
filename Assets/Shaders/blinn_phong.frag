@@ -43,7 +43,7 @@ void main()
     
     vec3 color = texture(diffuseMap, texCoord).rgb;
     
-    //transNormal = normalize(worldNormal);  // For debugging
+    transNormal = normalize(worldNormal);  // For debugging
     
     vec3 viewDir = normalize(viewPos - worldPos);
     

@@ -55,8 +55,6 @@ struct Model
     s32 numMeshes;
     s32 numMaterials;
     
-    PathName materialPaths[numMaterials];
-    
     struct Mesh
     {
         s32 numVerts;
@@ -164,6 +162,7 @@ int main(int argCount, char** args)
     Put(&builder, (s32)scene->mNumMeshes);
     Put(&builder, (s32)scene->mNumMaterials);
     
+#if 0
     // Write material paths
     
     for(int i = 0; i < scene->mNumMaterials; ++i)
@@ -178,6 +177,7 @@ int main(int argCount, char** args)
         Put(&builder, (s32)materialPath.size());
         Append(&builder, materialPath.c_str());
     }
+#endif
     
     aiNode* root = scene->mRootNode;
     
@@ -209,9 +209,11 @@ int main(int argCount, char** args)
             vert.tangent.x = mesh->mTangents[j].x;
             vert.tangent.y = mesh->mTangents[j].y;
             vert.tangent.z = mesh->mTangents[j].z;
-            vert.bitangent.x = mesh->mBitangents[j].x;
-            vert.bitangent.y = mesh->mBitangents[j].y;
-            vert.bitangent.z = mesh->mBitangents[j].z;
+            // Bitangent is derived in the vertex shader
+            // from normals and tangents
+            //vert.bitangent.x = mesh->mBitangents[j].x;
+            //vert.bitangent.y = mesh->mBitangents[j].y;
+            //vert.bitangent.z = mesh->mBitangents[j].z;
             
             Put(&builder, vert);
         }

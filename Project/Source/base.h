@@ -296,6 +296,8 @@ struct String
     int64_t len;
 };
 
+bool StringBeginsWith(String s, char* beginsWith);
+bool StringBeginsWith(String s, String beginsWith);
 b32 operator ==(String s1, String s2);
 b32 operator !=(String s1, String s2);
 b32 operator ==(String s1, const char* s2);

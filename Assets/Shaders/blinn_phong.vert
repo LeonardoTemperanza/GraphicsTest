@@ -5,7 +5,6 @@ layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in vec3 inTangent;
-layout(location = 4) in vec3 inBitangent;
 
 layout(location = 0) out vec3 worldPos;
 layout(location = 1) out vec3 worldNormal;
@@ -45,12 +44,11 @@ void main()
     worldNormal = normalize(normalMatrix * inNormal);
     texCoord = inTexCoord;
     
-    vec3 tangent   = normalize(normalMatrix * inTangent);
-    vec3 bitangent = normalize(normalMatrix * inBitangent);
+    vec3 tangent = normalize(normalMatrix * inTangent);
     
     // Reorthogonalize tangent for better quality
-    tangent   = normalize(tangent - dot(tangent, worldNormal) * worldNormal);
-    bitangent = cross(worldNormal, tangent);
+    tangent = normalize(tangent - dot(tangent, worldNormal) * worldNormal);
+    vec3 bitangent = cross(worldNormal, tangent);
     
     // Convert to tangent space
     TSToWorld = mat3(tangent, bitangent, worldNormal);

@@ -11,6 +11,10 @@ AppState InitSimulation()
     // Let's load the scene here
     //Model* gunModel = LoadModelAsset("Gun/Gun.model");
     Model* raptoidModel = LoadModelAsset("Raptoid/Raptoid.model");
+    Material raptoidMaterial = LoadMaterialAsset("Raptoid/Raptoid.model");
+    //SetMaterial(raptoidModel, raptoidMaterial, 0);
+    //SetMaterial(raptoidModel, raptoidMaterial, 1);
+    
     //Model* sphereModel = LoadModelAsset("Common/sphere.model");
     Model* sphereModel = raptoidModel;
     

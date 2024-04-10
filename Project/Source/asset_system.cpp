@@ -59,26 +59,17 @@ Model* LoadModelAsset(const char* path)
         return res;
     }
     
-    s32 version      = Next<s32>(cursor);
-    s32 numMeshes    = Next<s32>(cursor);
-    s32 numMaterials = Next<s32>(cursor);
-    res->meshes.ptr  = ArenaZAllocArray(Mesh, numMeshes, &sceneArena);
-    res->meshes.len  = numMeshes;
+    s32 version        = Next<s32>(cursor);
+    s32 numMeshes      = Next<s32>(cursor);
+    s32 numMaterials   = Next<s32>(cursor);
+    res->meshes.ptr    = ArenaZAllocArray(Mesh, numMeshes, &sceneArena);
+    res->meshes.len    = numMeshes;
+    res->materials.ptr = ArenaZAllocArray(Material, numMaterials, &sceneArena);
+    res->materials.len = numMaterials;
     
     char buffer[1024];
     snprintf(buffer, 1024, "Version: %d, Num meshes: %d, Num materials: %d\n", version, numMeshes, numMaterials);
     OS_DebugMessage(buffer);
-    
-    Material** materials = ArenaZAllocArray(Material*, numMaterials, scratch);
-    for(int i = 0; i < numMaterials; ++i)
-    {
-        s32 pathLen = Next<s32>(cursor);
-        String path = Next(cursor, pathLen);
-        
-        char* pathNullTerm = ArenaPushNullTermString(scratch, path);
-        if(pathNullTerm[0] != '\0')
-            materials[i] = LoadMaterialAsset(pathNullTerm);
-    }
     
     for(int i = 0; i < numMeshes; ++i)
     {
@@ -95,8 +86,7 @@ Model* LoadModelAsset(const char* path)
         mesh.verts   = ArenaPushSlice(&sceneArena, verts);
         mesh.indices = ArenaPushSlice(&sceneArena, indices);
         mesh.isCPUStorageLoaded = true;
-        
-        mesh.material = materials[materialIdx];
+        //mesh.material = materials[materialIdx];
     }
     
     SetupGPUResources(res, &sceneArena);
@@ -104,11 +94,11 @@ Model* LoadModelAsset(const char* path)
     return res;
 }
 
-Material* LoadMaterialAsset(const char* path)
+Material LoadMaterialAsset(const char* path)
 {
     ScratchArena scratch;
     
-    Material* mat = ArenaZAllocTyped(Material, &sceneArena);
+    Material mat = {0};
     
     FILE* matFile = fopen(path, "rb");
     // TODO: Error reporting
@@ -143,19 +133,6 @@ Material* LoadMaterialAsset(const char* path)
         return mat;
     }
     
-    s32 numTextures = Next<s32>(cursor);
-    Texture** textures = ArenaZAllocTyped(Texture*, &sceneArena);
-    mat->textures = {.ptr=textures, .len=numTextures};
-    for(int i = 0; i < numTextures; ++i)
-    {
-        s32 pathLen = Next<s32>(cursor);
-        String path = Next(cursor, pathLen);
-        
-        char* pathNullTerm = ArenaPushNullTermString(scratch, path);
-        if(pathNullTerm[0] != '\0')
-            mat->textures[i] = LoadTextureAsset(pathNullTerm);
-    }
-    
     return mat;
 }
 
@@ -184,4 +161,10 @@ void ReloadGPUResources()
 void UnloadScene()
 {
     ArenaFreeAll(&sceneArena);
+}
+
+void SetMaterial(Model* model, Material material, int idx)
+{
+    assert(idx < model->materials.len);
+    model->materials[idx] = material;
 }
