@@ -3,17 +3,15 @@
 #include "renderer_generic.h"
 #include "embedded_files.h"
 
-static Arena rendererArena = ArenaVirtualMemInit(GB(4), MB(2));
-
 // The structure here should be changed so that
 // the renderer operates on large amounts of data
 // at a time, because these are all function pointers,
 // so it's not very fast to repeatedly call these in a loop
 
-InitRenderer_Signature(gl_InitRenderer)
+void R_Init()
 {
-    gl_Renderer* r = &renderer.glRenderer;
-    memset(r, 0, sizeof(gl_Renderer));
+    Renderer* r = &renderer;
+    memset(r, 0, sizeof(Renderer));
     
     // Allocate buffers
     constexpr int numBuffers = 3;
@@ -63,16 +61,42 @@ InitRenderer_Signature(gl_InitRenderer)
     glUniformBlockBinding(r->shaderProgram, perObjUniformIdx, perObjBindingPoint);
 }
 
-Model* gl_LoadModel(const char* name)
+void R_BeginPass(RenderSettings settings)
 {
-    TODO;
-    return nullptr;
-    //LoadModelAsset();
+    Renderer* r = &renderer;
+    
+    int width, height;
+    OS_GetClientAreaSize(&width, &height);
+    glViewport(0, 0, width, height);
+    float aspectRatio = (float)width / height;
+    
+    const float n   = settings.nearClipPlane;
+    const float f   = settings.farClipPlane;
+    const float fov = settings.horizontalFOV;
+    
+    const float right = n * tan(fov / 2.0f);
+    const float top   = right / aspectRatio;
+    
+    Transform camera = settings.camera;
+    
+    PerFrameUniforms u;
+    u.world2View = World2ViewMatrix(camera.position, camera.rotation);
+    u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
+    u.viewPos    = camera.position;
+    glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
+    
+    // Preparing render
+    glClearColor(0.12f, 0.3f, 0.25f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    
+    glUseProgram(r->shaderProgram);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
 }
 
-Render_Signature(gl_Render)
+void Render(Slice<Entity> entities, RenderSettings renderSettings)
 {
-    gl_Renderer* r = &renderer.glRenderer;
+    Renderer* r = &renderer;
     auto& settings = renderSettings;
     
     int width, height;
@@ -105,14 +129,14 @@ Render_Signature(gl_Render)
     
     // Draw all models
     for(int i = 0; i < entities.len; ++i)
-        gl_RenderModel(entities[i].model, entities[i].pos, entities[i].rot, entities[i].scale);
+        R_DrawModel(entities[i].model, entities[i].pos, entities[i].rot, entities[i].scale);
 }
 
-void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
+void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
 {
     if(!model) return;
     
-    gl_Renderer* r = &renderer.glRenderer;
+    Renderer* r = &renderer;
     
     // Try to hot-reload if we're in development mode
 #ifdef Development
@@ -164,7 +188,7 @@ void gl_RenderModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
     }
 }
 
-SetupGPUResources_Signature(gl_SetupGPUResources)
+void R_TransferModel(Model* model, Arena* arena)
 {
     // Setup textures
 #if 0
@@ -246,7 +270,7 @@ SetupGPUResources_Signature(gl_SetupGPUResources)
     }
 }
 
-void gl_Cleanup()
+void R_Cleanup()
 {
     
 }

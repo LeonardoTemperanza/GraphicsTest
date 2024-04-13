@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <cstring>
 
-#include "base.h"
-#include "os/os_generic.h"
+//#include "base.h"
+#include "os/os_base.h"
 
 void GenerateHeaderFile(char** fileNames, char** varNames, char* outputName);
 

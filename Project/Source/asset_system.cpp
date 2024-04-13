@@ -89,7 +89,7 @@ Model* LoadModelAsset(const char* path)
         //mesh.material = materials[materialIdx];
     }
     
-    SetupGPUResources(res, &sceneArena);
+    R_TransferModel(res, &sceneArena);
     
     return res;
 }

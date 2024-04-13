@@ -9,7 +9,7 @@ void SetWorkingDirToAssets();
 
 int main()
 {
-    OS_GraphicsLib usedLib = OS_Init();
+    OS_Init();
     defer { OS_Cleanup(); };
     
     SetWorkingDirToAssets();
@@ -17,8 +17,8 @@ int main()
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
-    SetRenderFunctionPointers(usedLib);
-    InitRenderer();
+    R_Init();
+    defer { R_Cleanup(); };
     
     AppState appState = InitSimulation();
     
@@ -43,13 +43,12 @@ int main()
         {
             endTicks = OS_GetTicks();
             deltaTime = min(maxDeltaTime, OS_GetElapsedSeconds(startTicks, endTicks));
-            
             startTicks = OS_GetTicks();
-            MainUpdate(&appState, deltaTime, &permArena, &frameArena);
+            
             OS_SwapBuffers();
         }
         
-        Render(appState.entities, appState.renderSettings);
+        MainUpdate(&appState, deltaTime, &permArena, &frameArena);
         
         firstIter = false;
     }

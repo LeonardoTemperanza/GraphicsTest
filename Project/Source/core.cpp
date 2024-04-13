@@ -172,6 +172,17 @@ void UpdateUI()
 #endif
 }
 
+void RenderEntities(AppState* state, float deltaTime)
+{
+    R_BeginPass(state->renderSettings);
+    
+    auto& entities = state->entities;
+    for(int i = 0; i < entities.len; ++i)
+    {
+        R_DrawModel(entities[i].model, entities[i].pos, entities[i].rot, entities[i].scale);
+    }
+}
+
 void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frameArena)
 {
     PollAndProcessInput();
@@ -196,6 +207,8 @@ void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frame
     
     UpdateCamera(&state->renderSettings.camera, deltaTime);
     UpdateEntities(state, deltaTime);
+    
+    RenderEntities(state, deltaTime);
     
     // Render settings
     state->renderSettings.horizontalFOV = Deg2Rad(90);

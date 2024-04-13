@@ -30,7 +30,9 @@ del bin2h.obj bin2h.exe
 set source_files=..\Source\unity_build.cpp
 set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib
 set output_name=graphics_test.exe
-set gfx_api=/DFORCE_OPENGL
+
+REM gfx_api could be: GFX_OPENGL, GFX_D3D11, GFX_VULKAN, etc.
+set gfx_api=/DGFX_OPENGL
 REM set gfx_api=
 set common=/nologo /std:c++20 /FC %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
 

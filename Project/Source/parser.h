@@ -16,6 +16,7 @@ enum TokenKind
     TokKind_Comma,
     TokKind_FloatConst,
     TokKind_IntConst,
+    TokKind_EOF,
     
     // Keywords
     TokKind_True,
@@ -33,7 +34,7 @@ struct Token
     union
     {
         double doubleVal;
-        int intVal;
+        s64    intVal;
     };
 };
 
@@ -52,6 +53,8 @@ struct Parser
 };
 
 inline bool IsStartIdent(char c);
+inline bool IsNumeric(char c);
+inline bool IsMiddleIdent(char c);
 
 // Returns number of newlines
 int EatAllWhitespace(char* at);
@@ -62,12 +65,13 @@ struct MatParseResult
     
 };
 
-struct ShaderParseResult
+struct BindingParseResult
 {
     
 };
 
 MatParseResult ParseMaterial();
+BindingParseResult ParseBinding();
 void EatRequiredToken(Parser* p, TokenKind token);
 void UnexpectedTokenError(Parser* p);
 void ParseError(const char* fmt, ...);

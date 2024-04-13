@@ -48,6 +48,7 @@ struct AppState
     s64 lockMousePosY;
     
     Slice<Entity> entities;
+    
     RenderSettings renderSettings;
 };
 
@@ -55,4 +56,4 @@ struct AppState
 AppState InitSimulation();
 void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frameArena);
 void UpdateCamera(Transform* camera, float deltaTime);
-
+void RenderEntities(AppState* state, float deltaTime);

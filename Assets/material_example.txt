@@ -1,7 +1,8 @@
 
 material_name: pbr_base
 
-shader: shader_string_id
+fragment_shader: frag_shader_string_id
+vertex_shader: vert_shader_string_id
 
 uniforms
 {

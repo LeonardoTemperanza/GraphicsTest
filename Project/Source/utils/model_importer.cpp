@@ -3,7 +3,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include "os/os_generic.cpp"
+#include "os/os_base.cpp"
 #include "base.cpp"
 #include "asset_system.h"
 
@@ -11,18 +11,7 @@
 
 const char* defaultTexturePath = "Default/white.png";
 
-/*
 
- Animation file format
-
-Version 0:
-s32 0
-s32 [Framerate]
-s32 [Number of bones]
-s32 [Number of samples per node]
-s32 [Bone names]
-                TODO
-                */
 
 // Model file format
 
