@@ -24,4 +24,5 @@ void R_Init();
 void R_BeginPass(RenderSettings settings);
 void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale);
 void R_TransferModel(Model* model, Arena* arena);
+void R_TransferTexture(Texture* texture, Arena* arena);
 void R_Cleanup();

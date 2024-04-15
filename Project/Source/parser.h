@@ -11,9 +11,13 @@
 enum TokenKind
 {
     TokKind_None = 0,
+    TokKind_Error,
     TokKind_Ident,
     TokKind_Colon,
     TokKind_Comma,
+    TokKind_Dot,
+    TokKind_OpenCurly,
+    TokKind_CloseCurly,
     TokKind_FloatConst,
     TokKind_IntConst,
     TokKind_EOF,
@@ -21,7 +25,10 @@ enum TokenKind
     // Keywords
     TokKind_True,
     TokKind_False,
-    TokKind_Material
+    TokKind_MaterialName,
+    TokKind_VertexShader,
+    TokKind_PixelShader,
+    TokKind_Values
 };
 
 struct Token
@@ -41,20 +48,21 @@ struct Token
 struct Tokenizer
 {
     char* at;
-    
     int numLines;
-    Slice<Token> tokens;
+    
+    bool error;
 };
 
 struct Parser
 {
     Tokenizer t;
-    Token* at;
+    Token token;
 };
 
 inline bool IsStartIdent(char c);
 inline bool IsNumeric(char c);
 inline bool IsMiddleIdent(char c);
+inline bool IsWhitespace(char c);
 
 // Returns number of newlines
 int EatAllWhitespace(char* at);
@@ -72,6 +80,6 @@ struct BindingParseResult
 
 MatParseResult ParseMaterial();
 BindingParseResult ParseBinding();
-void EatRequiredToken(Parser* p, TokenKind token);
+Token EatRequiredToken(Parser* p, TokenKind token);
 void UnexpectedTokenError(Parser* p);
-void ParseError(const char* fmt, ...);
+void ParseMaterialError(const char* error);

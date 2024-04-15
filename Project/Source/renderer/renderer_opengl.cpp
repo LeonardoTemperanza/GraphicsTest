@@ -94,44 +94,6 @@ void R_BeginPass(RenderSettings settings)
     glEnable(GL_CULL_FACE);
 }
 
-void Render(Slice<Entity> entities, RenderSettings renderSettings)
-{
-    Renderer* r = &renderer;
-    auto& settings = renderSettings;
-    
-    int width, height;
-    OS_GetClientAreaSize(&width, &height);
-    glViewport(0, 0, width, height);
-    float aspectRatio = (float)width / height;
-    
-    const float n   = settings.nearClipPlane;
-    const float f   = settings.farClipPlane;
-    const float fov = settings.horizontalFOV;
-    
-    const float right = n * tan(fov / 2.0f);
-    const float top   = right / aspectRatio;
-    
-    Transform camera = settings.camera;
-    
-    PerFrameUniforms u;
-    u.world2View = World2ViewMatrix(camera.position, camera.rotation);
-    u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
-    u.viewPos    = camera.position;
-    glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
-    
-    // Preparing render
-    glClearColor(0.12f, 0.3f, 0.25f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    
-    glUseProgram(r->shaderProgram);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    
-    // Draw all models
-    for(int i = 0; i < entities.len; ++i)
-        R_DrawModel(entities[i].model, entities[i].pos, entities[i].rot, entities[i].scale);
-}
-
 void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
 {
     if(!model) return;
@@ -268,6 +230,11 @@ void R_TransferModel(Model* model, Arena* arena)
         glVertexArrayVertexBuffer(meshInfo->vao, 0, meshInfo->vbo, 0, sizeof(mesh.verts[0]));
         glVertexArrayElementBuffer(meshInfo->vao, meshInfo->ebo);
     }
+}
+
+void R_TransferTexture(Texture* texture, Arena* arena)
+{
+    
 }
 
 void R_Cleanup()

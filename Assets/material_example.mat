@@ -1,0 +1,22 @@
+
+// Comments work
+/*
+Multi-line
+comments
+also
+work
+*/
+
+material_name: pbr_base
+
+fragment_shader: frag_shader_string_id
+pixel_shader: vert_shader_string_id
+
+values
+{
+    roughness: 2.0
+    metalness: 1.5
+    is_bird: true
+    base_texture: texture_string_id
+    base_color: texture_string_id
+}

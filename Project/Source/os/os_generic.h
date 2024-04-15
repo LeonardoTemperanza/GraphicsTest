@@ -1,4 +1,11 @@
 
+// TODO: Provide mouse delta as well. Also provide
+// functionality for "lock the mouse in place and make it disappear"
+// and revert that. Having this high level functionality in the OS
+// layer would be better, i think, because OSs do all sorts of stuff with
+// window focus and all that. And it's also i think the only instance where i'd
+// ever want to hide the mouse anyway
+
 // This implements platform behavior for the
 // specific application we're developing
 

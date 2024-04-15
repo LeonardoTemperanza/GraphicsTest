@@ -2,6 +2,11 @@
 #include "base.h"
 #include "input.h"
 
+// TODO: I think the mouse delta is not particularly good here.
+// A better approach would be to provide this sort of functionality to the OS layer
+
+// Maybe all this stuff could just be moved to the core layer, because it's not much code
+
 // Will be adjustable settings in the future
 static const float stickDeadzone = 0.1f;
 static const float triggerDeadzone = 0.1f;
@@ -72,8 +77,6 @@ Input GetInput()
 {
     return inputCtx.curInput;
 }
-
-
 
 void SetMousePos(s64 mouseX, s64 mouseY)
 {

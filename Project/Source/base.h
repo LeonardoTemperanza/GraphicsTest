@@ -294,6 +294,14 @@ struct String
 {
     const char* ptr;
     int64_t len;
+    
+#ifdef BoundsChecking
+    // For reading the value
+    inline char operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+#else
+    // For reading the value
+    inline char operator [](int idx) const { return ptr[idx]; };
+#endif
 };
 
 bool StringBeginsWith(String s, char* beginsWith);
@@ -335,6 +343,7 @@ struct Array
     t* ptr;
     int32_t len;
     int32_t capacity;
+    Arena* arena;
     
 #ifdef BoundsChecking
     // For reading the value
@@ -349,13 +358,19 @@ struct Array
 #endif
 };
 
+template<typename t>
+void UseArena(Array<t>* array);
 // Does not exactly reserve "len", but its nearest power of 2
 template<typename t>
-void Reserve(Array<t>* array, Arena* arena, int len);
+void Reserve(Array<t>* array, int len);
 template<typename t>
-void Append(Array<t>* array, Arena* arena, t el);
+void Append(Array<t>* array, t el);
 template<typename t>
 Slice<t> ToSlice(Array<t>* array);
+template<typename t>
+Slice<t> CopyToArena(Array<t>* array, Arena* arena);
+template<typename t>
+void Free(Array<t>* array);
 
 ////
 // Memory allocation
@@ -542,8 +557,10 @@ String Next(const char** cursor, int strLen);
 ////
 // Miscellaneous
 
-// TODO: Error handling
+// TODO: Error handling. Should also accept arenas as arguments
+// instead of mallocing them.
 String LoadEntireFile(const char* path);
+char* LoadEntireFileAndNullTerminate(const char* path);
 
 // Defer statement (similar to that of Go, Jai and Odin)
 // Usage:

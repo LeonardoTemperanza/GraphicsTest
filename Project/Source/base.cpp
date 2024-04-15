@@ -830,21 +830,72 @@ String Next(char** cursor, int strLen)
 ////
 // Basic data structures
 template<typename t>
-void Reserve(Array<t>* array, Arena* arena)
+void UseArena(Array<t>* array, Arena* arena)
 {
-    TODO;
+    array->arena = arena;
 }
 
 template<typename t>
-void Append(Array<t>* array, Arena* arena, t el)
+void Reserve(Array<t>* array)
 {
-    TODO;
+    int oldLen = array->len;
+    int newLen = oldLen + 1;
+    int oldCapacity = array->capacity;
+    
+    if(newLen > array->capacity)
+        array->capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+    
+    array->len = newLen;
+    
+    t* newPtr = nullptr;
+    if(array->arena)
+        newPtr = (t*)ArenaResizeLastAlloc(array->arena, array->ptr, oldCapacity*sizeof(t), array->capacity*sizeof(t), alignof(t));
+    else
+        newPtr = (t*)realloc(array->ptr, array->capacity*sizeof(t));
+}
+
+template<typename t>
+void Append(Array<t>* array, t el)
+{
+    int oldLen = array->len;
+    int newLen = oldLen + 1;
+    int oldCapacity = array->capacity;
+    
+    if(newLen > array->capacity)
+        array->capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
+    
+    array->len = newLen;
+    
+    t* newPtr = nullptr;
+    if(array->arena)
+        newPtr = (t*)ArenaResizeLastAlloc(array->arena, array->ptr, oldCapacity*sizeof(t), array->capacity*sizeof(t), alignof(t));
+    else
+        newPtr = (t*)realloc(array->ptr, array->capacity*sizeof(t));
+    
+    array->ptr = newPtr;
+    array->ptr[array->len - 1] = el;
 }
 
 template<typename t>
 Slice<t> ToSlice(Array<t>* array)
 {
-    return {.ptr=array->str.ptr, .len=array->str.len};
+    return {.ptr=array->ptr, .len=array->len};
+}
+
+template<typename t>
+Slice<t> CopyToArena(Array<t>* array, Arena* arena)
+{
+    return ArenaPushSlice(arena, ToSlice(array));
+}
+
+template<typename t>
+void Free(Array<t>* array)
+{
+    if(!array->arena) free(array->ptr);
+    
+    array->ptr = 0;
+    array->len = 0;
+    array->capacity = 0;
 }
 
 ////
@@ -1170,6 +1221,25 @@ String LoadEntireFile(const char* path)
     
     res.ptr = (char*)malloc(res.len);
     fread((void*)res.ptr, res.len, 1, file);
+    
+    return res;
+}
+
+char* LoadEntireFileAndNullTerminate(const char* path)
+{
+    char* res = nullptr;
+    FILE* file = fopen(path, "rb");
+    // TODO: Error reporting
+    if(!file) return res;
+    defer { fclose(file); };
+    
+    fseek(file, 0, SEEK_END);
+    s64 len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    res = (char*)malloc(len+1);
+    fread((void*)res, len, 1, file);
+    res[len] = '\0';
     
     return res;
 }

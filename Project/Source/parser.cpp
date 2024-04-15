@@ -16,25 +16,38 @@ inline bool IsMiddleIdent(char c)
     return IsStartIdent(c) || IsNumeric(c);
 }
 
+inline bool IsWhitespace(char c)
+{
+    return c == ' ' || c == '\t' || c == '\n';
+}
+
 int EatAllWhitespace(char** at)
 {
-    char* ptr = *at;
     int newlines = 0;
-    while(**at != '\0')
+    int commentNestLevel = 0;
+    while(true)
     {
         if(**at == '\n')
         {
             ++newlines;
             ++*at;
         }
-        else if(ptr[0] == ' ' || ptr[0] == '\t')
+        else if((*at)[0] == '/' && (*at)[1] == '*')  // Multiline comment start
+        {
+            *at += 2;
+            ++commentNestLevel;
+        }
+        else if((*at)[0] == '*' && (*at)[1] == '/')  // Multiline comment end
+        {
+            *at += 2;
+            --commentNestLevel;
+        }
+        else if(IsWhitespace(**at) || commentNestLevel > 0)
         {
             ++*at;
         }
-        else if(ptr[0] == '/' && ptr[1] == '*')  // Multiline comment
-        {
-            
-        }
+        else
+            break;
     }
     
     return newlines;
@@ -44,6 +57,14 @@ Token NextToken(Tokenizer* tokenizer)
 {
     Tokenizer* t = tokenizer;
     
+    if(t->error)
+    {
+        Token errorToken = {0};
+        errorToken.lineNum = 0;
+        errorToken.kind = TokKind_Error;
+        return errorToken;
+    }
+    
     int newlines = EatAllWhitespace(&t->at);
     t->numLines += newlines;
     
@@ -52,6 +73,7 @@ Token NextToken(Tokenizer* tokenizer)
         Token endToken = {0};
         endToken.lineNum = t->numLines;
         endToken.kind = TokKind_EOF;
+        return endToken;
     }
     
     Token token = {0};
@@ -76,6 +98,22 @@ Token NextToken(Tokenizer* tokenizer)
         {
             token.kind = TokKind_False;
         }
+        else if(word == "material_name")
+        {
+            token.kind = TokKind_MaterialName;
+        }
+        else if(word == "vertex_shader")
+        {
+            token.kind = TokKind_VertexShader;
+        }
+        else if(word == "pixel_shader")
+        {
+            token.kind = TokKind_PixelShader;
+        }
+        else if(word == "values")
+        {
+            token.kind = TokKind_Values;
+        }
         else
             isKeyword = false;
         
@@ -91,39 +129,98 @@ Token NextToken(Tokenizer* tokenizer)
     }
     else  // Operators and other miscellaneous things
     {
+        char* start = t->at;
+        int wordLen = 0;
+        
         if(*t->at == ':')
         {
-            
+            token.kind = TokKind_Colon;
+            wordLen = 1;
         }
         else if(*t->at == ',')
         {
-            
+            token.kind = TokKind_Comma;
+            wordLen = 1;
         }
         else if(*t->at == '.')
         {
-            
+            token.kind = TokKind_Dot;
+            wordLen = 1;
         }
+        else
+        {
+            token.kind = TokKind_Error;
+            wordLen = 1;
+        }
+        
+        token.word = {.ptr=t->at, .len=wordLen};
+        t->at += token.word.len;
     }
     
     return token;
 }
 
-void ParseMaterial(Parser* p)
+void ParseMaterial(Parser* p, Arena* dst)
 {
-    //EatRequiredToken(p, TokKind_Material);
+    Token token = NextToken(&p->t);
+    switch(token.kind)
+    {
+        default: ParseMaterialError("Unexpected token here\n"); break;
+        case TokKind_MaterialName:
+        {
+            EatRequiredToken(p, TokKind_Colon);
+            
+            Token ident = NextToken(&p->t);
+            if(ident.kind == TokKind_Ident)
+            {
+                
+            }
+            else
+            {
+                
+            }
+            
+            break;
+        }
+        case TokKind_VertexShader:
+        {
+            EatRequiredToken(p, TokKind_Colon);
+            
+            break;
+        }
+        case TokKind_PixelShader:
+        {
+            EatRequiredToken(p, TokKind_Colon);
+            
+            break;
+        }
+        case TokKind_Values:
+        {
+            EatRequiredToken(p, TokKind_OpenCurly);
+            
+            
+            
+            break;
+        }
+    }
 }
 
-void EatRequiredToken(Parser* p, TokenKind token)
+Token EatRequiredToken(Parser* p, TokenKind token)
 {
+    Token next = NextToken(&p->t);
+    if(next.kind != token)
+    {
+        Token errorToken = {0};
+        errorToken.kind = TokKind_Error;
+        p->t.error = true;
+    }
+    else
+        TODO;  // Error here!
     
+    return next;
 }
 
-void UnexpectedTokenError(Parser* p)
+void ParseMaterialError(const char* error)
 {
-    
-}
-
-void ParseError(const char* fmt, ...)
-{
-    
+    OS_DebugMessage(error);
 }
