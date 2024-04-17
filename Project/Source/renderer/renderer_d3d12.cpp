@@ -1,14 +1,11 @@
 
-#include "renderer_d3d11.h"
+#include "renderer_d3d12.h"
 
 D3D11_Context Win32_GetD3D11Context();
 
 void InitRenderer()
 {
     // @temp Maybe some of this stuff can be moved to the win32 layer
-    d3d11_Renderer* res = &renderer.d3d11Renderer;
-    memset(res, 0, sizeof(d3d11_Renderer));
-    
     D3D11_Context ctx = Win32_GetD3D11Context();
     
     // Framebuffer

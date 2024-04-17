@@ -16,8 +16,8 @@ struct Entity;
 
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
-#elif GFX_D3D11
-#include "renderer_d3d11.h"
+#elif GFX_D3D12
+#include "renderer_d3d12.h"
 #endif
 
 void R_Init();

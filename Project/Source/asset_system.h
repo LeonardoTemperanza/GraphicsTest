@@ -13,9 +13,31 @@ struct Asset
     int id;
 };
 
+struct ConstantBufferFormat
+{
+    u32 size;
+    Slice<String> names;
+    Slice<u32>    offsets;
+};
+
+// NOTE: Shaders are serialized using these enum
+// values, so already existing ones should not be changed
+// (Count can be changed of course, we do not serialize it)
+enum ShaderKind
+{
+    ShaderKind_None    = 0,
+    ShaderKind_Vertex  = 1,
+    ShaderKind_Pixel   = 2,
+    ShaderKind_Compute = 3,
+    ShaderKind_Count,
+};
+
 struct Shader
 {
     Asset asset;
+    ShaderKind kind;
+    
+    ConstantBufferFormat materialFormat;
     Slice<uchar> blob;  // Depending on the renderer, could be binary or textual
 };
 
@@ -35,7 +57,6 @@ struct Texture
     void* gfxInfo;
 };
 
-// This can be a plain text file which 
 struct Material
 {
     Asset asset;
@@ -45,7 +66,6 @@ struct Material
     Shader* shader;
 };
 
-// Vertex data might vary depending on the usage
 struct Vertex_v0
 {
     Vec3 pos;
@@ -56,7 +76,7 @@ struct Vertex_v0
 
 typedef Vertex_v0 Vertex;
 
-#define MaxBonesInfluence
+#define MaxBonesInfluence 4
 struct AnimVert_v0
 {
     Vec3 pos;
@@ -80,7 +100,7 @@ struct Mesh
     bool hasBones;
     
     Slice<Vertex> verts;
-    Slice<s32> indices;
+    Slice<s32>    indices;
     
     // API dependent info here
     void* gfxInfo;
@@ -91,7 +111,7 @@ struct Mesh
 struct Model
 {
     Asset asset;
-    Slice<Mesh> meshes;
+    Slice<Mesh>     meshes;
     Slice<Material> materials;
 };
 

@@ -6,7 +6,7 @@ if not exist ..\Build mkdir ..\Build
 
 pushd ..\Build
 
-set include_dirs=/I..\Source /I..\Source\include
+set include_dirs=/I..\Source /I..\Source\include /I..\Source\utils\dxc_include
 set lib_dirs=/LIBPATH:..\Libs
 
 set shader_dir=..\..\Assets\Shaders
@@ -21,7 +21,7 @@ cl /nologo /std:c++20 ..\Source\utils\bin2h.cpp /Od %include_dirs% /link /out:bi
 del bin2h.obj
 cl /nologo /Od /Zi /std:c++20 /FC ..\Source\utils\model_importer.cpp %include_dirs% /link %lib_dirs% assimp-vc143-mt.lib /out:model_importer.exe
 del model_importer.obj
-cl /nologo /Od /Zi /std:c++20 /FC ..\Source\utils\shader_importer.cpp %include_dirs%
+cl /nologo /Od /Zi /std:c++20 /FC ..\Source\utils\shader_importer.cpp %include_dirs% /link %lib_dirs% dxcompiler.lib
 
 REM Use utility programs
 bin2h.exe %shader_dir%\shader.frag.spv fragShader %shader_dir%\shader.vert.spv vertShader -o ../Source/embedded_files.h
@@ -33,7 +33,7 @@ set source_files=..\Source\unity_build.cpp
 set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib
 set output_name=graphics_test.exe
 
-REM gfx_api could be: GFX_OPENGL, GFX_D3D11, GFX_VULKAN, etc.
+REM gfx_api could be: GFX_OPENGL, GFX_D3D12, GFX_VULKAN, etc.
 set gfx_api=/DGFX_OPENGL
 REM set gfx_api=
 set common=/nologo /std:c++20 /FC %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup

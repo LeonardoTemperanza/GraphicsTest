@@ -17,7 +17,7 @@ enum OS_GraphicsLib
 {
     GfxLib_None = 0,
     GfxLib_OpenGL,
-    GfxLib_D3D11
+    GfxLib_D3D12
 };
 
 enum GamepadButtonField

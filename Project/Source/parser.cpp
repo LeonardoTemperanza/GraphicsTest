@@ -25,12 +25,19 @@ int EatAllWhitespace(char** at)
 {
     int newlines = 0;
     int commentNestLevel = 0;
+    bool inSingleLineComment = false;
     while(true)
     {
         if(**at == '\n')
         {
+            inSingleLineComment = false;
             ++newlines;
             ++*at;
+        }
+        else if((*at)[0] == '/' && (*at)[1] == '/')
+        {
+            if(commentNestLevel == 0) inSingleLineComment = true;
+            *at += 2;
         }
         else if((*at)[0] == '/' && (*at)[1] == '*')  // Multiline comment start
         {
@@ -42,7 +49,7 @@ int EatAllWhitespace(char** at)
             *at += 2;
             --commentNestLevel;
         }
-        else if(IsWhitespace(**at) || commentNestLevel > 0)
+        else if(IsWhitespace(**at) || commentNestLevel > 0 || inSingleLineComment)
         {
             ++*at;
         }

@@ -310,6 +310,8 @@ b32 operator ==(String s1, String s2);
 b32 operator !=(String s1, String s2);
 b32 operator ==(String s1, const char* s2);
 b32 operator !=(String s1, const char* s2);
+char* ToCString(String s);      // NOTE: Allocates memory!
+wchar_t* ToWCString(String s);  // NOTE: Allocates memory!
 void WriteToFile(String s, FILE* file);
 
 ////

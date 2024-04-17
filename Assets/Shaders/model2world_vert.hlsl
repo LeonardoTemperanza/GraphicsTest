@@ -43,7 +43,7 @@ cbuffer Material
 
 // I guess these are uniforms
 
-Vert2Pixel main(VertexInfo input)
+Vert2Pixel vertMain(VertexInfo input)
 {
     // Stuff will be interpolated of course
     Vert2Pixel output;
@@ -51,4 +51,9 @@ Vert2Pixel main(VertexInfo input)
     output.uv       = input.uv;
     output.color    = input.color;
     return output;
+}
+
+float4 pixelMain(Vert2Pixel input) : SV_TARGET
+{
+    return float4(input.color, 1.0f);
 }

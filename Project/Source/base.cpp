@@ -680,6 +680,26 @@ b32 operator !=(String s1, const char* s2)
     return !(s1 == s2);
 }
 
+// NOTE: Allocates memory!
+char* ToCString(String s)
+{
+    char* res = (char*)malloc(s.len+1);
+    memcpy(res, s.ptr, s.len);
+    res[s.len] = '\0';
+    return res;
+}
+
+// NOTE: Allocates memory!
+wchar_t* ToWCString(String s)
+{
+    wchar_t* res = (wchar_t*)malloc(s.len * sizeof(wchar_t)+1);
+    for(int i = 0; i < s.len; ++i)
+        res[i] = (wchar_t) s.ptr[i];
+    
+    res[s.len] = '\0';
+    return res;
+}
+
 void WriteToFile(String s, FILE* file)
 {
     assert(file);
