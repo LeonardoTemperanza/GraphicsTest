@@ -634,9 +634,9 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
     
     Mat4 res;
     res.set
-    (2*n/(r-l), 0,         -(r+l)/(r-l),  0,
-     0,         2*n/(t-b), -(t+b)/(t-b),  0,
-     0,         0,         +(f+n)/(f-n), -2*f*n/(f-n),
+    (2*n/(r-l), 0,         +(r+l)/(r-l),  0,
+     0,         2*n/(t-b), +(t+b)/(t-b),  0,
+     0,         0,         -(f+n)/(f-n), -2*f*n/(f-n),
      0,         0,         +1,           0);
     
     return res;
@@ -1275,6 +1275,43 @@ char* LoadEntireFileAndNullTerminate(const char* path)
     fseek(file, 0, SEEK_SET);
     
     res = (char*)malloc(len+1);
+    fread((void*)res, len, 1, file);
+    res[len] = '\0';
+    
+    return res;
+}
+
+String LoadEntireFile(const char* path, Arena* dst)
+{
+    String res = {0};
+    FILE* file = fopen(path, "rb");
+    // TODO: Error reporting
+    if(!file) return res;
+    defer { fclose(file); };
+    
+    fseek(file, 0, SEEK_END);
+    res.len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    res.ptr = (char*)ArenaAlloc(dst, res.len, 1);
+    fread((void*)res.ptr, res.len, 1, file);
+    
+    return res;
+}
+
+char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst)
+{
+    char* res = nullptr;
+    FILE* file = fopen(path, "rb");
+    // TODO: Error reporting
+    if(!file) return res;
+    defer { fclose(file); };
+    
+    fseek(file, 0, SEEK_END);
+    s64 len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    res = (char*)ArenaAlloc(dst, len+1, 1);
     fread((void*)res, len, 1, file);
     res[len] = '\0';
     

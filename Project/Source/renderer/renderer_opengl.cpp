@@ -96,9 +96,10 @@ void R_BeginPass(RenderSettings settings)
     u.world2View = transpose(World2ViewMatrix(camera.position, camera.rotation));
     u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
     // Negate z axis because in OpenGL, -z is forward while in our coordinate system it's the other way around
-    //u.world2View.c3 *= -1;
-    u.world2View = transpose(u.world2View);
-    u.viewPos    = camera.position;
+    u.view2Proj.c3 *= -1;
+    u.view2Proj.m43 = 1;
+    u.view2Proj = transpose(u.view2Proj);
+    u.viewPos   = camera.position;
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
     
     // Preparing render
@@ -108,17 +109,11 @@ void R_BeginPass(RenderSettings settings)
     glEnable(GL_CULL_FACE);
 }
 
-void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
+void R_DrawModelNoReload(Model* model, Vec3 pos, Quat rot, Vec3 scale)
 {
     if(!model) return;
     
     Renderer* r = &renderer;
-    
-    // Try to hot-reload if we're in development mode
-#ifdef Development
-    // Do some reloading stuff etc.
-    MaybeReloadModelAsset(model);
-#endif
     
     // Scale, rotation and then position
     PerObjectUniforms objUniforms = {0};
@@ -129,121 +124,89 @@ void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
     for(int i = 0; i < model->meshes.len; ++i)
     {
         auto& mesh = model->meshes[i];
-        gl_MeshInfo* meshInfo = (gl_MeshInfo*)mesh.gfxInfo;
         
         // shaderProgram should be a material's property
         glUseProgram(model->program);
-        glBindVertexArray(meshInfo->vao);
-        
-#if 0
-        auto material = mesh.material;
-        if(material)
-        {
-            for(int i = 0; i < material->textures.len; ++i)
-            {
-                auto texture = material->textures[i];
-                if(texture)
-                {
-                    auto texInfo = (gl_TextureInfo*)texture->gfxInfo;
-                    glActiveTexture(GL_TEXTURE0 + i);
-                    glBindTexture(GL_TEXTURE_2D, texInfo->objId);
-                }
-            }
-        }
-#endif
-        
+        glBindVertexArray(mesh.handle);
         glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
-        
         glBindVertexArray(0);
-        glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
 
-void R_UploadModel(Model* model, Arena* arena)
+R_Buffer R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
 {
-    // Setup textures
-#if 0
-    for(int i = 0; i < model->meshes.len; ++i)
+    GLuint vao;
+    glCreateVertexArrays(1, &vao);
+    GLuint vbo, ebo;
+    constexpr int numBufs = 2;
+    GLuint bufferIds[numBufs];
+    glCreateBuffers(2, bufferIds);
+    vbo = bufferIds[0];
+    ebo = bufferIds[1];
+    assert(1 < numBufs);
+    
+    glNamedBufferData(vbo, verts.len * sizeof(verts[0]), verts.ptr, GL_STATIC_DRAW);
+    glNamedBufferData(ebo, indices.len * sizeof(indices[0]), indices.ptr, GL_STATIC_DRAW);
+    
+    // Position
+    glEnableVertexArrayAttrib(vao, 0);
+    glVertexArrayAttribBinding(vao, 0, 0);
+    glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    
+    // Normal
+    glEnableVertexArrayAttrib(vao, 1);
+    glVertexArrayAttribBinding(vao, 1, 0);
+    glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
+    
+    // Texture coords
+    glEnableVertexArrayAttrib(vao, 2);
+    glVertexArrayAttribBinding(vao, 2, 0);
+    glVertexArrayAttribFormat(vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, texCoord));
+    
+    // Tangents
+    glEnableVertexArrayAttrib(vao, 3);
+    glVertexArrayAttribBinding(vao, 3, 0);
+    glVertexArrayAttribFormat(vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, tangent));
+    
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(verts[0]));
+    glVertexArrayElementBuffer(vao, ebo);
+    return vao;
+}
+
+R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
+{
+    assert(numChannels >= 2 && numChannels <= 4);
+    
+    GLuint texture;
+    glGenTextures(1, &texture);
+    
+    // TODO: Use bindless API?
+    glBindTexture(GL_TEXTURE_2D, texture);
     {
-        auto material = model->meshes[i].material;
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         
-        for(int j = 0; j < material->textures.len; ++j)
+        // Maybe an enum in renderer_generic.h for texture format would be cool
+        // numChannels is not quite enough
+        
+        GLint format = GL_RGB;
+        switch(numChannels)
         {
-            auto texture = material->textures[j];
-            if(texture && !texture->allocatedOnGPU)
-            {
-                auto texInfo = ArenaZAllocTyped(gl_TextureInfo, arena);
-                texture->gfxInfo = (void*)texInfo;
-                
-                GLuint texId;
-                glGenTextures(1, &texId);
-                texInfo->objId = texId;
-                
-                // TODO: Use bindless API?
-                glBindTexture(GL_TEXTURE_2D, texId);
-                {
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    
-                    // TODO: Based on the number of channels, might want to change this
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture->width, texture->height, 0, GL_RGB, GL_UNSIGNED_BYTE, texture->blob.ptr);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                }
-                glBindTexture(GL_TEXTURE_2D, 0);
-                
-                texture->allocatedOnGPU = true;
-            }
+            default: format = GL_RGB;  break;
+            case 2:  format = GL_RG;   break;
+            case 3:  format = GL_RGB;  break;
+            case 4:  format = GL_RGBA; break;
         }
+        
+        // TODO what is internal format vs format?
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, blob.ptr);
+        glGenerateMipmap(GL_TEXTURE_2D);
     }
-#endif
+    glBindTexture(GL_TEXTURE_2D, 0);
     
-    // Setup meshes
-    for(int i = 0; i < model->meshes.len; ++i)
-    {
-        auto& mesh = model->meshes[i];
-        
-        auto meshInfo = ArenaZAllocTyped(gl_MeshInfo, arena);
-        mesh.gfxInfo = meshInfo;
-        
-        glCreateVertexArrays(1, &meshInfo->vao);
-        GLuint bufferIds[2];
-        glCreateBuffers(2, bufferIds);
-        meshInfo->vbo = bufferIds[0];
-        meshInfo->ebo = bufferIds[1];
-        
-        glNamedBufferData(meshInfo->vbo, mesh.verts.len * sizeof(mesh.verts[0]), mesh.verts.ptr, GL_STATIC_DRAW);
-        glNamedBufferData(meshInfo->ebo, mesh.indices.len * sizeof(mesh.indices[0]), mesh.indices.ptr, GL_STATIC_DRAW);
-        
-        // Position
-        glEnableVertexArrayAttrib(meshInfo->vao, 0);
-        glVertexArrayAttribBinding(meshInfo->vao, 0, 0);
-        glVertexArrayAttribFormat(meshInfo->vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-        
-        // Normal
-        glEnableVertexArrayAttrib(meshInfo->vao, 1);
-        glVertexArrayAttribBinding(meshInfo->vao, 1, 0);
-        glVertexArrayAttribFormat(meshInfo->vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, normal));
-        
-        // Texture coords
-        glEnableVertexArrayAttrib(meshInfo->vao, 2);
-        glVertexArrayAttribBinding(meshInfo->vao, 2, 0);
-        glVertexArrayAttribFormat(meshInfo->vao, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, texCoord));
-        
-        // Tangents
-        glEnableVertexArrayAttrib(meshInfo->vao, 3);
-        glVertexArrayAttribBinding(meshInfo->vao, 3, 0);
-        glVertexArrayAttribFormat(meshInfo->vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, tangent));
-        
-        glVertexArrayVertexBuffer(meshInfo->vao, 0, meshInfo->vbo, 0, sizeof(mesh.verts[0]));
-        glVertexArrayElementBuffer(meshInfo->vao, meshInfo->ebo);
-    }
-}
-
-void R_UploadTexture(Texture* texture, Arena* arena)
-{
-    
+    return texture;
 }
 
 R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl)

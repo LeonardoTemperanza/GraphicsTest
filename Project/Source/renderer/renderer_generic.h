@@ -11,6 +11,7 @@ enum ShaderKind;
 typedef u32 R_Texture;
 typedef u32 R_Shader;
 typedef u32 R_Program;
+typedef u32 R_Buffer;
 
 struct Vertex
 {
@@ -49,14 +50,14 @@ struct RenderSettings
 #include "renderer_d3d12.h"
 #endif
 
-// This API can be more general. It doesn't have to be tied to the asset system's structs
+R_Buffer  R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
+R_Buffer  R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
+R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
+R_Shader  R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
+R_Program R_LinkShaders(Slice<R_Shader> shaders);
 
 void R_Init();
 void R_BeginPass(RenderSettings settings);
+void R_DrawModelNoReload(Model* model, Vec3 pos, Quat rot, Vec3 scale);
 void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale);
-void R_UploadModel(Model* model, Arena* arena);
-void R_UploadTexture(Texture* texture, Arena* arena);
-R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
-R_Program R_LinkShaders(Slice<R_Shader> shaders);
 void R_Cleanup();
-

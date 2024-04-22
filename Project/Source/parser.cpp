@@ -75,7 +75,7 @@ Token NextToken(Tokenizer* tokenizer)
     int newlines = EatAllWhitespace(&t->at);
     t->numLines += newlines;
     
-    if(*t->at == '\0')
+    if(!t->at || *t->at == '\0')
     {
         Token endToken = {0};
         endToken.lineNum = t->numLines;
@@ -92,32 +92,32 @@ Token NextToken(Tokenizer* tokenizer)
         ++t->at;
         while(IsMiddleIdent(*t->at)) ++t->at;
         
-        String word = {.ptr=startIdent, .len=t->at-startIdent};
-        token.word = word;
+        String text = {.ptr=startIdent, .len=t->at-startIdent};
+        token.text = text;
         
         // Check if it's a keyword
         bool isKeyword = true;
-        if(word == "true")
+        if(text == "true")
         {
             token.kind = TokKind_True;
         }
-        else if(word == "false")
+        else if(text == "false")
         {
             token.kind = TokKind_False;
         }
-        else if(word == "material_name")
+        else if(text == "material_name")
         {
             token.kind = TokKind_MaterialName;
         }
-        else if(word == "vertex_shader")
+        else if(text == "vertex_shader")
         {
             token.kind = TokKind_VertexShader;
         }
-        else if(word == "pixel_shader")
+        else if(text == "pixel_shader")
         {
             token.kind = TokKind_PixelShader;
         }
-        else if(word == "values")
+        else if(text == "values")
         {
             token.kind = TokKind_Values;
         }
@@ -137,34 +137,51 @@ Token NextToken(Tokenizer* tokenizer)
     else  // Operators and other miscellaneous things
     {
         char* start = t->at;
-        int wordLen = 0;
+        int textLen = 0;
         
         if(*t->at == ':')
         {
             token.kind = TokKind_Colon;
-            wordLen = 1;
+            textLen = 1;
         }
         else if(*t->at == ',')
         {
             token.kind = TokKind_Comma;
-            wordLen = 1;
+            textLen = 1;
         }
         else if(*t->at == '.')
         {
             token.kind = TokKind_Dot;
-            wordLen = 1;
+            textLen = 1;
         }
         else
         {
             token.kind = TokKind_Error;
-            wordLen = 1;
+            textLen = 1;
         }
         
-        token.word = {.ptr=t->at, .len=wordLen};
-        t->at += token.word.len;
+        token.text = {.ptr=t->at, .len=textLen};
+        t->at += token.text.len;
     }
     
     return token;
+}
+
+Parser InitParser(const char* path, Arena* dst)
+{
+    Parser parser = {0};
+    Tokenizer tokenizer = {0};
+    
+    String contents = LoadEntireFile(path, dst);
+    if(!contents.ptr)
+    {
+        OS_DebugMessage("Could not open file...\n");
+        return parser;
+    }
+    
+    tokenizer.at = (char*)contents.ptr;
+    parser.t = tokenizer;
+    return parser;
 }
 
 void ParseMaterial(Parser* p, Arena* dst)
@@ -172,7 +189,7 @@ void ParseMaterial(Parser* p, Arena* dst)
     Token token = NextToken(&p->t);
     switch(token.kind)
     {
-        default: ParseMaterialError("Unexpected token here\n"); break;
+        default: ParseError("Unexpected token here\n"); break;
         case TokKind_MaterialName:
         {
             EatRequiredToken(p, TokKind_Colon);
@@ -212,6 +229,32 @@ void ParseMaterial(Parser* p, Arena* dst)
     }
 }
 
+BindingParseResult ParseBinding(Parser* p, Arena* dst)
+{
+    BindingParseResult result = {0};
+    Array<String> ids;
+    defer { Free(&ids); };
+    Array<String> paths;
+    defer { Free(&paths); };
+    
+    Token token = NextToken(&p->t);
+    while(token.kind != TokKind_EOF && token.kind != TokKind_Error)
+    {
+        Token stringId = EatRequiredToken(p, TokKind_Ident);
+        EatRequiredToken(p, TokKind_Colon);
+        Token path = EatRequiredToken(p, TokKind_Ident);
+        
+        Append(&ids, ArenaPushString(dst, stringId.text));
+        Append(&paths, ArenaPushString(dst, path.text));
+    }
+    
+    if(p->t.error) return result;
+    
+    result.stringIds = CopyToArena(&ids, dst);
+    result.paths     = CopyToArena(&paths, dst);
+    return result;
+}
+
 Token EatRequiredToken(Parser* p, TokenKind token)
 {
     Token next = NextToken(&p->t);
@@ -222,12 +265,15 @@ Token EatRequiredToken(Parser* p, TokenKind token)
         p->t.error = true;
     }
     else
-        TODO;  // Error here!
+    {
+        
+    }
     
     return next;
 }
 
-void ParseMaterialError(const char* error)
+void ParseError(const char* error)
 {
+    // TODO better error handling!
     OS_DebugMessage(error);
 }

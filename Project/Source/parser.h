@@ -34,7 +34,7 @@ enum TokenKind
 struct Token
 {
     TokenKind kind;
-    String word;
+    String text;
     
     int lineNum;
     
@@ -75,11 +75,13 @@ struct MatParseResult
 
 struct BindingParseResult
 {
-    
+    Slice<String> stringIds;
+    Slice<String> paths;
 };
 
+Parser InitParser(const char* path, Arena* dst);
 MatParseResult ParseMaterial();
 BindingParseResult ParseBinding();
 Token EatRequiredToken(Parser* p, TokenKind token);
 void UnexpectedTokenError(Parser* p);
-void ParseMaterialError(const char* error);
+void ParseError(const char* error);

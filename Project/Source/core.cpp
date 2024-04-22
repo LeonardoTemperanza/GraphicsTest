@@ -10,9 +10,8 @@ AppState InitSimulation()
     state.renderSettings.camera.rotation = Quat::identity;
     
     // Let's load the scene here
-    //Model* gunModel = LoadModelAsset("Gun/Gun.model");
-    Model* raptoidModel = LoadModelAsset("Raptoid/Raptoid.model");
-    //Material raptoidMaterial = LoadMaterialAsset("Raptoid/Raptoid.model");
+    //Model* gunModel = LoadModel("Gun/Gun.model");
+    Model* raptoidModel = LoadModel("Raptoid/Raptoid.model");
     
     raptoidModel->vertex  = LoadShader("Shaders/simple_vertex.shader");
     raptoidModel->pixel   = LoadShader("Shaders/simple_pixel.shader");

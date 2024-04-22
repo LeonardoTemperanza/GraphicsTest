@@ -1,5 +1,6 @@
 
 #include "asset_system.h"
+#include "parser.h"
 
 static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
 
@@ -20,7 +21,7 @@ void LoadScene(const char* path)
     
 }
 
-Model* LoadModelAsset(const char* path)
+Model* LoadModel(const char* path)
 {
     ScratchArena scratch;
     
@@ -73,16 +74,13 @@ Model* LoadModelAsset(const char* path)
         
         mesh.verts   = ArenaPushSlice(&sceneArena, verts);
         mesh.indices = ArenaPushSlice(&sceneArena, indices);
-        mesh.isCPUStorageLoaded = true;
-        //mesh.material = materials[materialIdx];
+        mesh.handle = R_UploadMesh(mesh.verts, mesh.indices);
     }
-    
-    R_UploadModel(res, &sceneArena);
     
     return res;
 }
 
-Material LoadMaterialAsset(const char* path)
+Material LoadMaterial(const char* path)
 {
     ScratchArena scratch;
     
@@ -112,7 +110,7 @@ Material LoadMaterialAsset(const char* path)
     return mat;
 }
 
-Texture* LoadTextureAsset(const char* path)
+Texture* LoadTexture(const char* path)
 {
     Texture* texture = ArenaZAllocTyped(Texture, &sceneArena);
     
@@ -120,10 +118,7 @@ Texture* LoadTextureAsset(const char* path)
     stbImage.ptr = (char*)stbi_load(path, &texture->width, &texture->height, &texture->numChannels, 0);
     stbImage.len = texture->width * texture->height * texture->numChannels;  // 1 byte for each channel and pixel in the image
     
-    // Copy back to the arena and free the buffer that was allocated by stb_image
-    // @performance Is there something better we could do here?
-    // Maybe modify stb_image.h ?
-    texture->blob = ArenaPushString(&sceneArena, stbImage);
+    texture->handle = R_UploadTexture(stbImage, texture->width, texture->height, texture->numChannels);
     stbi_image_free((void*)stbImage.ptr);
     return texture;
 }
@@ -168,6 +163,16 @@ Shader* LoadShader(const char* path)
     shader->handle = R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
     
     return shader;
+}
+
+void LoadAssetBinding(const char* path)
+{
+    ScratchArena scratch;
+    Parser parser = InitParser(path, scratch);
+    
+    BindingParseResult result = ParseBinding();
+    
+    // Do some stuff with the result
 }
 
 void SetMaterial(Model* model, Material material, int idx)

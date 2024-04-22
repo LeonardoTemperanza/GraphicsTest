@@ -566,6 +566,8 @@ String Next(const char** cursor, int strLen);
 // instead of mallocing them.
 String LoadEntireFile(const char* path);
 char* LoadEntireFileAndNullTerminate(const char* path);
+String LoadEntireFile(const char* path, Arena* dst);
+char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst);
 String GetPathExtension(const char* path);
 String GetPathNoExtension(const char* path);
 
