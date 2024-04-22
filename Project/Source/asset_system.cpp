@@ -26,16 +26,6 @@ Model* LoadModelAsset(const char* path)
     
     auto res = ArenaZAllocTyped(Model, &sceneArena);
     
-    FILE* modelFile = fopen(path, "rb");
-    // TODO: Error reporting
-    if(!modelFile)
-    {
-        OS_DebugMessage("File not found.\n");
-        return res;
-    }
-    
-    defer { fclose(modelFile); };
-    
     String contents = LoadEntireFile(path);
     if(!contents.ptr)
     {
@@ -46,10 +36,8 @@ Model* LoadModelAsset(const char* path)
     defer { free((void*)contents.ptr); };
     
     char** cursor;
-    {
-        char* c = (char*)contents.ptr;
-        cursor = &c;
-    }
+    char* c = (char*)contents.ptr;
+    cursor = &c;
     
     String magicBytes = Next(cursor, sizeof("model")-1);  // Excluding null terminator
     // TODO: Error reporting
@@ -89,7 +77,7 @@ Model* LoadModelAsset(const char* path)
         //mesh.material = materials[materialIdx];
     }
     
-    R_TransferModel(res, &sceneArena);
+    R_UploadModel(res, &sceneArena);
     
     return res;
 }
@@ -100,36 +88,24 @@ Material LoadMaterialAsset(const char* path)
     
     Material mat = {0};
     
-    FILE* matFile = fopen(path, "rb");
-    // TODO: Error reporting
-    if(!matFile)
-    {
-        OS_DebugMessage("File not found.\n");
-        return mat;
-    }
-    
-    defer { fclose(matFile); };
-    
     String contents = LoadEntireFile(path);
     if(!contents.ptr)
     {
-        OS_DebugMessage("Could not even load file...\n");
+        OS_DebugMessage("Could not load file...\n");
         return mat;
     }
     
     defer { free((void*)contents.ptr); };
     
     char** cursor;
-    {
-        char* c = (char*)contents.ptr;
-        cursor = &c;
-    }
+    char* c = (char*)contents.ptr;
+    cursor = &c;
     
     String magicBytes = Next(cursor, sizeof("material")-1);  // Excluding null terminator
     // TODO: Error reporting
     if(magicBytes != "material")
     {
-        OS_DebugMessage("This thing is not even a material...\n");
+        OS_DebugMessage("This file is corrupt or does not contain material\n");
         return mat;
     }
     
@@ -152,19 +128,55 @@ Texture* LoadTextureAsset(const char* path)
     return texture;
 }
 
-void ReloadGPUResources()
+Shader* LoadShader(const char* path)
 {
-    // Loop through all assets which need to reallocate their GPU resources
-    TODO;
-}
-
-void UnloadScene()
-{
-    ArenaFreeAll(&sceneArena);
+    Shader* shader = ArenaZAllocTyped(Shader, &sceneArena);
+    
+    String contents = LoadEntireFile(path);
+    if(!contents.ptr)
+    {
+        OS_DebugMessage("Could not load file...\n");
+        return shader;
+    }
+    
+    defer { free((void*)contents.ptr); };
+    
+    char** cursor;
+    char* c = (char*)contents.ptr;
+    cursor = &c;
+    
+    String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
+    if(magicBytes != "shader")
+    {
+        OS_DebugMessage("This file is corrupt or does not contain shader\n");
+        return shader;
+    }
+    
+    u32 version = Next<u32>(cursor);
+    if(version != 0)
+    {
+        OS_DebugMessage("Wrong shader version\n");
+        return shader;
+    }
+    
+    char* headerPtr = *cursor;
+    ShaderBinaryHeader_v0 header = Next<ShaderBinaryHeader_v0>(cursor);
+    
+    String dxil        = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
+    String vulkanSpirv = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
+    String glsl        = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
+    shader->handle = R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
+    
+    return shader;
 }
 
 void SetMaterial(Model* model, Material material, int idx)
 {
     assert(idx < model->materials.len);
     model->materials[idx] = material;
+}
+
+void UnloadScene()
+{
+    ArenaFreeAll(&sceneArena);
 }

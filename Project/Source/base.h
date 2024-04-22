@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 #include "os/os_generic.h"
 
@@ -229,6 +230,8 @@ struct Mat4
 
 Mat4& operator *=(Mat4& m1, Mat4 m2);
 Mat4 operator *(Mat4 m1, Mat4 m2);
+
+Mat4 transpose(Mat4 m);
 
 struct Quat
 {
@@ -557,12 +560,17 @@ t Next(const char** cursor, int count);
 String Next(const char** cursor, int strLen);
 
 ////
-// Miscellaneous
+// File system utils
 
 // TODO: Error handling. Should also accept arenas as arguments
 // instead of mallocing them.
 String LoadEntireFile(const char* path);
 char* LoadEntireFileAndNullTerminate(const char* path);
+String GetPathExtension(const char* path);
+String GetPathNoExtension(const char* path);
+
+////
+// Miscellaneous
 
 // Defer statement (similar to that of Go, Jai and Odin)
 // Usage:

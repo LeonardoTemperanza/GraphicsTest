@@ -390,6 +390,17 @@ Mat4 operator *(Mat4 m1, Mat4 m2)
     return res;
 }
 
+Mat4 transpose(Mat4 m)
+{
+    Mat4 res;
+    res.set
+    (m.m11, m.m21, m.m31, m.m41,
+     m.m12, m.m22, m.m32, m.m42,
+     m.m13, m.m23, m.m33, m.m43,
+     m.m14, m.m24, m.m34, m.m44);
+    return res;
+}
+
 Quat& operator *=(Quat& a, Quat b)
 {
     a.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
@@ -779,6 +790,7 @@ template<typename t>
 void Put(StringBuilder* builder, t val)
 {
     int offset = AlignForward((uintptr_t)(builder->str.ptr + builder->str.len), alignof(t)) - (uintptr_t)(void*)builder->str.ptr;
+    int oldLen = builder->str.len;
     int newLen = offset + sizeof(val);
     int oldCapacity = builder->str.capacity;
     
@@ -797,6 +809,7 @@ void Put(StringBuilder* builder, t val)
     builder->str.ptr = newPtr;
     
     // Write the value in the address
+    memset(&builder->str[oldLen], 0, newLen-oldLen);
     t* addr = (t*)&builder->str[offset];
     *addr = val;
 }
@@ -1045,10 +1058,7 @@ void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory, size_t oldSize, size_t
                     }
                 }
                 
-                // Zero new memory for debugging
-#ifndef NDEBUG
                 memset(&arena->buffer[arena->prevOffset + oldSize], 0, newSize - oldSize);
-#endif
             }
             
             return oldMemory;
@@ -1095,6 +1105,13 @@ String ArenaPushString(Arena* arena, String str)
     char* ptr = (char*)ArenaAlloc(arena, str.len, 1);
     memcpy(ptr, str.ptr, str.len);
     return {.ptr=ptr, .len=str.len};
+}
+
+String ArenaPushString(Arena* arena, std::string str)
+{
+    char* ptr = (char*)ArenaAlloc(arena, str.size(), 1);
+    memcpy(ptr, str.c_str(), str.size());
+    return {.ptr=ptr, .len=(s64)str.size()};
 }
 
 char* ArenaPushNullTermString(Arena* arena, String str)
@@ -1262,4 +1279,36 @@ char* LoadEntireFileAndNullTerminate(const char* path)
     res[len] = '\0';
     
     return res;
+}
+
+String GetPathExtension(const char* path)
+{
+    int len = strlen(path);
+    int lastDotIdx = len-1;
+    for(int i = len-1; i >= 0; --i)
+    {
+        if(path[i] == '.')
+        {
+            lastDotIdx = i;
+            break;
+        }
+    }
+    
+    return {.ptr=&path[lastDotIdx+1], .len=len-(lastDotIdx+1)};
+}
+
+String GetPathNoExtension(const char* path)
+{
+    int len = strlen(path);
+    int lastDotIdx = len;
+    for(int i = len-1; i >= 0; --i)
+    {
+        if(path[i] == '.')
+        {
+            lastDotIdx = i;
+            break;
+        }
+    }
+    
+    return {.ptr=path, .len=lastDotIdx};
 }

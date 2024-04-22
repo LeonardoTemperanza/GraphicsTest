@@ -11,8 +11,6 @@
 
 const char* defaultTexturePath = "Default/white.png";
 
-
-
 // Model file format
 
 // Version 0
@@ -90,8 +88,9 @@ int main(int argCount, char** args)
     exePath = RemovePathLastPart(exePath);
     free(exePathCStr);
     
-    // Force current working directory to be the Assets folder
-    std::string assetsPath = exePath + "/../../Assets/";
+    // Force current working directory to be the Assets folder.
+    // Currently in Project/Build/utils
+    std::string assetsPath = exePath + "/../../../Assets/";
     OS_SetCurrentDirectory(assetsPath.c_str());
     
     if(argCount < 2)
@@ -181,7 +180,7 @@ int main(int argCount, char** args)
         
         for(int j = 0; j < mesh->mNumVertices; ++j)
         {
-            Vertex_v0 vert = {0};
+            Vertex vert = {0};
             vert.pos.x = mesh->mVertices[j].x;
             vert.pos.y = mesh->mVertices[j].y;
             vert.pos.z = mesh->mVertices[j].z;

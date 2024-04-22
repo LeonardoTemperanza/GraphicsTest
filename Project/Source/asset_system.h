@@ -6,6 +6,7 @@
 #pragma once
 
 #include "base.h"
+#include "renderer/renderer_generic.h"
 
 struct Asset
 {
@@ -22,7 +23,7 @@ struct ConstantBufferFormat
 
 // NOTE: Shaders are serialized using these enum
 // values, so already existing ones should not be changed
-// (Count can be changed of course, we do not serialize it)
+// (Count can and should be changed of course)
 enum ShaderKind
 {
     ShaderKind_None    = 0,
@@ -32,13 +33,38 @@ enum ShaderKind
     ShaderKind_Count,
 };
 
+struct ShaderBinaryHeader_v0
+{
+    // Metadata on the shader itself
+    u8 shaderKind;
+    
+    // All of these are byte offsets from the address of this struct
+    
+    u32 numMatConstants;
+    u32 matNames;
+    u32 matOffsets;
+    
+    u32 dxil;
+    u32 dxilSize;
+    u32 vulkanSpirv;
+    u32 vulkanSpirvSize;
+    u32 glsl;
+    u32 glslSize;
+};
+
+typedef ShaderBinaryHeader_v0 ShaderBinaryHeader;
+
 struct Shader
 {
     Asset asset;
     ShaderKind kind;
     
+    ConstantBufferFormat perFrameFormat;
+    ConstantBufferFormat sceneFormat;
     ConstantBufferFormat materialFormat;
     Slice<uchar> blob;  // Depending on the renderer, could be binary or textual
+    
+    R_Shader handle;
 };
 
 struct Texture
@@ -62,36 +88,8 @@ struct Material
     Asset asset;
     
     Slice<Texture*> textures;
-    
     Shader* shader;
 };
-
-struct Vertex_v0
-{
-    Vec3 pos;
-    Vec3 normal;
-    Vec2 texCoord;
-    Vec3 tangent;
-};
-
-typedef Vertex_v0 Vertex;
-
-#define MaxBonesInfluence 4
-struct AnimVert_v0
-{
-    Vec3 pos;
-    Vec3 normal;
-    Vec2 texCoord;
-    Vec3 tangent;
-    
-    struct BoneWeight
-    {
-        int boneIdx;
-        float weight;
-    } boneWeights[MaxBonesInfluence];
-};
-
-typedef AnimVert_v0 AnimVert;
 
 struct Mesh
 {
@@ -113,9 +111,32 @@ struct Model
     Asset asset;
     Slice<Mesh>     meshes;
     Slice<Material> materials;
+    
+    // @tmp testing
+    Shader* vertex;
+    Shader* pixel;
+    R_Program program;
 };
 
+inline const char* GetShaderKindString(ShaderKind kind)
+{
+    switch(kind)
+    {
+        default:                 return "unknown";
+        case ShaderKind_Vertex:  return "vertex";
+        case ShaderKind_Pixel:   return "pixel";
+        case ShaderKind_Compute: return "compute";
+    }
+    
+    return "unknown";
+}
+
+void LoadScene(const char* path);
 Model* LoadModelAsset(const char* path);
 Material LoadMaterialAsset(const char* path);
 Texture* LoadTextureAsset(const char* path);
+Shader* LoadShader(const char* path);
+
 void SetMaterial(Model* model, Material* material, int idx);
+
+void UnloadScene(const char* path);

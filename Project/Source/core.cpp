@@ -1,6 +1,7 @@
 
 #include "os/os_generic.h"
 #include "core.h"
+#include "asset_system.h"
 
 AppState InitSimulation()
 {
@@ -11,12 +12,21 @@ AppState InitSimulation()
     // Let's load the scene here
     //Model* gunModel = LoadModelAsset("Gun/Gun.model");
     Model* raptoidModel = LoadModelAsset("Raptoid/Raptoid.model");
-    Material raptoidMaterial = LoadMaterialAsset("Raptoid/Raptoid.model");
+    //Material raptoidMaterial = LoadMaterialAsset("Raptoid/Raptoid.model");
+    
+    raptoidModel->vertex  = LoadShader("Shaders/simple_vertex.shader");
+    raptoidModel->pixel   = LoadShader("Shaders/simple_pixel.shader");
+    R_Shader shaders[] = {raptoidModel->vertex->handle, raptoidModel->pixel->handle};
+    raptoidModel->program = R_LinkShaders({.ptr=shaders, .len=ArrayCount(shaders)});
+    
     //SetMaterial(raptoidModel, raptoidMaterial, 0);
     //SetMaterial(raptoidModel, raptoidMaterial, 1);
     
     //Model* sphereModel = LoadModelAsset("Common/sphere.model");
     Model* sphereModel = raptoidModel;
+    sphereModel->vertex = raptoidModel->vertex;
+    sphereModel->pixel  = raptoidModel->pixel;
+    sphereModel->program = raptoidModel->program;
     
     // Let's organize the code with arenas later, right now i would just like to get
     // the general idea.

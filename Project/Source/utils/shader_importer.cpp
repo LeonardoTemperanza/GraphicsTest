@@ -6,33 +6,36 @@
 
 #include <iostream>
 
+// DXC includes
 #include <windows.h>
 #include <Objbase.h>
 #include <wrl/client.h>
 #include <comdef.h>
-#include "dxcapi.h"
+#include "dxc_include/dxcapi.h"
 
-#if 0
-// Shader binary format spec
-// "String" means u32 length followed by a blob of bytes of size 'length'
+// Spirv cross includes
+#include "spirvcross_include/spirv_glsl.hpp"
 
-// v0:
-struct Shader
+// NOTE: The shader binary works in the following way, there are magic bytes (shader), followed by the version number,
+// followed by a header struct that describes the location of the various shaders (binary or not)
+
+const wchar_t* vertexTarget  = L"vs_6_0";
+const wchar_t* pixelTarget   = L"ps_6_0";
+const wchar_t* computeTarget = L"cs_6_0";
+
+const wchar_t* GetHLSLTarget(ShaderKind kind)
 {
-    // Metadata
-    u8 magicBytes[6] = "shader";
-    u32 version = 0;
-    ShaderKind kind;
+    const wchar_t* target = L"";
+    switch(kind)
+    {
+        default:                 target = L"";           break;
+        case ShaderKind_Vertex:  target = vertexTarget;  break;
+        case ShaderKind_Pixel:   target = pixelTarget;   break;
+        case ShaderKind_Compute: target = computeTarget; break;
+    }
     
-    // TODO: Add information about who directly includes this shader, for hot reloading...
-    // I guess this would use the raw path.
-    
-    // Maybe i can provide separate debug versions as well?
-    String d3d11Binary;
-    String openglSpirvBinary;
-};
-
-#endif
+    return target;
+}
 
 struct ParseResult
 {
@@ -53,11 +56,11 @@ String NextString(char* at);
 Slice<ShaderPragma> ParseShaderPragmas(char* source, Arena* dst);
 void SetWorkingDirToAssets();
 
-// These append the length as u32, followed by the binary
 String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
 String CompileVulkanSpirv(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
 String CompileGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
 String CompileOpenglSpirv(ShaderKind shaderKind, String glslSource, Arena* dst, bool* ok);
+String CompileMetalIR(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
 
 // Usage:
 // shader_importer.exe file_to_import.hlsl
@@ -74,8 +77,14 @@ int main(int argCount, char** args)
     SetWorkingDirToAssets();
     
     const char* shaderPath = args[1];
+    String ext = GetPathExtension(shaderPath);
+    if(ext != "hlsl")
+    {
+        fprintf(stderr, "File does not have the '.hlsl' extension, so it's assumed not to be a shader.\n");
+        return 1;
+    }
     
-    ScratchArena scratch;
+    
     char* nullTerm = LoadEntireFileAndNullTerminate(shaderPath);
     if(!nullTerm)
     {
@@ -83,6 +92,7 @@ int main(int argCount, char** args)
         return 1;
     }
     
+    ScratchArena scratch;
     String shaderSource = {0};
     shaderSource.ptr = nullTerm;
     shaderSource.len = strlen(nullTerm);
@@ -117,29 +127,75 @@ int main(int argCount, char** args)
     
     for(int i = 0; i < ShaderKind_Count; ++i)
     {
+        ShaderKind kind = (ShaderKind)i;
         auto& stage = result.stages[i];
         if(stage.defined)
         {
             ScratchArena scratch;
-            StringBuilder builder = {0};
             
             bool ok = true;
             
-            // D3D11
-            String dxil = CompileDXIL((ShaderKind)i, shaderSource, stage.entry, scratch, &ok);
-            Append(&builder, dxil);
+            // D3D12
+            String dxil = CompileDXIL(kind, shaderSource, stage.entry, scratch, &ok);
+            
+            // Vulkan
+            String vulkanSpirv = CompileVulkanSpirv(kind, shaderSource, stage.entry, scratch, &ok);
             
             // OpenGL
+            String glslSource = CompileGLSL(kind, vulkanSpirv, scratch, &ok);
             
-            // ...
-            
-            // Write to file
+            // Build binary file
             if(ok)
             {
+                StringBuilder builder = {0};
+                //UseArena(&builder, scratch);  // Bug
                 
+                Append(&builder, "shader");  // Magic bytes
+                Put(&builder, (u32)0);       // Version number
+                
+                ShaderBinaryHeader_v0 header = {0};
+                header.shaderKind  = kind;
+                header.numMatConstants = 0;
+                header.matNames = 0;
+                header.matOffsets = 0;
+                header.dxil        = sizeof(ShaderBinaryHeader_v0);
+                header.vulkanSpirv = header.dxil + dxil.len;
+                header.glsl        = header.vulkanSpirv + vulkanSpirv.len;
+                
+                header.dxilSize        = dxil.len;
+                header.vulkanSpirvSize = vulkanSpirv.len;
+                header.glslSize        = glslSource.len;
+                
+                Put(&builder, header);
+                Append(&builder, dxil);
+                Append(&builder, vulkanSpirv);
+                Append(&builder, glslSource);
+                
+                // Generate output file name
+                String pathNoExt = GetPathNoExtension(shaderPath);
+                StringBuilder outPath = {0};
+                UseArena(&outPath, scratch);
+                Append(&outPath, pathNoExt);
+                Append(&outPath, "_");
+                Append(&outPath, GetShaderKindString(kind));
+                Append(&outPath, ".shader");
+                NullTerminate(&outPath);
+                
+                FILE* outFile = fopen(ToString(&outPath).ptr, "w+b");
+                if(!outFile)
+                {
+                    fprintf(stderr, "Error: Could not write to file\n");
+                    return 1;
+                }
+                
+                defer { fclose(outFile); };
+                
+                WriteToFile(ToString(&builder), outFile);
             }
         }
     }
+    
+    return 0;
 }
 
 String NextString(char** at)
@@ -190,7 +246,7 @@ Slice<ShaderPragma> ParseShaderPragmas(char* source, Arena* dst)
     return ToSlice(&res);
 }
 
-// @copypasta from main.cpp
+// @copypasta from main.cpp (with some modifications)
 void SetWorkingDirToAssets()
 {
     StringBuilder assetsPath = {0};
@@ -213,19 +269,22 @@ void SetWorkingDirToAssets()
     
     String exePathNoFile = {.ptr=exePath, .len=lastSeparator+1};
     Append(&assetsPath, exePathNoFile);
-    Append(&assetsPath, "../../Assets/");
+    // Currently in Project/Build/utils
+    Append(&assetsPath, "../../../Assets/");
     NullTerminate(&assetsPath);
     OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
 }
 
+// Return the slice of includers as well?
 String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok)
 {
+    String binary = {0};
+    if(hlslSource.len <= 0) return binary;
+    
     // https://simoncoenen.com/blog/programming/graphics/DxcCompiling#compiling
     // https://www.youtube.com/watch?v=tyyKeTsdtmo&t=878s&ab_channel=MicrosoftDirectX12andGraphicsEducation
     
     using namespace Microsoft::WRL;
-    
-    String binary = {0};
     
     ComPtr<IDxcUtils> utils;
     DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.GetAddressOf()));
@@ -239,26 +298,10 @@ String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     wchar_t* entryWide = ToWCString(entry);
     defer { free(entryWide); };
     
-    const wchar_t* target = L"";
-    switch(shaderKind)
-    {
-        default:                target = L"";       break;
-        case ShaderKind_Vertex: target = L"vs_6_0"; break;
-        case ShaderKind_Pixel:  target = L"ps_6_0"; break;
-    }
-    
-    const char* shaderKindStr = "";
-    switch(shaderKind)
-    {
-        default:                shaderKindStr = "unknown"; break;
-        case ShaderKind_Vertex: shaderKindStr = "vertex";  break;
-        case ShaderKind_Pixel:  shaderKindStr = "pixel";   break;
-    }
-    
     const wchar_t* args[] =
     {
         L"-E", entryWide,
-        L"-T", target,
+        L"-T", GetHLSLTarget(shaderKind),
         DXC_ARG_WARNINGS_ARE_ERRORS
     };
     
@@ -274,17 +317,29 @@ String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     ComPtr<IDxcResult> compileResult;
     HRESULT hr = compiler->Compile(&sourceBuffer, args, ArrayCount(args), nullptr, IID_PPV_ARGS(compileResult.GetAddressOf()));
     
+    // There is some other stuff like extra messages and all that. I imagine those would be the warnings
     ComPtr<IDxcBlobUtf8> errors;
     compileResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
     
-    if(errors && errors->GetStringLength())
+    ComPtr<IDxcBlobUtf8> remarks;
+    compileResult->GetOutput(DXC_OUT_REMARKS, IID_PPV_ARGS(&remarks), nullptr);
+    
+    const char* shaderKindStr = GetShaderKindString(shaderKind);
+    bool showErrors = errors && errors->GetStringLength();
+    bool showRemarks = remarks && remarks->GetStringLength();
+    if(showErrors || showRemarks)
+        printf("HLSL->SPIR-V Failed - %s shader compilation messages:\n", shaderKindStr);
+    
+    if(showErrors)  printf("%s", errors->GetStringPointer());
+    if(showRemarks) printf("%s", remarks->GetStringPointer());
+    
+    if(showErrors || showRemarks)
     {
-        printf("HLSL->DXIL Compilation Error(s) in %s shader:\n%s", shaderKindStr, errors->GetStringPointer());
         *ok = false;
         return binary;
     }
     
-    printf("OK - %s shader successfully compiled to DXIL.\n", shaderKindStr);
+    printf("HLSL->DXIL OK - %s shader successfully compiled.\n", shaderKindStr);
     
     ComPtr<IDxcBlob> shaderObj;
     hr = compileResult->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderObj), nullptr);
@@ -294,9 +349,112 @@ String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     return binary;
 }
 
-String CompileOpenglSpirv(ShaderKind shaderKind, String shaderSource, String entry, Arena* dst, bool* ok)
+// Mostly duplicated code, but i suspect the dxil compilation will be more involved in the future
+String CompileVulkanSpirv(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok)
+{
+    String binary = {0};
+    if(hlslSource.len <= 0) return binary;
+    
+    using namespace Microsoft::WRL;
+    
+    ComPtr<IDxcUtils> utils;
+    DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.GetAddressOf()));
+    
+    ComPtr<IDxcBlobEncoding> source;
+    utils->CreateBlob(hlslSource.ptr, hlslSource.len, CP_UTF8, source.GetAddressOf());
+    
+    wchar_t* entryWide = ToWCString(entry);
+    defer { free(entryWide); };
+    
+    const wchar_t* args[] =
+    {
+        L"-spirv",
+        L"-Fo", L"model2world_vert.spv",
+        L"-E", entryWide,
+        L"-T", GetHLSLTarget(shaderKind),
+        DXC_ARG_WARNINGS_ARE_ERRORS
+    };
+    
+    DxcBuffer sourceBuffer;
+    sourceBuffer.Ptr  = source->GetBufferPointer();
+    sourceBuffer.Size = source->GetBufferSize();
+    sourceBuffer.Encoding = 0;
+    
+    ComPtr<IDxcCompiler3> compiler;
+    DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
+    
+    ComPtr<IDxcResult> compileResult;
+    HRESULT hr = compiler->Compile(&sourceBuffer, args, ArrayCount(args), nullptr, IID_PPV_ARGS(compileResult.GetAddressOf()));
+    
+    ComPtr<IDxcBlobUtf8> errors;
+    compileResult->GetOutput(DXC_OUT_ERRORS, IID_PPV_ARGS(&errors), nullptr);
+    
+    ComPtr<IDxcBlobUtf8> remarks;
+    compileResult->GetOutput(DXC_OUT_REMARKS, IID_PPV_ARGS(&remarks), nullptr);
+    
+    const char* shaderKindStr = GetShaderKindString(shaderKind);
+    bool showErrors = errors && errors->GetStringLength();
+    bool showRemarks = remarks && remarks->GetStringLength();
+    if(showErrors || showRemarks)
+        printf("HLSL->SPIR-V Failed - %s shader compilation messages:\n", shaderKindStr);
+    
+    if(showErrors)  printf("%s", errors->GetStringPointer());
+    if(showRemarks) printf("%s", remarks->GetStringPointer());
+    
+    if(showErrors || showRemarks)
+    {
+        *ok = false;
+        return binary;
+    }
+    
+    printf("HLSL->SPIR-V OK - %s shader successfully compiled.\n", shaderKindStr);
+    
+    ComPtr<IDxcBlob> shaderObj;
+    hr = compileResult->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shaderObj), nullptr);
+    
+    String toCopy = {.ptr=(const char*)shaderObj->GetBufferPointer(), .len=(s64)shaderObj->GetBufferSize()};
+    binary = ArenaPushString(dst, toCopy);
+    return binary;
+}
+
+String CompileGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok)
+{
+    String binary = {0};
+    if(vulkanSpirvBinary.len <= 0) return binary;
+    
+    using namespace spirv_cross;
+    
+    // NOTE: Spirv binaries are all supposed to be a multiple of 4
+    assert(vulkanSpirvBinary.len % 4 == 0);
+    const uint32_t* buf = (uint32_t*)vulkanSpirvBinary.ptr;
+    s64 wordCount = vulkanSpirvBinary.len / 4;
+    CompilerGLSL compiler(buf, wordCount);
+    CompilerGLSL::Options options;
+    options.version = 460;
+    options.es = false;
+    compiler.set_common_options(options);
+    
+    std::string source = compiler.compile();
+    
+    const char* shaderKindStr = GetShaderKindString(shaderKind);
+    if(source.size() > 0)
+    {
+        printf("SPIR-V->GLSL OK - %s shader successfully compiled.\n", shaderKindStr);
+    }
+    else
+    {
+        *ok = false;
+        printf("SPIR-V->GLSL Failed - %s shader compilation messages: ??\n", shaderKindStr);
+    }
+    
+    binary = ArenaPushString(dst, source);
+    return binary;
+}
+
+// Use glslangvalidator c++ api
+String CompileOpenglSpirv(ShaderKind shaderKind, String glslSource, Arena* dst, bool* ok)
 {
     TODO;
-    String tmp = {0};
-    return tmp;
+    String null = {0};
+    return null;
 }

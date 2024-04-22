@@ -6,28 +6,11 @@ if not exist ..\Build mkdir ..\Build
 
 pushd ..\Build
 
-set include_dirs=/I..\Source /I..\Source\include /I..\Source\utils\dxc_include
+set include_dirs=/I..\Source /I..\Source\include
 set lib_dirs=/LIBPATH:..\Libs
 
-set shader_dir=..\..\Assets\Shaders
-
-REM Compile Shaders
-pushd %shader_dir%
-call compile_shaders.bat
-popd
-
-REM Compile utility programs
-cl /nologo /std:c++20 ..\Source\utils\bin2h.cpp /Od %include_dirs% /link /out:bin2h.exe
-del bin2h.obj
-cl /nologo /Od /Zi /std:c++20 /FC ..\Source\utils\model_importer.cpp %include_dirs% /link %lib_dirs% assimp-vc143-mt.lib /out:model_importer.exe
-del model_importer.obj
-cl /nologo /Od /Zi /std:c++20 /FC ..\Source\utils\shader_importer.cpp %include_dirs% /link %lib_dirs% dxcompiler.lib
-
 REM Use utility programs
-bin2h.exe %shader_dir%\shader.frag.spv fragShader %shader_dir%\shader.vert.spv vertShader -o ../Source/embedded_files.h
-
-REM Cleanup utility programs
-del bin2h.obj bin2h.exe
+REM utils\bin2h.exe %shader_dir%\shader.frag.spv fragShader %shader_dir%\shader.vert.spv vertShader -o ../Source/embedded_files.h
 
 set source_files=..\Source\unity_build.cpp
 set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib

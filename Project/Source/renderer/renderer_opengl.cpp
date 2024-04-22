@@ -8,6 +8,19 @@
 // at a time, because these are all function pointers,
 // so it's not very fast to repeatedly call these in a loop
 
+u32 Opengl_ShaderKind(ShaderKind kind)
+{
+    switch(kind)
+    {
+        default:                 return GL_VERTEX_SHADER;
+        case ShaderKind_Vertex:  return GL_VERTEX_SHADER;
+        case ShaderKind_Pixel:   return GL_FRAGMENT_SHADER;
+        case ShaderKind_Compute: return GL_COMPUTE_SHADER;
+    }
+    
+    return GL_VERTEX_SHADER;
+}
+
 void R_Init()
 {
     Renderer* r = &renderer;
@@ -80,16 +93,17 @@ void R_BeginPass(RenderSettings settings)
     Transform camera = settings.camera;
     
     PerFrameUniforms u;
-    u.world2View = World2ViewMatrix(camera.position, camera.rotation);
+    u.world2View = transpose(World2ViewMatrix(camera.position, camera.rotation));
     u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
+    // Negate z axis because in OpenGL, -z is forward while in our coordinate system it's the other way around
+    //u.world2View.c3 *= -1;
+    u.world2View = transpose(u.world2View);
     u.viewPos    = camera.position;
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
     
     // Preparing render
     glClearColor(0.12f, 0.3f, 0.25f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    
-    glUseProgram(r->shaderProgram);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 }
@@ -108,7 +122,7 @@ void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
     
     // Scale, rotation and then position
     PerObjectUniforms objUniforms = {0};
-    objUniforms.model2World = Model2WorldMatrix(pos, rot, scale);
+    objUniforms.model2World = transpose(Model2WorldMatrix(pos, rot, scale));
     
     glNamedBufferSubData(r->objUbo, 0, sizeof(objUniforms), &objUniforms);
     
@@ -118,12 +132,7 @@ void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
         gl_MeshInfo* meshInfo = (gl_MeshInfo*)mesh.gfxInfo;
         
         // shaderProgram should be a material's property
-        glUseProgram(r->shaderProgram);
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_CULL_FACE);
-        
-        glUseProgram(r->shaderProgram);
-        
+        glUseProgram(model->program);
         glBindVertexArray(meshInfo->vao);
         
 #if 0
@@ -150,7 +159,7 @@ void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale)
     }
 }
 
-void R_TransferModel(Model* model, Arena* arena)
+void R_UploadModel(Model* model, Arena* arena)
 {
     // Setup textures
 #if 0
@@ -232,9 +241,48 @@ void R_TransferModel(Model* model, Arena* arena)
     }
 }
 
-void R_TransferTexture(Texture* texture, Arena* arena)
+void R_UploadTexture(Texture* texture, Arena* arena)
 {
     
+}
+
+R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl)
+{
+    GLuint shader = glCreateShader(Opengl_ShaderKind(kind));
+    GLint glslLen = glsl.len;
+    glShaderSource(shader, 1, &glsl.ptr, &glslLen);
+    glCompileShader(shader);
+    
+    GLint status = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+    if(!status)
+    {
+        char info[512];
+        glGetShaderInfoLog(shader, 512, NULL, info);
+        OS_DebugMessage(info);
+    }
+    
+    return shader;
+}
+
+R_Program R_LinkShaders(Slice<R_Shader> shaders)
+{
+    R_Program program = glCreateProgram();
+    for(int i = 0; i < shaders.len; ++i)
+        glAttachShader(program, shaders[i]);
+    
+    glLinkProgram(program);
+    
+    GLint status = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &status);
+    if(!status)
+    {
+        char info[512];
+        glGetProgramInfoLog(program, 512, NULL, info);
+        OS_DebugMessage(info);
+    }
+    
+    return program;
 }
 
 void R_Cleanup()
