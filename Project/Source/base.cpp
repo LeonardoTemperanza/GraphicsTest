@@ -249,7 +249,7 @@ float dot(Vec3 v1, Vec3 v2)
     return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
 }
 
-Vec3 MoveTowards(Vec3 current, Vec3 target, float delta)
+Vec3 ApproachLinear(Vec3 current, Vec3 target, float delta)
 {
     Vec3 diff = target - current;
     float dist = magnitude(diff);

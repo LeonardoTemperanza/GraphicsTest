@@ -24,30 +24,8 @@ void PollAndProcessInput()
     curInput.prev.mouseDelta = curInput.prev.mouseDelta;
     
     OS_InputState input = OS_PollInput();
-    
-    // Compute deltas
-    if(inputCtx.followingPolls)
-    {
-        curInput.mouseDelta.x =   input.mouse.xPos - curInput.mouseX;
-        // Down is positive, but the convention for delta is, it's negative
-        curInput.mouseDelta.y = -(input.mouse.yPos - curInput.mouseY);
-    }
-    else  // This is the first input poll
-        curInput.mouseDelta = {.x=0.0f, .y=0.0f};
-    
-    // Set cursor position if needed
-    if(inputCtx.setMousePos)
-    {
-        OS_SetCursorPos(inputCtx.deferredMousePosX, inputCtx.deferredMousePosY);
-        curInput.mouseX = inputCtx.deferredMousePosX;
-        curInput.mouseY = inputCtx.deferredMousePosY;
-        inputCtx.setMousePos = false;
-    }
-    else
-    {
-        curInput.mouseX = input.mouse.xPos;
-        curInput.mouseY = input.mouse.yPos;
-    }
+    curInput.mouseDelta.x = input.mouse.deltaX;
+    curInput.mouseDelta.y = input.mouse.deltaY;
     
     // Update input state
     memcpy(curInput.virtualKeys, input.virtualKeys, sizeof(input.virtualKeys));

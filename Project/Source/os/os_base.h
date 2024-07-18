@@ -28,4 +28,5 @@ char* OS_GetCurrentDirectory();
 // Misc
 void OS_Sleep(uint64_t millis);
 void OS_DebugMessage(const char* message);
+void OS_DebugMessageFmt(const char* fmt, ...);
 bool OS_IsDebuggerPresent();

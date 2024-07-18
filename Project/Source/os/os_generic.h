@@ -83,6 +83,8 @@ struct OS_MouseState
     // to be < 0 if the cursor is not on the window
     int64_t xPos;
     int64_t yPos;
+    float deltaX;
+    float deltaY;
 };
 
 // All inactive gamepads will have every property set
@@ -128,8 +130,7 @@ void OS_Cleanup();
 OS_InputState OS_PollInput();
 
 void OS_ShowCursor(bool show);
-// Position should be supplied as window relative
-void OS_SetCursorPos(int64_t posX, int64_t posY);
+void OS_FixCursor(bool fix);  // The mouse delta should still be provided even after fixing the cursor
 
 // Sound
 

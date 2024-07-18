@@ -40,6 +40,25 @@ void OS_DebugMessage(const char* message)
     OutputDebugString(message);
 }
 
+void OS_DebugMessageFmt(const char* fmt, ...)
+{
+    // MSVC doesn't have vasprintf, so we'll have to get
+    // a bit creative...
+    va_list args;
+    va_start(args, fmt);
+    int size = vsnprintf(nullptr, 0, fmt, args);  // Extra call to get the size of the string
+    va_end(args);
+    
+    char* str = (char*)malloc(size+1);
+    defer { free(str); };
+    
+    va_start(args, fmt);
+    vsnprintf(str, size+1, fmt, args);
+    va_end(args);
+    
+    OutputDebugString(str);
+}
+
 void OS_Sleep(uint64_t millis)
 {
     Sleep(millis);

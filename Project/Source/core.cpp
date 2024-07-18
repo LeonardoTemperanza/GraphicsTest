@@ -95,6 +95,9 @@ void UpdateEntities(AppState* state, float deltaTime)
     // Update entity 2
     {
         auto& entity = entities[2];
+        Input input = GetInput();
+        entity.pos.x = input.mouseDelta.x * 0.01f;
+        entity.pos.y = input.mouseDelta.y * 0.01f;
     }
 }
 
@@ -105,7 +108,7 @@ void UpdateCamera(Transform* camera, float deltaTime)
     // Camera rotation
     const float rotateXSpeed = Deg2Rad(120);
     const float rotateYSpeed = Deg2Rad(80);
-    const float mouseSensitivity = Deg2Rad(0.05);  // Degrees per pixel
+    const float mouseSensitivity = Deg2Rad(0.08);  // Degrees per pixel
     static float angleX = 0.0f;
     static float angleY = 0.0f;
     
@@ -119,8 +122,6 @@ void UpdateCamera(Transform* camera, float deltaTime)
     
     angleX += rotateXSpeed * input.gamepad.rightStick.x * deltaTime + mouseX;
     angleY += rotateYSpeed * input.gamepad.rightStick.y * deltaTime + mouseY;
-    while(angleX < 0.0f) angleX += 2*Pi;
-    while(angleX > 2*Pi) angleX -= 2*Pi;
     
     angleY = clamp(angleY, Deg2Rad(-90), Deg2Rad(90));
     
@@ -156,7 +157,7 @@ void UpdateCamera(Transform* camera, float deltaTime)
     targetVel.y += (input.gamepad.rightTrigger - input.gamepad.leftTrigger) * moveSpeed;
     targetVel.y += (input.virtualKeys[Keycode_E] - input.virtualKeys[Keycode_Q]) * moveSpeed;
     
-    curVel = MoveTowards(curVel, targetVel, moveAccel * deltaTime);
+    curVel = ApproachLinear(curVel, targetVel, moveAccel * deltaTime);
     camera->position += curVel * deltaTime;
 }
 
@@ -202,17 +203,14 @@ void MainUpdate(AppState* state, float deltaTime, Arena* permArena, Arena* frame
     Input input = GetInput();
     if(input.virtualKeys[Keycode_RMouse])
     {
-        if(!input.prev.virtualKeys[Keycode_RMouse])
-        {
-            state->lockMousePosX = input.mouseX;
-            state->lockMousePosY = input.mouseY;
-        }
-        
         OS_ShowCursor(false);
-        SetMousePos(state->lockMousePosX, state->lockMousePosY);
+        OS_FixCursor(true);
     }
-    else if(input.prev.virtualKeys[Keycode_RMouse])
+    else
+    {
         OS_ShowCursor(true);
+        OS_FixCursor(false);
+    }
     
     UpdateCamera(&state->renderSettings.camera, deltaTime);
     UpdateEntities(state, deltaTime);

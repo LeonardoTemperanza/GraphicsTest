@@ -27,6 +27,8 @@
 
 #include "base.h"
 
+#include <cmath>
+
 struct Win32_Message
 {
     UINT kind;
@@ -50,15 +52,20 @@ struct OS_Context
     
     // It's expected that the user won't
     // press buttons hundreds of times per frame
-#define MaxBufferedInputs 20
+#define MaxBufferedInputs 100
     Win32_Message bufferedInputs[MaxBufferedInputs];
     int numInputs;
     
     // Currently used cursor. Can be nullptr which
     // means "hide the cursor"
     HCURSOR curCursor;
+    bool fixCursor;
+    // Accumulated delta
+    float mouseDeltaX;
+    float mouseDeltaY;
     
-    // NOTE: Used when not in full screen mode
+    // NOTE: Used when not in full screen mode.
+    // Stands for Desktop Window Manager
     bool usingDwm;
     
     OS_GraphicsLib usedGfxLib;
@@ -244,6 +251,11 @@ static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, 
 
 void Win32_BreakOutOfModalLoop()
 {
+    // NOTE: If we're switching to the main fiber from here,
+    // that means that we're still technically in the modal loop,
+    // which is why this sequence is correct. We want to communicate
+    // that we're still in the WndProc even though we have temporarily
+    // escaped.
     win32.isInModalLoop = true;
     SwitchToFiber(win32.mainFiber);
     win32.isInModalLoop = false;
@@ -259,6 +271,33 @@ void Win32_BufferInputMessage(UINT message, WPARAM wParam, LPARAM lParam)
     ++win32.numInputs;
     if(win32.numInputs > MaxBufferedInputs)
         win32.numInputs = MaxBufferedInputs;
+}
+
+void Win32_PollRawInputMouseDelta(int* x, int* y)
+{
+    *x = 0;
+    *y = 0;
+    
+    static int* bufPtrs[512];
+    RAWINPUT* buf = (RAWINPUT*)&bufPtrs[0];
+    UINT size = sizeof(bufPtrs);
+    
+    UINT oldSize = size;
+    UINT num = GetRawInputBuffer(buf, &size, sizeof(RAWINPUTHEADER));
+    assert(size <= oldSize && num <= sizeof(bufPtrs) / sizeof(RAWINPUT));
+    
+    for(int i = 0; i < num; ++i)
+    {
+        RAWINPUT* raw = &buf[i];
+        if (raw->header.dwType == RIM_TYPEMOUSE)
+        {
+            int xPos = raw->data.mouse.lLastX;
+            int yPos = raw->data.mouse.lLastY;
+            
+            *x += xPos;
+            *y -= yPos;
+        }
+    }
 }
 
 // NOTE: Window callback function. Since Microsoft wants programs to get stuck
@@ -283,6 +322,8 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
     
     static DeferMessage captionClick   = {0};
     static DeferMessage topButtonClick = {0};  // Close, minimize or maximize
+    static bool userResizing = false;
+#define ModalLoopTimerId 1
     
     switch(message)
     {
@@ -299,15 +340,19 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         {
             captionClick.active = false;
             topButtonClick.active = false;
+            userResizing = true;
+            
+            OS_DebugMessage("Wow\n");
             
             // USER_TIMER_MINIMUM is 10ms, so not very precise.
-            SetTimer(window, 0, USER_TIMER_MINIMUM, nullptr);
+            SetTimer(window, ModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
             break;
         }
         
         case WM_EXITSIZEMOVE:
         {
-            KillTimer(window, 0);
+            userResizing = false;
+            KillTimer(window, ModalLoopTimerId);
             break;
         }
         
@@ -315,18 +360,27 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         // should be prioritized over this
         case WM_TIMER:
         {
-            if(window) Win32_BreakOutOfModalLoop();
+            if(wParam == ModalLoopTimerId)
+            {
+                OS_DebugMessage("Timer\n");
+                if(window) Win32_BreakOutOfModalLoop();
+            }
+            
             break;
         }
         
         // Redraw immediately after resize (we don't want black bars)
         case WM_SIZE:
         {
-            if(window) Win32_BreakOutOfModalLoop();
+            if(window && userResizing)
+            {
+                Win32_BreakOutOfModalLoop();
+                
+                // Reset the timer. Without this, the resizing is laggy
+                // because we let the app update twice per resize.
+                SetTimer(window, 1, USER_TIMER_MINIMUM, nullptr);
+            }
             
-            // Reset the timer. Without this, the resizing is laggy
-            // because we let the app update twice per resize.
-            SetTimer(window, 0, USER_TIMER_MINIMUM, nullptr);
             break;
         }
         
@@ -482,6 +536,16 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
             Win32_BufferInputMessage(message, wParam, lParam);
             break;
         }
+        
+        // Raw input
+        case WM_INPUT:
+        {
+            int x, y;
+            Win32_PollRawInputMouseDelta(&x, &y);
+            win32.mouseDeltaX += x;
+            win32.mouseDeltaY += y;
+            break;
+        }
     }
     
     return DefWindowProc(window, message, wParam, lParam);
@@ -497,16 +561,34 @@ void Win32_WindowEventsFiber(void* param)
         MSG msg = {0};
         
         // Window messages
-        while(PeekMessage(&msg, win32.window, 0, 0, true))
+        while(PeekMessage(&msg, win32.window, 0, WM_INPUT-1, true))
         {
             TranslateMessage(&msg);
-            DispatchMessage(&msg);  // This calls WndProc
+            DispatchMessage(&msg);
+        }
+        
+        memset(&msg, 0, sizeof(msg));
+        
+        while(PeekMessage(&msg, win32.window, WM_INPUT+1, (UINT)-1, true))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
         
         memset(&msg, 0, sizeof(msg));
         
         // Thread messages
-        while(PeekMessage(&msg, nullptr, 0, 0, true))
+        while(PeekMessage(&msg, nullptr, 0, WM_INPUT-1, true))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+            
+            if(msg.message == WM_QUIT) win32.quit = true;
+        }
+        
+        memset(&msg, 0, sizeof(msg));
+        
+        while(PeekMessage(&msg, nullptr, WM_INPUT+1, (UINT)-1, true))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
@@ -734,17 +816,28 @@ void Win32_InitDPISettings()
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 }
 
+void Win32_RegisterRawInputDevices(HWND window)
+{
+    RAWINPUTDEVICE Rid[1];
+    
+    Rid[0].usUsagePage = 0x01;          // HID_USAGE_PAGE_GENERIC
+    Rid[0].usUsage = 0x02;              // HID_USAGE_GENERIC_MOUSE
+    Rid[0].dwFlags = 0;                 // Adds mouse
+    Rid[0].hwndTarget = 0;
+    
+    RegisterRawInputDevices(Rid, ArrayCount(Rid), sizeof(Rid[0]));
+}
+
 void OS_Init()
 {
     win32.init = true;
+    
     HINSTANCE hInst = GetModuleHandle(nullptr);
     
     // The application is aware of DPI. Otherwise windows
     // automatically scales the window up, resulting in blurry
     // visuals.
     Win32_InitDPISettings();
-    
-    OS_ShowCursor(true);
     
     // QPC initialization
     {
@@ -774,6 +867,8 @@ void OS_Init()
     
     win32.windowDC = GetDC(win32.window);
     assert(win32.windowDC && "Could not get Device Context for main window.");
+    
+    Win32_RegisterRawInputDevices(win32.window);
     
     // TODO: update this when in fullscreen mode
     win32.usingDwm = true;
@@ -850,18 +945,21 @@ void OS_SwapBuffers()
 {
     assert(win32.init);
     
-    // NOTE: Opengl vsync does not work properly when using
-    // DWM (windowed mode)... So we have to call this
-    // function which does a separate vsync. Rumors suggest
-    // calling DwmFlush() immediately after SwapBuffers
-    // *might* work more consistently. I love windows!
-    if(win32.usedGfxLib == GfxLib_OpenGL && win32.usingDwm)
+    if(win32.usedGfxLib == GfxLib_OpenGL)
     {
-        SwapBuffers(win32.windowDC);
-        DwmFlush();
+        if(win32.usingDwm)
+        {
+            // NOTE: Opengl vsync does not work properly when using
+            // DWM (windowed mode)... So we have to call this
+            // function which does a separate vsync. Rumors suggest
+            // calling DwmFlush() immediately after SwapBuffers
+            // *might* work more consistently. I love windows!
+            SwapBuffers(win32.windowDC);
+            DwmFlush();
+        }
+        else
+            SwapBuffers(win32.windowDC);
     }
-    else
-        SwapBuffers(win32.windowDC);
 }
 
 void OS_Cleanup()
@@ -963,8 +1061,8 @@ OS_InputState OS_PollInput()
         }
     }
     
-    // Mouse state
     {
+        // Mouse state
         POINT p;
         GetCursorPos(&p);  // In screen coordinates
         if(!ScreenToClient(win32.window, &p))
@@ -991,7 +1089,13 @@ OS_InputState OS_PollInput()
             Win32_HandleWindowMessageRange(WM_LBUTTONDOWN, WM_LBUTTONUP);
             Win32_HandleWindowMessageRange(WM_RBUTTONDOWN, WM_RBUTTONUP);
             Win32_HandleWindowMessageRange(WM_MBUTTONDOWN, WM_MBUTTONUP);
+            Win32_HandleWindowMessageRange(WM_INPUT, WM_INPUT);
         }
+        
+        res.mouse.deltaX = win32.mouseDeltaX;
+        res.mouse.deltaY = win32.mouseDeltaY;
+        win32.mouseDeltaX = 0;
+        win32.mouseDeltaY = 0;
         
         // This holds state for holding down buttons
         static bool heldKeys[Keycode_Count] = {0};
@@ -1081,6 +1185,27 @@ void OS_ShowCursor(bool show)
     // Only set the cursor if we're trying to modify visibility
     if((show && isInvisible) || (!show && !isInvisible))
         SetCursor(win32.curCursor);
+}
+
+void OS_FixCursor(bool fix)
+{
+    assert(win32.init);
+    win32.fixCursor = fix;
+    if(fix)
+    {
+        POINT cursorPos = {0};
+        GetCursorPos(&cursorPos);
+        RECT cursorPosRect = {0};  // Constraint the cursor to a single point
+        cursorPosRect.top = cursorPos.y;
+        cursorPosRect.bottom = cursorPos.y + 1;
+        cursorPosRect.left = cursorPos.x;
+        cursorPosRect.right = cursorPos.x + 1;
+        ClipCursor(&cursorPosRect);
+    }
+    else
+    {
+        ClipCursor(nullptr);  // Meaning the cursor is free to move around
+    }
 }
 
 void OS_SetCursorPos(int64_t posX, int64_t posY)

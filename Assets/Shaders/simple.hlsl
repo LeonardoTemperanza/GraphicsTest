@@ -48,7 +48,7 @@ Vert2Pixel vertMain(VertexInfo input)
 {
     Vert2Pixel output;
     output.position = mul(mul(mul(float4(input.position, 1.0), model2World), world2View), view2Proj);
-    output.color    = float3(1.0f, 0.0f, 0.0f);
+    output.color    = input.normal;
     return output;
 }
 

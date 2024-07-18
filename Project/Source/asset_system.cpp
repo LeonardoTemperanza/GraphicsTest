@@ -116,7 +116,7 @@ Texture* LoadTexture(const char* path)
     
     String stbImage = {0};
     stbImage.ptr = (char*)stbi_load(path, &texture->width, &texture->height, &texture->numChannels, 0);
-    stbImage.len = texture->width * texture->height * texture->numChannels;  // 1 byte for each channel and pixel in the image
+    stbImage.len = texture->width * texture->height * texture->numChannels;
     
     texture->handle = R_UploadTexture(stbImage, texture->width, texture->height, texture->numChannels);
     stbi_image_free((void*)stbImage.ptr);
@@ -170,7 +170,7 @@ void LoadAssetBinding(const char* path)
     ScratchArena scratch;
     Parser parser = InitParser(path, scratch);
     
-    BindingParseResult result = ParseBinding();
+    //BindingParseResult result = ParseBinding();
     
     // Do some stuff with the result
 }

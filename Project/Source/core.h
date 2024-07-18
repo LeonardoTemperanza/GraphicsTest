@@ -42,11 +42,6 @@ struct Door
 
 struct AppState
 {
-    // If locking the mouse position,
-    // this is the value to set it to
-    s64 lockMousePosX;
-    s64 lockMousePosY;
-    
     Slice<Entity> entities;
     
     RenderSettings renderSettings;
