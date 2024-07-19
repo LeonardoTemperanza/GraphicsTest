@@ -3,8 +3,10 @@
 
 #include "base.h"
 
+struct Camera;
 struct Model;
 struct Texture;
+struct Entities;
 enum ShaderKind;
 
 // Used for GPU resources
@@ -21,6 +23,8 @@ struct Vertex
     Vec3 tangent;
 };
 
+// TODO: First draft of what it would look like for
+// a skeletal mesh
 #define MaxBonesInfluence 4
 struct AnimVert
 {
@@ -36,14 +40,6 @@ struct AnimVert
     } boneWeights[MaxBonesInfluence];
 };
 
-struct RenderSettings
-{
-    Transform camera;
-    float horizontalFOV;
-    float nearClipPlane;
-    float farClipPlane;
-};
-
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
 #elif GFX_D3D12
@@ -57,7 +53,7 @@ R_Shader  R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, Stri
 R_Program R_LinkShaders(Slice<R_Shader> shaders);
 
 void R_Init();
-void R_BeginPass(RenderSettings settings);
-void R_DrawModelNoReload(Model* model, Vec3 pos, Quat rot, Vec3 scale);
-void R_DrawModel(Model* model, Vec3 pos, Quat rot, Vec3 scale);
+void R_BeginPass(Camera* entities);
+void R_DrawModelNoReload(Model* model, Mat4 transform);
+void R_DrawModel(Model* model, Mat4 transform);
 void R_Cleanup();

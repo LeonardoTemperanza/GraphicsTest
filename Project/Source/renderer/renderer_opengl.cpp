@@ -74,7 +74,7 @@ void R_Init()
     glUniformBlockBinding(r->shaderProgram, perObjUniformIdx, perObjBindingPoint);
 }
 
-void R_BeginPass(RenderSettings settings)
+void R_BeginPass(Camera* camera)
 {
     Renderer* r = &renderer;
     
@@ -83,23 +83,24 @@ void R_BeginPass(RenderSettings settings)
     glViewport(0, 0, width, height);
     float aspectRatio = (float)width / height;
     
-    const float n   = settings.nearClipPlane;
-    const float f   = settings.farClipPlane;
-    const float fov = settings.horizontalFOV;
+    const float n   = camera->nearClip;
+    const float f   = camera->farClip;
+    const float fov = camera->horizontalFOV;
     
     const float right = n * tan(fov / 2.0f);
     const float top   = right / aspectRatio;
     
-    Transform camera = settings.camera;
+    Vec3 camPos = camera->base->pos;
+    Quat camRot = camera->base->rot;
     
     PerFrameUniforms u;
-    u.world2View = transpose(World2ViewMatrix(camera.position, camera.rotation));
-    u.view2Proj  = View2ProjMatrix(settings.nearClipPlane, settings.farClipPlane, settings.horizontalFOV, aspectRatio);
+    u.world2View = transpose(World2ViewMatrix(camPos, camRot));
+    u.view2Proj  = View2ProjMatrix(n, f, fov, aspectRatio);
     // Negate z axis because in OpenGL, -z is forward while in our coordinate system it's the other way around
     u.view2Proj.c3 *= -1;
     u.view2Proj.m43 = 1;
     u.view2Proj = transpose(u.view2Proj);
-    u.viewPos   = camera.position;
+    u.viewPos   = camPos;
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
     
     // Preparing render
@@ -109,7 +110,7 @@ void R_BeginPass(RenderSettings settings)
     glEnable(GL_CULL_FACE);
 }
 
-void R_DrawModelNoReload(Model* model, Vec3 pos, Quat rot, Vec3 scale)
+void R_DrawModelNoReload(Model* model, Mat4 transform)
 {
     if(!model) return;
     
@@ -117,7 +118,7 @@ void R_DrawModelNoReload(Model* model, Vec3 pos, Quat rot, Vec3 scale)
     
     // Scale, rotation and then position
     PerObjectUniforms objUniforms = {0};
-    objUniforms.model2World = transpose(Model2WorldMatrix(pos, rot, scale));
+    objUniforms.model2World = transpose(transform);
     
     glNamedBufferSubData(r->objUbo, 0, sizeof(objUniforms), &objUniforms);
     

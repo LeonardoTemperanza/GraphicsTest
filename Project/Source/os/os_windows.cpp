@@ -342,8 +342,6 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
             topButtonClick.active = false;
             userResizing = true;
             
-            OS_DebugMessage("Wow\n");
-            
             // USER_TIMER_MINIMUM is 10ms, so not very precise.
             SetTimer(window, ModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
             break;
@@ -362,7 +360,6 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         {
             if(wParam == ModalLoopTimerId)
             {
-                OS_DebugMessage("Timer\n");
                 if(window) Win32_BreakOutOfModalLoop();
             }
             

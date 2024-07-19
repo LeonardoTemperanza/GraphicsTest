@@ -603,7 +603,7 @@ Mat4 PositionMatrix(Vec3 pos)
     return res;
 }
 
-Mat4 Model2WorldMatrix(Vec3 pos, Quat rot, Vec3 scale)
+Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale)
 {
     return PositionMatrix(pos) * RotationMatrix(normalize(rot)) * ScaleMatrix(scale);
 }

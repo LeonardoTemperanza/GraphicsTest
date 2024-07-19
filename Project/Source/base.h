@@ -267,6 +267,7 @@ struct Transform
 Mat4 RotationMatrix(Quat rot);
 Mat4 ScaleMatrix(Vec3 scale);
 Mat4 PositionMatrix(Vec3 pos);
+Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale);
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 

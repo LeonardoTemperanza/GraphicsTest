@@ -20,7 +20,8 @@ int main()
     R_Init();
     defer { R_Cleanup(); };
     
-    AppState appState = InitSimulation();
+    Entities entities = InitEntities();
+    defer { FreeEntities(&entities); };
     
     UI_Init();
     
@@ -48,7 +49,7 @@ int main()
             OS_SwapBuffers();
         }
         
-        MainUpdate(&appState, deltaTime, &permArena, &frameArena);
+        MainUpdate(&entities, deltaTime, &permArena, &frameArena);
         
         firstIter = false;
     }
