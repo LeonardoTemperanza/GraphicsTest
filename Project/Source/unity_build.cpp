@@ -22,3 +22,26 @@
 #include "parser.cpp"
 
 #include "renderer/renderer_generic.cpp"
+
+// Libraries
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_demo.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui_tables.cpp"
+#include "imgui/imgui_widgets.cpp"
+
+#ifdef GFX_OPENGL
+#include "imgui/backends/imgui_impl_opengl3.cpp"
+#else
+#error "TODO"
+#endif
+
+#ifdef _WIN32
+#include "imgui/backends/imgui_impl_win32.cpp"
+#elif defined(__linux__)
+#error "Linux operating systems not supported."
+#elif defined(__APPLE__)
+#error "Apple Operating systems not supported."
+#else
+#error "Unknown operating system."
+#endif

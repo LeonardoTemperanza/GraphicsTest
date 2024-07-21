@@ -253,3 +253,13 @@ void R_Cleanup()
 {
     
 }
+
+void R_RenderDearImgui()
+{
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void R_ShutdownDearImgui()
+{
+    ImGui_ImplOpenGL3_Shutdown();
+}

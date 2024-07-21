@@ -21,7 +21,8 @@ blacklist_patterns = {
 load_paths_custom = {
     { "include", .recursive = false },
     { "os", .recursive = true },
-    { ".", .relative = true }
+    { ".", .relative = true },
+    { "imgui", .recursive = true }
 };
 
 load_paths = {

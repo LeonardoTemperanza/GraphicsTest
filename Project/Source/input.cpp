@@ -30,6 +30,15 @@ void PollAndProcessInput()
     // Update input state
     memcpy(curInput.virtualKeys, input.virtualKeys, sizeof(input.virtualKeys));
     
+    // If this mouse input belongs to DearImgui let's zero it out
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    if(io.WantCaptureMouse)
+    {
+        curInput.virtualKeys[Keycode_LMouse] = false;
+        curInput.virtualKeys[Keycode_RMouse] = false;
+        curInput.virtualKeys[Keycode_MMouse] = false;
+    }
+    
     // Process gamepad input
     for(int i = 0; i < MaxActiveControllers; ++i)
         ApplyDeadzones(&input.gamepads[i]);

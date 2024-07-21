@@ -2,10 +2,14 @@
 #include "os/os_generic.h"
 #include "core.h"
 #include "asset_system.h"
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include "imgui/imgui.h"
 
-Entities InitEntities()
+static Entities entities;
+Entities* InitEntities()
 {
-    Entities res = {0};
+    entities = {0};
+    auto& res = entities;
     
     // Let's load the scene here
     //Model* gunModel = LoadModel("Gun/Gun.model");
@@ -25,54 +29,30 @@ Entities InitEntities()
     sphereModel->pixel  = raptoidModel->pixel;
     sphereModel->program = raptoidModel->program;
     
-    // In this entity system index 0 is considered null,
-    // so we occupy the first slot of each type.
-    // We use arenas to maintain stable pointers
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
     static Arena cameraArena = ArenaVirtualMemInit(MB(64), MB(2));
     static Arena playerArena = ArenaVirtualMemInit(MB(64), MB(2));
-    UseArena(&res.bases.all, &baseArena);
-    UseArena(&res.cameras.all, &cameraArena);
-    UseArena(&res.players.all, &playerArena);
-    Append(&res.bases.all,   {0});
-    Append(&res.cameras.all, {0});
-    Append(&res.players.all, {0});
-    static_assert(3 == Entity_Count, "Every array for each type should have a zero-initialized element on index 0");
+    static Arena pointLightArena = ArenaVirtualMemInit(GB(1), MB(2));
+    UseArena(&res.bases, &baseArena);
+    UseArena(&res.cameras, &cameraArena);
+    UseArena(&res.players, &playerArena);
+    UseArena(&res.pointLights, &pointLightArena);
+    static_assert(4 == Entity_Count, "Every array for each type should be based on an arena for pointer stability");
     
-    u32 e1 = NewEntity(&res);
-    Entity& ent1 = res.bases.all[e1];
-    ent1.pos = {.x=1.0f, .y=0.0f, .z=3.0f};
-    ent1.rot = Quat::identity;
+    auto raptoid = NewEntity();
+    raptoid->model = raptoidModel;
     
-    u16 player = NewDerived(&res, &res.players);
-    Player& p = res.players.all[player];
-    p.base->model = raptoidModel;
+    auto camera = NewEntity<Camera>();
+    camera->horizontalFOV = 90.0f;
+    camera->nearClip = 0.1f;
+    camera->farClip = 1000.0f;
     
-    // Set main camera
-    u16 cam = NewDerived(&res, &res.cameras);
-    Camera& c = res.cameras.all[cam];
-    c.base->pos = {.x=0.0f, .y=0.0f, .z=-5.0f};
-    c.base->rot = Quat::identity;
-    c.horizontalFOV = 90.0f;
-    c.nearClip = 0.1f;
-    c.farClip = 1000.0f;
+    res.mainCamera = GetKey(camera->base);
     
-    res.mainCamera = {.id=cam, .gen=c.base->gen};
-    
-    return res;
-}
-
-template<typename t>
-void Free(DerivedArray<t>* array)
-{
-    Free(&array->all);
-    Free(&array->free);
-}
-
-void Free(BaseArray* array)
-{
-    Free(&array->all);
-    Free(&array->free);
+    auto player = NewEntity<Player>();
+    player->base->model = raptoidModel;
+    auto pointLight = NewEntity<PointLight>();
+    return &res;
 }
 
 void FreeEntities(Entities* entities)
@@ -80,15 +60,19 @@ void FreeEntities(Entities* entities)
     Free(&entities->bases);
     Free(&entities->cameras);
     Free(&entities->players);
-    static_assert(3 == Entity_Count, "All entity type arrays should be freed");
+    Free(&entities->pointLights);
+    static_assert(4 == Entity_Count, "All entity type arrays should be freed");
 }
 
 void MainUpdate(Entities* entities, float deltaTime, Arena* permArena, Arena* frameArena)
 {
+    OS_DearImguiBeginFrame();
+    
     PollAndProcessInput();
     
     UpdateUI();
     
+    // Test entity destruction
     static float time = 0.0f;
     static bool destroyed = false;
     time += deltaTime;
@@ -112,180 +96,270 @@ void MainUpdate(Entities* entities, float deltaTime, Arena* permArena, Arena* fr
     }
     
     UpdateEntities(entities, deltaTime);
+    
     RenderEntities(entities, deltaTime);
+    ImGui::Render();  // Render UI on top of scene
+    R_RenderDearImgui();
+    
+    CommitDestroy(entities);
 }
 
 void UpdateEntities(Entities* entities, float deltaTime)
 {
-    /*
-    auto& players = entities->players.all;
-    for(int i = 1; i < players.len; ++i)
-    {
-        if(!(players[i].base->flags & EntityFlags_Destroyed))
-        {
-            UpdatePlayer(&players[i], deltaTime);
-        }
-    }
-    */
+    Player* player = nullptr;
     
-    UpdatePlayer(&entities->players.all[1], deltaTime);
-    UpdateMainCamera(&entities->cameras.all[1], deltaTime);
+    for_live_derived(p, Player)
+    {
+        UpdatePlayer(p, deltaTime);
+    }
+    
+    Camera* mainCamera = GetDerived<Camera>(entities->mainCamera);
+    if(mainCamera)
+        UpdateMainCamera(mainCamera, deltaTime);
 }
 
 void UpdateUI()
 {
-    Input input = GetInput();
-    
-    // Example of how the UI might work
-#if 0
-    UI_BeginFrame(input);
-    
-    auto window = UI_Container();
-    UI_PushParent(window);
-    
-    if(UI_Button("Hello").clicked)
-    {
-        
-    }
-    
-    UI_PopParent(window);
-    UI_EndFrame();
-#endif
+    static bool open = true;
+    if(open)
+        ImGui::ShowDemoWindow(&open);
 }
 
 void RenderEntities(Entities* entities, float deltaTime)
 {
-    u32 cam = LookupEntity(entities, entities->mainCamera);
-    if(cam == 0) return;
+    Camera* camera = GetDerived<Camera>(entities->mainCamera);
+    if(!camera) return;
     
-    R_BeginPass(&entities->cameras.all[1]);
+    R_BeginPass(camera);
     
-    auto& ents = entities->bases.all;
-    for(int i = 1; i < ents.len; ++i)
+    for_live_entities(ent)
     {
-        if(ents[i].model && !(ents[i].flags & EntityFlags_Destroyed))
-            R_DrawModel(ents[i].model, ComputeWorldTransform(entities, i));
+        if(ent->model)
+            R_DrawModel(ent->model, ComputeWorldTransform(ent));
     }
 }
 
-u32 NewEntity(Entities* entities)
+// Entity manipulation
+
+template<typename t>
+EntityKind GetEntityKindFromType()
 {
-    auto bases = &entities->bases;
-    u16 freeSlot = 0;
-    if(bases->free.len > 0)
-    {
-        freeSlot = bases->free[bases->free.len - 1];
-        --bases->free.len;
-        
-        // Wipe out everything except for the generation
-        u16 gen = bases->all[freeSlot].gen;
-        bases->all[freeSlot] = {0};
-        bases->all[freeSlot].gen = gen;
-    }
+    if constexpr (std::is_same_v<t, Camera>)
+        return Entity_Camera;
+    else if constexpr (std::is_same_v<t, Player>)
+        return Entity_Player;
+    else if constexpr (std::is_same_v<t, PointLight>)
+        return Entity_PointLight;
     else
-    {
-        Append(&bases->all, {0});
-        freeSlot = bases->all.len - 1;
-    }
+        static_assert(false, "This type is not derived from entity");
     
-    auto& newEntity = bases->all[freeSlot];
-    newEntity.rot   = Quat::identity;
-    newEntity.scale = {.x=1.0f, .y=1.0f, .z=1.0f};
-    return freeSlot;
+    static_assert(4 == Entity_Count, "Every derived type must have a corresponding if");
 }
 
 template<typename t>
-u16 NewDerived(Entities* entities, DerivedArray<t>* derived)
+Array<t>* GetArrayFromType()
 {
-    u32 base = NewEntity(entities);
-    Entity* entity = &entities->bases.all[base];
+    if constexpr (std::is_same_v<t, Entity>)
+        return &entities.bases;
+    else if constexpr (std::is_same_v<t, Camera>)
+        return &entities.cameras;
+    else if constexpr (std::is_same_v<t, Player>)
+        return &entities.players;
+    else if constexpr (std::is_same_v<t, PointLight>)
+        return &entities.pointLights;
+    else
+        static_assert(false, "This type is not derived from entity");
     
-    u16 freeSlot = 0;
-    if(derived->free.len > 0)
+    static_assert(4 == Entity_Count, "Every derived type must have a corresponding if");
+}
+
+EntityKey NullKey()
+{
+    return {.id=(u32)-1, .gen=0};
+}
+
+bool IsKeyNull(EntityKey key)
+{
+    EntityKey null = NullKey();
+    return key.id == null.id && key.gen == null.gen; 
+}
+
+Entity* GetEntity(EntityKey key)
+{
+    if(IsKeyNull(key)) return nullptr;
+    
+    Entity* res = &entities.bases[key.id];
+    if(res->gen != key.gen) return nullptr;
+    
+    return res;
+}
+
+template<typename t>
+t* GetDerived(EntityKey key)
+{
+    static_assert(!std::is_same_v<t, Entity>, "Use GetEntity instead.");
+    
+    if(IsKeyNull(key)) return nullptr;
+    
+    Entity* res = &entities.bases[key.id];
+    if(res->gen != key.gen) return nullptr;
+    
+    if(res->derivedKind != GetEntityKindFromType<t>()) return nullptr;
+    
+    Array<t>* derivedArray = GetArrayFromType<t>();
+    return derivedArray->ptr + res->derivedId;
+}
+
+EntityKey GetKey(Entity* entity)
+{
+    if(!entity) return NullKey();
+    
+    u32 id = entity - entities.bases.ptr;
+    u16 gen = entity->gen;
+    return {id, gen};
+}
+
+Entity* GetMount(Entity* entity)
+{
+    return GetEntity(entity->mount);
+}
+
+void MountEntity(Entity* entity, Entity* mountTo)
+{
+    entity->mount = GetKey(mountTo);
+}
+
+Mat4 ComputeWorldTransform(Entity* entity)
+{
+    if(!entity) return Mat4::identity;
+    
+    Mat4 transform = Mat4FromPosRotScale(entity->pos, entity->rot, entity->scale);
+    transform = ComputeWorldTransform(GetMount(entity)) * transform;
+    return transform;
+}
+
+Entity* NewEntity()
+{
+    u32 freeSlot = 0;
+    if(entities.freeBases.len > 0)
     {
-        freeSlot = derived->free[derived->free.len - 1];
-        --derived->free.len;
+        freeSlot = entities.freeBases[entities.freeBases.len - 1];
+        --entities.freeBases.len;
+        
+        // Wipe out everything except for the generation
+        u32 gen = entities.bases[freeSlot].gen;
+        entities.bases[freeSlot] = {0};
+        entities.bases[freeSlot].gen = gen;
     }
     else
     {
-        Append(&derived->all, {0});
-        freeSlot = derived->all.len - 1;
+        Append(&entities.bases, {0});
+        freeSlot = entities.bases.len - 1;
     }
     
-    derived->all[freeSlot].base = entity;
-    return freeSlot;
+    Entity* entity = &entities.bases[freeSlot];
+    entity->pos = {0};
+    entity->rot = Quat::identity;
+    entity->scale = {.x=1.0f, .y=1.0f, .z=1.0f};
+    entity->mount = NullKey();
+    return entity;
 }
 
-void DestroyEntity(Entities* entities, u32 id)
+// Default constructor for a given derived type
+template<typename t>
+t* NewEntity()
 {
-    auto& ents = entities->bases.all;
-    ents[id].flags |= EntityFlags_Destroyed;
+    if constexpr (std::is_same_v<t, Entity>)
+    {
+        return NewEntity();
+    }
+    else
+    {
+        auto base = NewEntity();
+        
+        Array<t>* array = GetArrayFromType<t>();
+        Append(array, {0});
+        
+        t* derived = array->ptr + array->len - 1;
+        derived->base = base;
+        base->derivedKind = GetEntityKindFromType<t>();
+        base->derivedId = array->len - 1;
+        return derived;
+    }
+}
+
+void DestroyEntity(Entity* entity)
+{
+    if(!entity) return;
+    
+    entity->flags |= EntityFlags_Destroyed;
     
     // We increase the generation so that all
     // references to this are now invalid
-    ++ents[id].gen;
+    ++entity->gen;
     
-    // Notify the derived array as well of the destruction
-    switch(ents[id].derivedKind)
-    {
-        case Entity_None: break;
-        case Entity_Camera: Append(&entities->cameras.free, ents[id].derivedId); break;
-        case Entity_Player: Append(&entities->players.free, ents[id].derivedId); break;
-        case Entity_Count: break;
-    }
-    static_assert(3 == Entity_Count, "Update the switch statement to include all derived types");
-    
-    // Append the index to the curresponding "free slots" array
-    Append(&entities->bases.free, id);
+    Append(&entities.freeBases, GetKey(entity).id);
 }
 
-u32 LookupEntity(Entities* entities, EntityKey key)
+void CommitDestroy(Entities* entities)
 {
-    if(key.id == NullId) return NullId;
-    
-    Entity& entity = entities->bases.all[key.id];
-    if(entity.gen != key.gen)
-        return 0;
-    
-    return key.id;
+    // TODO: stuff missing here
 }
 
-u32 LookupEntity(Entities* entities, EntityKey key, EntityKind kind)
+// Entity iteration
+Entity* FirstLive()
 {
-    if(key.id == NullId) return NullId;
+    u32 id = 0;
+    while(id < entities.bases.len && (entities.bases[id].flags & EntityFlags_Destroyed))
+        ++id;
     
-    Entity& entity = entities->bases.all[key.id];
-    if(entity.gen != key.gen || entity.derivedKind != kind)
-        return 0;
+    if(id >= entities.bases.len) return nullptr;
     
-    return key.id;
+    return &entities.bases[id];
 }
 
-void MountEntity(Entities* entities, u32 mounted, u32 mountTo)
+Entity* NextLive(Entity* current)
 {
-    assert(mounted > entities->bases.all.len && mountTo > entities->bases.all.len);
+    if(!current) return nullptr;
     
-    Entity& mountedEnt = entities->bases.all[mounted];
-    Entity& mountToEnt = entities->bases.all[mountTo];
-    mountedEnt.mount.id  = mountTo;
-    mountedEnt.mount.gen = mountToEnt.gen;
+    u32 id = GetKey(current).id + 1;
+    while(id < entities.bases.len && (entities.bases[id].flags & EntityFlags_Destroyed))
+        ++id;
+    
+    if(id >= entities.bases.len) return nullptr;
+    
+    return &entities.bases[id];
 }
 
-Mat4 ComputeWorldTransform(Entities* entities, u32 id)
+template<typename t>
+t* FirstDerivedLive()
 {
-    if(id == 0) return Mat4::identity;
+    u32 id = 0;
+    Array<t>* array = GetArrayFromType<t>();
+    while(id < array->len && ((*array)[id].base->flags & EntityFlags_Destroyed))
+        ++id;
     
-    auto& ents = entities->bases.all;
-    Mat4 transform = Mat4FromPosRotScale(ents[id].pos, ents[id].rot, ents[id].scale);
-    u32 mount = LookupEntity(entities, ents[id].mount);
-    transform = ComputeWorldTransform(entities, mount) * transform;
-    return transform;
+    if(id >= array->len) return nullptr;
+    
+    return array->ptr + id;
+}
+
+template<typename t>
+t* NextDerivedLive(t* current)
+{
+    u32 id = GetKey(current->base).id + 1;
+    Array<t>* array = GetArrayFromType<t>();
+    while(id < array->len && ((*array)[id].base->flags & EntityFlags_Destroyed))
+        ++id;
+    
+    if(id >= array->len) return nullptr;
+    
+    return array->ptr + id;
 }
 
 void UpdateMainCamera(Camera* camera, float deltaTime)
 {
-    return;
-    
+#if 1
     Input input = GetInput();
     
     // Camera rotation
@@ -342,6 +416,7 @@ void UpdateMainCamera(Camera* camera, float deltaTime)
     
     curVel = ApproachLinear(curVel, targetVel, moveAccel * deltaTime);
     camera->base->pos += curVel * deltaTime;
+#endif
 }
 
 void UpdatePlayer(Player* player, float deltaTime)

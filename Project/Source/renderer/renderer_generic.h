@@ -53,7 +53,11 @@ R_Shader  R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, Stri
 R_Program R_LinkShaders(Slice<R_Shader> shaders);
 
 void R_Init();
-void R_BeginPass(Camera* entities);
+void R_BeginPass(Camera* camera);
 void R_DrawModelNoReload(Model* model, Mat4 transform);
 void R_DrawModel(Model* model, Mat4 transform);
 void R_Cleanup();
+
+// Libraries
+void R_RenderDearImgui();
+void R_ShutdownDearImgui();

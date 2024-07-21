@@ -3,16 +3,31 @@
 #include "os/os_generic.h"
 #include "core.h"
 #include "renderer/renderer_generic.h"
-#include "ui_core.h"
 
 void SetWorkingDirToAssets();
 
 int main()
 {
-    OS_Init();
+    OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
     
     SetWorkingDirToAssets();
+    
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    defer
+    {
+        OS_DearImguiShutdown();
+        R_ShutdownDearImgui();
+        ImGui::DestroyContext();
+    };
+    
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    
+    ImGui::StyleColorsDark();
+    
+    OS_InitDearImgui();
     
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
@@ -20,10 +35,8 @@ int main()
     R_Init();
     defer { R_Cleanup(); };
     
-    Entities entities = InitEntities();
-    defer { FreeEntities(&entities); };
-    
-    UI_Init();
+    Entities* entities = InitEntities();
+    defer { FreeEntities(entities); };
     
     OS_ShowWindow();
     
@@ -49,7 +62,7 @@ int main()
             OS_SwapBuffers();
         }
         
-        MainUpdate(&entities, deltaTime, &permArena, &frameArena);
+        MainUpdate(entities, deltaTime, &permArena, &frameArena);
         
         firstIter = false;
     }

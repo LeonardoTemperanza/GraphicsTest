@@ -116,7 +116,7 @@ struct OS_InputState
 };
 
 // Application management
-void OS_Init();
+void OS_Init(const char* windowName);
 void OS_ShowWindow();
 void OS_GetWindowSize(int* width, int* height);
 void OS_GetClientAreaSize(int* width, int* height);
@@ -138,3 +138,6 @@ void OS_FixCursor(bool fix);  // The mouse delta should still be provided even a
 void OS_FatalError(const char* message);
 uint64_t OS_GetTicks();
 double OS_GetElapsedSeconds(uint64_t startTicks, uint64_t endTicks);
+
+// Libraries
+void OS_InitDearImgui();

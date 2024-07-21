@@ -29,6 +29,13 @@
 
 #include <cmath>
 
+#define IMGUI_DEFINE_MATH_OPERATORS
+#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_win32.h"
+
+#include "imgui/backends/imgui_impl_opengl3.h"
+
 struct Win32_Message
 {
     UINT kind;
@@ -235,16 +242,19 @@ static bool Win32_LoadXInput()
 static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
                                          GLsizei length, const GLchar* message, const void* user)
 {
-    OS_DebugMessage(message);
-    OS_DebugMessage("\n");
-    
-    if(type == GL_DEBUG_TYPE_ERROR && severity == GL_DEBUG_SEVERITY_HIGH)
+    if(type == GL_DEBUG_TYPE_ERROR || type == GL_DEBUG_TYPE_PERFORMANCE)
     {
-        if(OS_IsDebuggerPresent())
+        OS_DebugMessage(message);
+        OS_DebugMessage("\n");
+        
+        if(type == GL_DEBUG_TYPE_ERROR)
         {
-            assert(!"OpenGL error - check the callstack in debugger");
+            if(OS_IsDebuggerPresent())
+            {
+                assert(!"OpenGL error - check the callstack in debugger");
+            }
+            OS_FatalError("OpenGL API usage error! Use debugger to examine call stack!");
         }
-        OS_FatalError("OpenGL API usage error! Use debugger to examine call stack!");
     }
 }
 #endif
@@ -300,6 +310,9 @@ void Win32_PollRawInputMouseDelta(int* x, int* y)
     }
 }
 
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 // NOTE: Window callback function. Since Microsoft wants programs to get stuck
 // inside this function at all costs, a weird hack is being used to "break free"
 // of this function. Using a fiber I go back to regular code execution during
@@ -312,6 +325,9 @@ void Win32_PollRawInputMouseDelta(int* x, int* y)
 // stuff while in the modal loop. (using a separate thread also has issues)
 LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    if(ImGui_ImplWin32_WndProcHandler(window, message, wParam, lParam))
+        return true;
+    
     struct DeferMessage
     {
         bool active;  // If this is true it means that we have a message saved.
@@ -490,6 +506,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         
         case WM_SETCURSOR:
         {
+            /*
             static HCURSOR arrowCursor = LoadCursor(NULL, IDC_ARROW);
             
             // Handle cursor update when hovering over the client area
@@ -498,6 +515,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
                 SetCursor(win32.curCursor);
                 return 1;
             }
+            */
             
             break;
         }
@@ -825,7 +843,7 @@ void Win32_RegisterRawInputDevices(HWND window)
     RegisterRawInputDevices(Rid, ArrayCount(Rid), sizeof(Rid[0]));
 }
 
-void OS_Init()
+void OS_Init(const char* windowName)
 {
     win32.init = true;
     
@@ -843,7 +861,7 @@ void OS_Init()
         win32.qpcFreq = freq.QuadPart;
     }
     
-    const char* className = "Opengl Test";
+    const char* className = windowName;
     WNDCLASS wc = {0};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
@@ -851,13 +869,13 @@ void OS_Init()
     wc.lpszClassName = className;
     RegisterClass(&wc);
     
-    win32.window = CreateWindowEx(0, className, "Opengl Test",                                 // Opt styles, class name and wnd name
+    win32.window = CreateWindowEx(0, className, windowName,                                    // Opt styles, class name and wnd name
                                   WS_OVERLAPPEDWINDOW,                                         // Window style
                                   CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,  // Size and position
-                                  nullptr,                                                        // Parent window
-                                  nullptr,                                                        // Menu
+                                  nullptr,                                                     // Parent window
+                                  nullptr,                                                     // Menu
                                   hInst,
-                                  nullptr                                                        // Additional app data
+                                  nullptr                                                      // Additional app data
                                   );
     
     assert(win32.window && "Could not create main window.");
@@ -1235,4 +1253,37 @@ double OS_GetElapsedSeconds(uint64_t startTicks, uint64_t endTicks)
     LARGE_INTEGER elapsedMicros;
     elapsedMicros.QuadPart = endTicks - startTicks;
     return elapsedMicros.QuadPart / (double)win32.qpcFreq;
+}
+
+void OS_InitDearImgui()
+{
+    assert(win32.init);
+    
+    if(win32.usedGfxLib == GfxLib_OpenGL)
+    {
+        ImGui_ImplWin32_InitForOpenGL(win32.window);
+        ImGui_ImplOpenGL3_Init();
+    }
+    else
+        assert(false && "DearImgui initialization is not supported for this graphics API");
+}
+
+void OS_DearImguiBeginFrame()
+{
+    assert(win32.init);
+    
+    if(win32.usedGfxLib == GfxLib_OpenGL)
+    {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+    }
+    else
+        assert(false && "This is not supported for this graphics API");
+}
+
+void OS_DearImguiShutdown()
+{
+    assert(win32.init);
+    ImGui_ImplWin32_Shutdown();
 }

@@ -6,7 +6,7 @@ if not exist ..\Build mkdir ..\Build
 
 pushd ..\Build
 
-set include_dirs=/I..\Source /I..\Source\include
+set include_dirs=/I..\Source /I..\Source\include /I..\Source\imgui
 set lib_dirs=/LIBPATH:..\Libs
 
 REM Use utility programs

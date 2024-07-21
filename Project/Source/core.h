@@ -18,16 +18,24 @@ enum EntityKind
     Entity_None = 0,
     Entity_Camera,
     Entity_Player,
+    Entity_PointLight,
+    
     Entity_Count
 };
 
 struct EntityKey
 {
-    u16 id;
-    u16 gen;
+    u32 id;
+    u32 gen;
 };
 
-#define NullId 0
+template<typename t>
+struct DerivedKey
+{
+    u16 id;
+    u32 gen;
+};
+
 struct Entity
 {
     // These are local with respect to the mounted entity
@@ -36,10 +44,10 @@ struct Entity
     Vec3 scale;
     
     u16 flags;
-    u16 gen;
+    u32 gen;
     
     // We have the option to get the derived
-    // entity, though it's a bit harder
+    // entity, though it's a bit harder than the other way around
     u8 derivedKind;
     u16 derivedId;  // Index in the corresponding array
     
@@ -74,68 +82,72 @@ struct PointLight
     Vec3 offset;
 };
 
-// NOTE: Arenas are used all entity arrays here, which
-// ensures pointer stability
-
-template<typename t>
-struct DerivedArray
-{
-    Array<t>   all;
-    Array<u16> free;
-};
-
-struct BaseArray
-{
-    Array<Entity> all;
-    Array<u32> free;
-};
-
-template<typename t>
-void Free(DerivedArray<t>* array);
-void Free(BaseArray* array);
-
 struct Entities
 {
     EntityKey mainCamera;  // Used by the renderer
     
-    // NOTE: Arenas are used all entity arrays here, which
+    // NOTE: Arenas are used for all entity arrays here, which
     // ensures pointer stability
     
     // Info all entities have in common
-    BaseArray bases;
+    Array<Entity> bases;
+    Array<u32> freeBases;
     
     // Specific entity types
-    DerivedArray<Camera> cameras;
-    DerivedArray<Player> players;
+    // These don't need to be stable
+    // as keys refer to the base entity
+    // not the derived one. So no need
+    // for a free list/array
+    Array<Camera> cameras;
+    Array<Player> players;
+    Array<PointLight> pointLights;
 };
 
-// Main simulation
-Entities InitEntities();
+Entities* InitEntities();
 void FreeEntities(Entities* entities);
 void MainUpdate(Entities* entities, float deltaTime, Arena* permArena, Arena* frameArena);
 void UpdateEntities(Entities* entities, float deltaTime);
 void UpdateUI();
 void RenderEntities(Entities* entities, float deltaTime);
 
-// Entity manipulation
-u32 NewEntity(Entities* entities);
+// Entity manipulation.
+// All functions returning entity pointers can return null
 template<typename t>
-u16 NewDerived(Entities* entities, DerivedArray<t>* derived);
-
-// Does not remove anything and can safely be used
-// while iterating over the arrays.
-// Can be used with any BaseArray/DerivedArray
+EntityKind GetEntityKindFromType();
 template<typename t>
-void DestroyEntity(t entityArray, u32 id);
-u32  LookupEntity(Entities* entities, EntityKey key);
-u32  LookupEntity(Entities* entities, EntityKey key, EntityKind kind);
-void MountEntity(Entities* entities, u32 mounted, u32 mountTo);
-Mat4 ComputeWorldTransform(Entities* entities, u32 id);
-void ComputeWorldTransform(Entities* entities, u32 id, Vec3* pos, Quat* rot, Vec3* scale);
+Array<t>* GetArrayFromType();
 
-// TODO: Entity iteration
+EntityKey NullKey();
+bool IsKeyNull(EntityKey key);
 
+Entity* GetEntity(EntityKey key);  // Will return null if the entity does not exist
+template<typename t>
+t* GetDerived(EntityKey key);
+template<typename t>
+t* GetDerived(DerivedKey<t> key);
+EntityKey GetKey(Entity* entity);
+Entity* GetMount(Entity* entity);
+void MountEntity(Entity* entity, Entity* mountTo);
+Mat4 ComputeWorldTransform(Entity* entity);
 
-// Gameplay code (update functions)
+Entity* NewEntity();
+template<typename t>
+t* NewEntity();
+
+void DestroyEntity(Entity* entity);
+void CommitDestroy(Entities* entities);
+
+// Entity iteration
+Entity* FirstLive();
+Entity* NextLive(Entity* current);
+template<typename t>
+t* FirstDerivedLive();
+template<typename t>
+t* NextDerivedLive(t* current);
+
+#define for_live_entities(name) for(Entity* name = FirstLive(); name; name = NextLive(name))
+#define for_live_derived(name, type) for(type* name = FirstDerivedLive<type>(); name; name = NextDerivedLive<type>(name))
+
+// Gameplay code
 void UpdateMainCamera(Camera* camera, float deltaTime);
 void UpdatePlayer(Player* player, float deltaTime);
