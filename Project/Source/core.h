@@ -13,7 +13,7 @@ enum EntityFlags
     EntityFlags_Transparent = 1 << 2
 };
 
-enum EntityKind
+enum EntityKind: u8
 {
     Entity_None = 0,
     Entity_Camera,
@@ -48,7 +48,7 @@ struct Entity
     
     // We have the option to get the derived
     // entity, though it's a bit harder than the other way around
-    u8 derivedKind;
+    EntityKind derivedKind;
     u16 derivedId;  // Index in the corresponding array
     
     Model* model;  // Can be nullptr for entities with no model
@@ -103,11 +103,12 @@ struct Entities
     Array<PointLight> pointLights;
 };
 
+struct UIState;
+
 Entities* InitEntities();
 void FreeEntities(Entities* entities);
-void MainUpdate(Entities* entities, float deltaTime, Arena* permArena, Arena* frameArena);
+void MainUpdate(Entities* entities, UIState* ui, float deltaTime, Arena* permArena, Arena* frameArena);
 void UpdateEntities(Entities* entities, float deltaTime);
-void UpdateUI();
 void RenderEntities(Entities* entities, float deltaTime);
 
 // Entity manipulation.
@@ -126,6 +127,9 @@ t* GetDerived(EntityKey key);
 template<typename t>
 t* GetDerived(DerivedKey<t> key);
 EntityKey GetKey(Entity* entity);
+u32 GetId(Entity* entity);
+template<typename t>
+DerivedKey<t> GetDerivedKey(t* derived);
 Entity* GetMount(Entity* entity);
 void MountEntity(Entity* entity, Entity* mountTo);
 Mat4 ComputeWorldTransform(Entity* entity);
@@ -148,6 +152,28 @@ t* NextDerivedLive(t* current);
 #define for_live_entities(name) for(Entity* name = FirstLive(); name; name = NextLive(name))
 #define for_live_derived(name, type) for(type* name = FirstDerivedLive<type>(); name; name = NextDerivedLive<type>(name))
 
+// Utilities
+Camera* GetMainCamera();
+Slice<Slice<Entity*>> ComputeAllChildrenForEachEntity(Arena* dst);
+
 // Gameplay code
 void UpdateMainCamera(Camera* camera, float deltaTime);
 void UpdatePlayer(Player* player, float deltaTime);
+
+// Editor stuff
+struct UIState
+{
+    // Open windows
+    bool entityListWindowOpen;
+    bool propertyWindowOpen;
+    bool metricsWindowOpen;
+    bool consoleOpen;
+    
+    Array<u32> selected;
+};
+
+UIState InitUI();
+void UpdateUI(UIState* ui);
+void ShowMainMenuBar(UIState* ui);
+void ShowEntityList(UIState* ui);
+void ShowEntityChildren(UIState* ui, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity);

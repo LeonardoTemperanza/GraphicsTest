@@ -43,7 +43,7 @@ UI_Box* UI_MakeBox(UI_BoxFlags flags, String string)
     }
     
     // Look for persistent data in the previous frame's hash
-    for(UI_Box* cur = ui.prevHash[box->key]; cur; cur->hashNext)
+    for(UI_Box* cur = ui.prevHash[(int)box->key]; cur; cur->hashNext)
     {
         if(cur->string == box->string)  // Found previous frame's box
         {
@@ -125,7 +125,7 @@ UI_Signal UI_SignalFromBox(UI_Box* box)
 {
     // Look for a box with the same key in the hash
     UI_Box* found = nullptr;
-    for(UI_Box* cur = ui.prevHash[box->key]; cur; cur = cur->hashNext)
+    for(UI_Box* cur = ui.prevHash[(int)box->key]; cur; cur = cur->hashNext)
     {
         if(cur->string == box->string)
         {

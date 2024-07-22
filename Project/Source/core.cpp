@@ -52,6 +52,25 @@ Entities* InitEntities()
     auto player = NewEntity<Player>();
     player->base->model = raptoidModel;
     auto pointLight = NewEntity<PointLight>();
+    
+    float pos = 0.0f;
+    
+    Entity* e[1000];
+    for(int i = 0; i < 10; ++i)
+    {
+        e[i] = NewEntity();
+        e[i]->model = raptoidModel;
+        e[i]->pos.x = pos;
+        pos += 3.0f;
+    }
+    
+    e[4]->pos.x = 2.0f;
+    MountEntity(e[4], e[3]);
+    e[5]->pos.x = 2.0f;
+    MountEntity(e[5], e[4]);
+    e[6]->pos.x = 2.0f;
+    MountEntity(e[6], e[5]);
+    
     return &res;
 }
 
@@ -64,13 +83,13 @@ void FreeEntities(Entities* entities)
     static_assert(4 == Entity_Count, "All entity type arrays should be freed");
 }
 
-void MainUpdate(Entities* entities, float deltaTime, Arena* permArena, Arena* frameArena)
+void MainUpdate(Entities* entities, UIState* ui, float deltaTime, Arena* permArena, Arena* frameArena)
 {
     OS_DearImguiBeginFrame();
     
     PollAndProcessInput();
     
-    UpdateUI();
+    UpdateUI(ui);
     
     // Test entity destruction
     static float time = 0.0f;
@@ -113,21 +132,14 @@ void UpdateEntities(Entities* entities, float deltaTime)
         UpdatePlayer(p, deltaTime);
     }
     
-    Camera* mainCamera = GetDerived<Camera>(entities->mainCamera);
+    Camera* mainCamera = GetMainCamera();
     if(mainCamera)
         UpdateMainCamera(mainCamera, deltaTime);
 }
 
-void UpdateUI()
-{
-    static bool open = true;
-    if(open)
-        ImGui::ShowDemoWindow(&open);
-}
-
 void RenderEntities(Entities* entities, float deltaTime)
 {
-    Camera* camera = GetDerived<Camera>(entities->mainCamera);
+    Camera* camera = GetMainCamera();
     if(!camera) return;
     
     R_BeginPass(camera);
@@ -214,9 +226,17 @@ EntityKey GetKey(Entity* entity)
 {
     if(!entity) return NullKey();
     
-    u32 id = entity - entities.bases.ptr;
+    u32 id = (u32)(entity - entities.bases.ptr);
     u16 gen = entity->gen;
     return {id, gen};
+}
+
+u32 GetId(Entity* entity)
+{
+    if(!entity) return (u32)-1;
+    
+    u32 id = (u32)(entity - entities.bases.ptr);
+    return id;
 }
 
 Entity* GetMount(Entity* entity)
@@ -310,10 +330,10 @@ void CommitDestroy(Entities* entities)
 Entity* FirstLive()
 {
     u32 id = 0;
-    while(id < entities.bases.len && (entities.bases[id].flags & EntityFlags_Destroyed))
+    while(id < (u32)entities.bases.len && (entities.bases[id].flags & EntityFlags_Destroyed))
         ++id;
     
-    if(id >= entities.bases.len) return nullptr;
+    if(id >= (u32)entities.bases.len) return nullptr;
     
     return &entities.bases[id];
 }
@@ -323,10 +343,10 @@ Entity* NextLive(Entity* current)
     if(!current) return nullptr;
     
     u32 id = GetKey(current).id + 1;
-    while(id < entities.bases.len && (entities.bases[id].flags & EntityFlags_Destroyed))
+    while(id < (u32)entities.bases.len && (entities.bases[id].flags & EntityFlags_Destroyed))
         ++id;
     
-    if(id >= entities.bases.len) return nullptr;
+    if(id >= (u32)entities.bases.len) return nullptr;
     
     return &entities.bases[id];
 }
@@ -336,10 +356,10 @@ t* FirstDerivedLive()
 {
     u32 id = 0;
     Array<t>* array = GetArrayFromType<t>();
-    while(id < array->len && ((*array)[id].base->flags & EntityFlags_Destroyed))
+    while(id < (u32)array->len && ((*array)[id].base->flags & EntityFlags_Destroyed))
         ++id;
     
-    if(id >= array->len) return nullptr;
+    if(id >= (u32)array->len) return nullptr;
     
     return array->ptr + id;
 }
@@ -349,12 +369,47 @@ t* NextDerivedLive(t* current)
 {
     u32 id = GetKey(current->base).id + 1;
     Array<t>* array = GetArrayFromType<t>();
-    while(id < array->len && ((*array)[id].base->flags & EntityFlags_Destroyed))
+    while(id < (u32)array->len && ((*array)[id].base->flags & EntityFlags_Destroyed))
         ++id;
     
-    if(id >= array->len) return nullptr;
+    if(id >= (u32)array->len) return nullptr;
     
     return array->ptr + id;
+}
+
+Camera* GetMainCamera()
+{
+    return GetDerived<Camera>(entities.mainCamera);
+}
+
+Slice<Slice<Entity*>> ComputeAllChildrenForEachEntity(Arena* dst)
+{
+    auto resPtr = ArenaZAllocArray(Slice<Entity*>, entities.bases.len, dst);
+    Slice<Slice<Entity*>> res = {.ptr = resPtr, .len = entities.bases.len };
+    
+    ScratchArena scratch;
+    auto ptr = ArenaZAllocArray(Array<Entity*>, entities.bases.len, dst);
+    Slice<Array<Entity*>> childrenPerEntity = {.ptr = ptr, .len = entities.bases.len };
+    defer
+    {
+        for(int i = 0; i < childrenPerEntity.len; ++i)
+            Free(&childrenPerEntity[i]);
+    };
+    
+    for(int i = 0; i < entities.bases.len; ++i)
+    {
+        Entity* e = &entities.bases[i];
+        Entity* mount = GetMount(e);
+        if(mount)
+        {
+            u32 id = GetId(mount);
+            Append(&childrenPerEntity[id], e);
+        }
+    }
+    
+    for(int i = 0; i < childrenPerEntity.len; ++i)
+        res[i] = CopyToArena(&childrenPerEntity[i], dst);
+    return res;
 }
 
 void UpdateMainCamera(Camera* camera, float deltaTime)
@@ -365,7 +420,7 @@ void UpdateMainCamera(Camera* camera, float deltaTime)
     // Camera rotation
     const float rotateXSpeed = Deg2Rad(120);
     const float rotateYSpeed = Deg2Rad(80);
-    const float mouseSensitivity = Deg2Rad(0.08);  // Degrees per pixel
+    const float mouseSensitivity = Deg2Rad(0.08f);  // Degrees per pixel
     static float angleX = 0.0f;
     static float angleY = 0.0f;
     
@@ -396,8 +451,8 @@ void UpdateMainCamera(Camera* camera, float deltaTime)
     float keyboardY = 0.0f;
     if(input.virtualKeys[Keycode_RMouse])
     {
-        keyboardX = input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A];
-        keyboardY = input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S];
+        keyboardX = (float)(input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A]);
+        keyboardY = (float)(input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S]);
     }
     
     Vec3 targetVel =
@@ -431,8 +486,8 @@ void UpdatePlayer(Player* player, float deltaTime)
     float keyboardY = 0.0f;
     if(input.virtualKeys[Keycode_RMouse])
     {
-        keyboardX = input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A];
-        keyboardY = input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S];
+        keyboardX = (float)(input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A]);
+        keyboardY = (float)(input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S]);
     }
     
     Vec3 targetVel =
@@ -450,4 +505,264 @@ void UpdatePlayer(Player* player, float deltaTime)
     
     curVel = ApproachLinear(curVel, targetVel, moveAccel * deltaTime);
     player->base->pos += curVel * deltaTime;
+}
+
+UIState InitUI()
+{
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    
+    // Setup behavior flags
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    
+    float dpi = OS_GetDPIScale();
+    
+    // Setup style
+    {
+        ImVec4* colors = ImGui::GetStyle().Colors;
+        colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+        colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+        colors[ImGuiCol_WindowBg]               = ImVec4(0.10f, 0.10f, 0.10f, 0.96f);
+        colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+        colors[ImGuiCol_PopupBg]                = ImVec4(0.19f, 0.19f, 0.19f, 0.92f);
+        colors[ImGuiCol_Border]                 = ImVec4(0.19f, 0.19f, 0.19f, 0.29f);
+        colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.24f);
+        colors[ImGuiCol_FrameBg]                = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+        colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
+        colors[ImGuiCol_FrameBgActive]          = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+        colors[ImGuiCol_TitleBg]                = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_TitleBgActive]          = ImVec4(0.06f, 0.06f, 0.06f, 1.00f);
+        colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_MenuBarBg]              = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+        colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+        colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
+        colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.40f, 0.40f, 0.40f, 0.54f);
+        colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
+        colors[ImGuiCol_CheckMark]              = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+        colors[ImGuiCol_SliderGrab]             = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
+        colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
+        colors[ImGuiCol_Button]                 = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+        colors[ImGuiCol_ButtonHovered]          = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
+        colors[ImGuiCol_ButtonActive]           = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+        colors[ImGuiCol_Header]                 = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+        colors[ImGuiCol_HeaderHovered]          = ImVec4(0.00f, 0.00f, 0.00f, 0.36f);
+        colors[ImGuiCol_HeaderActive]           = ImVec4(0.20f, 0.22f, 0.23f, 0.33f);
+        colors[ImGuiCol_Separator]              = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+        colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
+        colors[ImGuiCol_SeparatorActive]        = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
+        colors[ImGuiCol_ResizeGrip]             = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+        colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
+        colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
+        colors[ImGuiCol_Tab]                    = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+        colors[ImGuiCol_TabHovered]             = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+        colors[ImGuiCol_TabActive]              = ImVec4(0.20f, 0.20f, 0.20f, 0.36f);
+        colors[ImGuiCol_TabUnfocused]           = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+        colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+        colors[ImGuiCol_PlotLines]              = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_PlotHistogram]          = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_TableHeaderBg]          = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+        colors[ImGuiCol_TableBorderStrong]      = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+        colors[ImGuiCol_TableBorderLight]       = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+        colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+        colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+        colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+        colors[ImGuiCol_DragDropTarget]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+        colors[ImGuiCol_NavHighlight]           = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 0.00f, 0.00f, 0.70f);
+        colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(1.00f, 0.00f, 0.00f, 0.20f);
+        colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(1.00f, 0.00f, 0.00f, 0.35f);
+        colors[ImGuiCol_DockingPreview]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+        colors[ImGuiCol_DockingEmptyBg]         = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+        
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.WindowPadding                     = ImVec2(8.00f, 8.00f);
+        style.FramePadding                      = ImVec2(5.00f, 4.00f);
+        style.CellPadding                       = ImVec2(6.50f, 6.50f);
+        style.ItemSpacing                       = ImVec2(6.00f, 6.00f);
+        style.ItemInnerSpacing                  = ImVec2(6.00f, 6.00f);
+        style.TouchExtraPadding                 = ImVec2(0.00f, 0.00f);
+        style.IndentSpacing                     = 25;
+        style.ScrollbarSize                     = 15;
+        style.GrabMinSize                       = 10;
+        style.WindowBorderSize                  = 1;
+        style.ChildBorderSize                   = 1;
+        style.PopupBorderSize                   = 1;
+        style.FrameBorderSize                   = 1;
+        style.TabBorderSize                     = 1;
+        style.WindowRounding                    = 7;
+        style.ChildRounding                     = 4;
+        style.FrameRounding                     = 3;
+        style.PopupRounding                     = 4;
+        style.ScrollbarRounding                 = 9;
+        style.GrabRounding                      = 3;
+        style.LogSliderDeadzone                 = 4;
+        style.TabRounding                       = 4;
+        
+        style.ScaleAllSizes(dpi);
+    }
+    
+    // Setup font
+    {
+        ImFont* mainFont = io.Fonts->AddFontFromFileTTF("Roboto-Medium.ttf", 15.0f * dpi);
+    }
+    
+    // Setup UI State
+    UIState state = {0};
+    state.entityListWindowOpen = true;
+    state.propertyWindowOpen = true;
+    return state;
+}
+
+void UpdateUI(UIState* ui)
+{
+    ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
+    
+    ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, 0, flags);
+    
+    ShowMainMenuBar(ui);
+    
+    if(ui->entityListWindowOpen)
+    {
+        ShowEntityList(ui);
+    }
+    
+    if(ui->propertyWindowOpen)
+    {
+        ImGui::Begin("Properties");
+        defer { ImGui::End(); };
+        
+        ImGui::Text("Some introspection stuff here i guess");
+    }
+    
+    if(ui->metricsWindowOpen)
+    {
+        ImGui::ShowMetricsWindow(&ui->metricsWindowOpen);
+    }
+    
+    static bool open = true;
+    if(open)
+        ImGui::ShowDemoWindow(&open);
+}
+
+void ShowMainMenuBar(UIState* ui)
+{
+    if (ImGui::BeginMainMenuBar())
+    {
+        if(ImGui::BeginMenu("File"))
+        {
+            if(ImGui::MenuItem("New", "CTRL+N")) {}
+            
+            ImGui::EndMenu();
+        }
+        
+        if(ImGui::BeginMenu("Edit"))
+        {
+            if(ImGui::MenuItem("Undo", "CTRL+Z")) {}
+            if(ImGui::MenuItem("Redo", "CTRL+Y", false, false)) {}  // Disabled item
+            ImGui::Separator();
+            if(ImGui::MenuItem("Cut", "CTRL+X")) {}
+            if(ImGui::MenuItem("Copy", "CTRL+C")) {}
+            if(ImGui::MenuItem("Paste", "CTRL+V")) {}
+            ImGui::EndMenu();
+        }
+        
+        if(ImGui::BeginMenu("Window"))
+        {
+            if(ImGui::MenuItem("Entities", "", ui->entityListWindowOpen, true))
+                ui->entityListWindowOpen ^= true;
+            if(ImGui::MenuItem("Properties", "", ui->propertyWindowOpen, true))
+                ui->propertyWindowOpen ^= true;
+            if(ImGui::MenuItem("Metrics", "", ui->metricsWindowOpen, true))
+                ui->metricsWindowOpen ^= true;
+            
+            ImGui::EndMenu();
+        }
+        
+        ImGui::EndMainMenuBar();
+    }
+}
+
+void ShowEntityList(UIState* ui)
+{
+    ScratchArena scratch;
+    Slice<Slice<Entity*>> childrenPerEntity = ComputeAllChildrenForEachEntity(scratch);
+    
+    ImGui::Begin("Entities");
+    defer { ImGui::End(); };
+    
+    for_live_entities(e)
+    {
+        const char* kindStr = "";
+        switch(e->derivedKind)
+        {
+            case Entity_Count: break;
+            case Entity_None: kindStr = "Base"; break;
+            case Entity_Player: kindStr = "Player"; break;
+            case Entity_Camera: kindStr = "Camera"; break;
+            case Entity_PointLight: kindStr = "PointLight"; break;
+        }
+        
+        if(!GetMount(e))
+        {
+            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+            bool isLeaf = false;
+            if(childrenPerEntity[GetId(e)].len == 0)
+            {
+                flags |= ImGuiTreeNodeFlags_Leaf;
+                isLeaf = true;
+            }
+            
+            ImGui::PushID(GetId(e));
+            bool pushed = ImGui::TreeNodeEx(kindStr, flags);
+            ImGui::PopID();
+            
+            if(pushed)
+            {
+                defer { ImGui::TreePop(); };
+                ShowEntityChildren(ui, e, childrenPerEntity);
+            }
+        }
+    }
+}
+
+void ShowEntityChildren(UIState* ui, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity)
+{
+    Slice<Entity*> children = childrenPerEntity[GetId(entity)];
+    for(int i = 0; i < children.len; ++i)
+    {
+        Entity* e = children[i];
+        
+        const char* kindStr = "";
+        switch(e->derivedKind)
+        {
+            case Entity_Count: break;
+            case Entity_None: kindStr = "Base"; break;
+            case Entity_Player: kindStr = "Player"; break;
+            case Entity_Camera: kindStr = "Camera"; break;
+            case Entity_PointLight: kindStr = "PointLight"; break;
+        }
+        
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+        bool isLeaf = false;
+        if(childrenPerEntity[GetId(e)].len == 0)
+        {
+            flags |= ImGuiTreeNodeFlags_Leaf;
+            isLeaf = true;
+        }
+        
+        u32 id = GetId(e);
+        ImGui::PushID(id);
+        bool pushed = ImGui::TreeNodeEx(kindStr, flags);
+        //if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+        //node_clicked = i;
+        ImGui::PopID();
+        
+        if(pushed)
+        {
+            defer { ImGui::TreePop(); };
+            ShowEntityChildren(ui, e, childrenPerEntity);
+        }
+    }
 }

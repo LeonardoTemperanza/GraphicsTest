@@ -727,16 +727,16 @@ inline void UseArena(StringBuilder* builder, Arena* arena)
 
 inline void Append(StringBuilder* builder, const char* str)
 {
-    int len = strlen(str);
+    int64_t len = (int64_t)strlen(str);
     String lenStr = {.ptr=str, .len=len};
     Append(builder, lenStr);
 }
 
 void Append(StringBuilder* builder, String str)
 {
-    int oldLen = builder->str.len;
-    int newLen = oldLen + str.len;
-    int oldCapacity = builder->str.capacity;
+    int32_t oldLen = builder->str.len;
+    int32_t newLen = oldLen + (int32_t)str.len;
+    int32_t oldCapacity = builder->str.capacity;
     
     if(newLen > builder->str.capacity)
         builder->str.capacity = NextPowerOf2(max(oldCapacity + 1, newLen) + 1);
@@ -789,9 +789,9 @@ void AppendFmt(StringBuilder* builder, const char* fmt, ...)
 template<typename t>
 void Put(StringBuilder* builder, t val)
 {
-    int offset = AlignForward((uintptr_t)(builder->str.ptr + builder->str.len), alignof(t)) - (uintptr_t)(void*)builder->str.ptr;
+    uintptr_t offset = AlignForward((uintptr_t)(builder->str.ptr + builder->str.len), alignof(t)) - (uintptr_t)(void*)builder->str.ptr;
     int oldLen = builder->str.len;
-    int newLen = offset + sizeof(val);
+    int newLen = (int)offset + sizeof(val);
     int oldCapacity = builder->str.capacity;
     
     // TODO Duplicated code here
@@ -810,7 +810,7 @@ void Put(StringBuilder* builder, t val)
     
     // Write the value in the address
     memset(&builder->str[oldLen], 0, newLen-oldLen);
-    t* addr = (t*)&builder->str[offset];
+    t* addr = (t*)&builder->str[(int)offset];
     *addr = val;
 }
 
@@ -1093,7 +1093,7 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy, size_t size, size_t align)
 
 char* ArenaPushNullTermString(Arena* arena, const char* str)
 {
-    int len = strlen(str);
+    int len = (int)strlen(str);
     char* ptr = (char*)ArenaAlloc(arena, len+1, 1);
     ptr[len] = '\0';
     memcpy(ptr, str, len);
@@ -1124,7 +1124,7 @@ char* ArenaPushNullTermString(Arena* arena, String str)
 
 char* ArenaPushString(Arena* arena, const char* str)
 {
-    int len = strlen(str);
+    int len = (int)strlen(str);
     char* ptr = (char*)ArenaAlloc(arena, len, 1);
     memcpy(ptr, str, len);
     return ptr;
@@ -1320,7 +1320,7 @@ char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst)
 
 String GetPathExtension(const char* path)
 {
-    int len = strlen(path);
+    int len = (int)strlen(path);
     int lastDotIdx = len-1;
     for(int i = len-1; i >= 0; --i)
     {
@@ -1336,7 +1336,7 @@ String GetPathExtension(const char* path)
 
 String GetPathNoExtension(const char* path)
 {
-    int len = strlen(path);
+    int len = (int)strlen(path);
     int lastDotIdx = len;
     for(int i = len-1; i >= 0; --i)
     {

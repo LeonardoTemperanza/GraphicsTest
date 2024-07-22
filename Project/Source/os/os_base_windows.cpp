@@ -61,7 +61,7 @@ void OS_DebugMessageFmt(const char* fmt, ...)
 
 void OS_Sleep(uint64_t millis)
 {
-    Sleep(millis);
+    Sleep((DWORD)millis);
 }
 
 char* OS_GetExecutablePath()

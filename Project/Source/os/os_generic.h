@@ -138,6 +138,7 @@ void OS_FixCursor(bool fix);  // The mouse delta should still be provided even a
 void OS_FatalError(const char* message);
 uint64_t OS_GetTicks();
 double OS_GetElapsedSeconds(uint64_t startTicks, uint64_t endTicks);
+float OS_GetDPIScale();
 
 // Libraries
 void OS_InitDearImgui();

@@ -129,7 +129,7 @@ void R_DrawModelNoReload(Model* model, Mat4 transform)
         // shaderProgram should be a material's property
         glUseProgram(model->program);
         glBindVertexArray(mesh.handle);
-        glDrawElements(GL_TRIANGLES, mesh.indices.len, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, (GLsizei)mesh.indices.len, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 }
@@ -213,7 +213,7 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
 R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl)
 {
     GLuint shader = glCreateShader(Opengl_ShaderKind(kind));
-    GLint glslLen = glsl.len;
+    GLint glslLen = (GLint)glsl.len;
     glShaderSource(shader, 1, &glsl.ptr, &glslLen);
     glCompileShader(shader);
     

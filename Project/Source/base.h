@@ -55,7 +55,8 @@ inline u64 Murmur64(void const* data, s64 len) { return Murmur64Seed(data, len, 
 
 ////
 // Simple math functions
-#define Pi 3.14159265358979323846
+#define Pi 3.14159265358979323846f
+#define DoublePi 3.14159265358979323846
 
 inline float sqr(float f)
 {
@@ -107,6 +108,18 @@ inline bool IsPowerOf2(uint64_t n)
 }
 
 inline uint32_t NextPowerOf2(uint32_t n)
+{
+    --n;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    ++n;
+    return n;
+}
+
+inline int32_t NextPowerOf2(int32_t n)
 {
     --n;
     n |= n >> 1;

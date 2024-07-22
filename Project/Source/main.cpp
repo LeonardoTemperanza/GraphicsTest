@@ -22,12 +22,8 @@ int main()
         ImGui::DestroyContext();
     };
     
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    
-    ImGui::StyleColorsDark();
-    
     OS_InitDearImgui();
+    UIState ui = InitUI();
     
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
@@ -46,23 +42,20 @@ int main()
     u64 endTicks    = 0;
     
     bool firstIter = true;
-    while(true)
+    while(bool proceed = OS_HandleWindowEvents())
     {
-        bool proceed = OS_HandleWindowEvents();
-        if(!proceed) break;
-        
         // In the first iteration, we simply want to render
         // the initialized state.
         if(!firstIter)
         {
             endTicks = OS_GetTicks();
-            deltaTime = min(maxDeltaTime, OS_GetElapsedSeconds(startTicks, endTicks));
+            deltaTime = min(maxDeltaTime, (float)OS_GetElapsedSeconds(startTicks, endTicks));
             startTicks = OS_GetTicks();
             
             OS_SwapBuffers();
         }
         
-        MainUpdate(entities, deltaTime, &permArena, &frameArena);
+        MainUpdate(entities, &ui, deltaTime, &permArena, &frameArena);
         
         firstIter = false;
     }
@@ -79,7 +72,7 @@ void SetWorkingDirToAssets()
     defer { free(exePath); };
     
     // Get rid of the .exe file itself in the path
-    int len = strlen(exePath);
+    int len = (int)strlen(exePath);
     int lastSeparator = len - 1;
     for(int i = len-1; i >= 0; --i)
     {

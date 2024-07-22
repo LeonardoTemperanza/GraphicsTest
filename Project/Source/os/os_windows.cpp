@@ -10,10 +10,14 @@
 #include "include/wglext.h"
 
 // D3D11 includes
+#pragma warning(push)  // These includes have tons of warnings so we're disabling them
+#pragma warning(disable : 4062)
+#pragma warning(disable : 4061)
 #include <d3d11.h>
 #include <dxgi1_3.h>
 #include <dxgidebug.h>
 #include <d3d11sdklayers.h>
+#pragma warning(pop)
 
 // Input
 #include <Xinput.h>
@@ -296,7 +300,7 @@ void Win32_PollRawInputMouseDelta(int* x, int* y)
     UINT num = GetRawInputBuffer(buf, &size, sizeof(RAWINPUTHEADER));
     assert(size <= oldSize && num <= sizeof(bufPtrs) / sizeof(RAWINPUT));
     
-    for(int i = 0; i < num; ++i)
+    for(UINT i = 0; i < num; ++i)
     {
         RAWINPUT* raw = &buf[i];
         if (raw->header.dwType == RIM_TYPEMOUSE)
@@ -343,9 +347,12 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
     
     switch(message)
     {
+        // This can be sent at any point apparently
+        // even if we're filtering this message
         case WM_DESTROY:
         {
             PostQuitMessage(0);
+            win32.quit = true;
             break;
         }
         
@@ -362,6 +369,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
             SetTimer(window, ModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
             break;
         }
+        
         
         case WM_EXITSIZEMOVE:
         {
@@ -572,43 +580,27 @@ void Win32_WindowEventsFiber(void* param)
     
     while(true)
     {
-        win32.quit = false;
         MSG msg = {0};
         
         // Window messages
-        while(PeekMessage(&msg, win32.window, 0, WM_INPUT-1, true))
+        while(PeekMessage(&msg, win32.window, 0, 0, true))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
         
-        memset(&msg, 0, sizeof(msg));
+        if(win32.quit) win32.window = nullptr;
         
-        while(PeekMessage(&msg, win32.window, WM_INPUT+1, (UINT)-1, true))
+        if(!win32.quit)
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        
-        memset(&msg, 0, sizeof(msg));
-        
-        // Thread messages
-        while(PeekMessage(&msg, nullptr, 0, WM_INPUT-1, true))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            memset(&msg, 0, sizeof(msg));
             
-            if(msg.message == WM_QUIT) win32.quit = true;
-        }
-        
-        memset(&msg, 0, sizeof(msg));
-        
-        while(PeekMessage(&msg, nullptr, WM_INPUT+1, (UINT)-1, true))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-            
-            if(msg.message == WM_QUIT) win32.quit = true;
+            // Thread messages
+            while(PeekMessage(&msg, nullptr, 0, 0, true))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
         }
         
         // Go back to application code
@@ -927,7 +919,8 @@ void OS_Init(const char* windowName)
 void OS_ShowWindow()
 {
     assert(win32.init);
-    ShowWindow(win32.window, SW_NORMAL);
+    if(win32.window)
+        ShowWindow(win32.window, SW_NORMAL);
 }
 
 void OS_GetWindowSize(int* width, int* height)
@@ -937,10 +930,17 @@ void OS_GetWindowSize(int* width, int* height)
     
     RECT winRect = {0};
     bool ok = GetWindowRect(win32.window, &winRect);
-    assert(ok);
     
-    *width  = winRect.right  - winRect.left;
-    *height = winRect.bottom - winRect.top;
+    if(ok)
+    {
+        *width  = winRect.right  - winRect.left;
+        *height = winRect.bottom - winRect.top;
+    }
+    else
+    {
+        *width = 0;
+        *height = 0;
+    }
 }
 
 void OS_GetClientAreaSize(int* width, int* height)
@@ -950,15 +950,23 @@ void OS_GetClientAreaSize(int* width, int* height)
     
     RECT winRect = {0};
     bool ok = GetClientRect(win32.window, &winRect);
-    assert(ok);
     
-    *width  = winRect.right  - winRect.left;
-    *height = winRect.bottom - winRect.top;
+    if(ok)
+    {
+        *width  = winRect.right  - winRect.left;
+        *height = winRect.bottom - winRect.top;
+    }
+    else
+    {
+        *width = 0;
+        *height = 0;
+    }
 }
 
 void OS_SwapBuffers()
 {
     assert(win32.init);
+    if(!win32.window) return;
     
     if(win32.usedGfxLib == GfxLib_OpenGL)
     {
@@ -980,8 +988,6 @@ void OS_SwapBuffers()
 void OS_Cleanup()
 {
     assert(win32.init);
-    ReleaseDC(win32.window, win32.windowDC);
-    DestroyWindow(win32.window);
     
     wglMakeCurrent(nullptr, nullptr);
     wglDeleteContext(wgl.glContext);
@@ -993,6 +999,8 @@ void OS_Cleanup()
 bool OS_HandleWindowEvents()
 {
     assert(win32.init);
+    
+    if(win32.quit) return false;
     
     // The events fiber should set quit here
     SwitchToFiber(win32.eventsFiber);
@@ -1022,12 +1030,16 @@ VirtualKeycode Win32_ConvertToCustomKeyCodes(WPARAM code)
 
 void Win32_HandleWindowMessageRange(UINT min, UINT max)
 {
+    if(win32.quit) return;
+    
     MSG msg = {0};
     while(PeekMessage(&msg, win32.window, min, max, true))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    
+    if(win32.quit) win32.window = nullptr;
 }
 
 OS_InputState OS_PollInput()
@@ -1226,8 +1238,8 @@ void OS_FixCursor(bool fix)
 void OS_SetCursorPos(int64_t posX, int64_t posY)
 {
     POINT p = {0};
-    p.x = posX;
-    p.y = posY;
+    p.x = (LONG)posX;
+    p.y = (LONG)posY;
     ClientToScreen(win32.window, &p); // To screen coordinates
     SetCursorPos(p.x, p.y);
 }
@@ -1253,6 +1265,29 @@ double OS_GetElapsedSeconds(uint64_t startTicks, uint64_t endTicks)
     LARGE_INTEGER elapsedMicros;
     elapsedMicros.QuadPart = endTicks - startTicks;
     return elapsedMicros.QuadPart / (double)win32.qpcFreq;
+}
+
+typedef HRESULT (*GetDpiForMonitorType)(HMONITOR hmonitor, MONITOR_DPI_TYPE dpiType, UINT* dpiX, UINT* dpiY);
+
+float OS_GetDPIScale()
+{
+    assert(win32.init);
+    
+    // From DearImgui library
+    UINT xdpi = 96, ydpi = 96;
+    HMONITOR monitor = MonitorFromWindow(win32.window, MONITOR_DEFAULTTONEAREST);
+    static HINSTANCE shcore_dll = ::LoadLibraryA("shcore.dll"); // Reference counted per-process
+    static GetDpiForMonitorType GetDpiForMonitorFn = nullptr;
+    if (GetDpiForMonitorFn == nullptr && shcore_dll != nullptr)
+        GetDpiForMonitorFn = (GetDpiForMonitorType)::GetProcAddress(shcore_dll, "GetDpiForMonitor");
+    if (GetDpiForMonitorFn != nullptr)
+    {
+        GetDpiForMonitorFn((HMONITOR)monitor, MDT_EFFECTIVE_DPI, &xdpi, &ydpi);
+        IM_ASSERT(xdpi == ydpi); // Please contact me if you hit this assert!
+        return xdpi / 96.0f;
+    }
+    
+    return xdpi / 96.0f;
 }
 
 void OS_InitDearImgui()
