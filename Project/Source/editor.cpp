@@ -1,5 +1,6 @@
 
 #include "editor.h"
+#include "imgui/imgui_internal.h"
 #include "generated_meta.h"
 
 Console InitConsole()
@@ -220,9 +221,59 @@ void UpdateEditor(Editor* ui, float deltaTime)
     if(ui->propertyWindowOpen)
     {
         ImGui::Begin("Properties");
-        defer { ImGui::End(); };
         
-        ImGui::Text("Some introspection stuff here i guess");
+        if(ui->selected.len == 1)
+        {
+            Entity* selected = ui->selected[0];
+            for(int i = 0; i < ArrayCount(membersOfEntity); ++i)
+            {
+                MemberDefinition member = membersOfEntity[i];
+                MetaType metaType = member.typeInfo.metaType;
+                if(metaType == Meta_Unknown) continue;
+                
+                ImGui::Text("%s: ", member.cName);
+                
+                ImGui::PushID(member.cName);
+                ImGui::PushID(i);
+                
+                ImGui::SameLine();
+                
+                switch(metaType)
+                {
+                    case Meta_Unknown: break;
+                    case Meta_Int:
+                    {
+                        ImGui::SliderInt("##int", (int*)((char*)selected + member.offset), -1000, 1000);
+                        break;
+                    }
+                    case Meta_Float:
+                    {
+                        ImGui::SliderFloat("##float", (float*)((char*)selected + member.offset), -1000.0f, 1000.0f);
+                        break;
+                    }
+                    case Meta_Vec3:
+                    {
+                        const char* names[] = {"X", "Y", "Z"};
+                        DragFloatNEx(names, (float*)((char*)selected + member.offset), 3, 0.05f);
+                        break;
+                    }
+                    //Meta_RecursiveCases
+                }
+                
+                ImGui::PopID();
+                ImGui::PopID();
+            }
+        }
+        else if(ui->selected.len == 0)
+        {
+            ImGui::Text("No entity selected.\n");
+        }
+        else
+        {
+            ImGui::Text("Multiple entities are selected. Multiselection editing is currently not supported.\n");
+        }
+        
+        ImGui::End();
     }
     
     // Metrics window
@@ -963,4 +1014,55 @@ void ShowConsole(Editor* ui)
         ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
     
     ImGui::End();
+}
+
+// From: https://github.com/ocornut/imgui/issues/1831 by volcoma
+static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full)
+{
+	using namespace ImGui;
+    
+    ImGuiWindow* window = GetCurrentWindow();
+	const ImGuiStyle& style = GImGui->Style;
+	if(w_full <= 0.0f)
+		w_full = GetContentRegionAvail().x;
+    
+	const float w_item_one =
+		ImMax(1.0f, (w_full - (style.ItemInnerSpacing.x * 2.0f) * (components - 1)) / (float)components) -
+		style.ItemInnerSpacing.x;
+	for(int i = 0; i < components; i++)
+		window->DC.ItemWidthStack.push_back(w_item_one - CalcTextSize(labels[i]).x);
+	window->DC.ItemWidth = window->DC.ItemWidthStack.back();
+}
+
+// From: https://github.com/ocornut/imgui/issues/1831 by volcoma
+bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed, float v_min, float v_max,
+				  const char* display_format)
+{
+	using namespace ImGui;
+    
+    ImGuiWindow* window = GetCurrentWindow();
+	if(window->SkipItems)
+		return false;
+    
+	ImGuiContext& g = *GImGui;
+	bool value_changed = false;
+	BeginGroup();
+    
+	PushMultiItemsWidthsAndLabels(labels, components, 0.0f);
+	for(int i = 0; i < components; i++)
+	{
+		PushID(labels[i]);
+		PushID(i);
+		TextUnformatted(labels[i], FindRenderedTextEnd(labels[i]));
+		SameLine();
+		value_changed |= DragFloat("", &v[i], v_speed, v_min, v_max, display_format);
+		SameLine(0, g.Style.ItemInnerSpacing.x);
+		PopID();
+		PopID();
+		PopItemWidth();
+	}
+    
+	EndGroup();
+    
+	return value_changed;
 }

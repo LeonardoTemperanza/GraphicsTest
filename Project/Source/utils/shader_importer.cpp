@@ -1,5 +1,4 @@
 
-#include "os/os_base.cpp"
 #include "base.cpp"
 #include "asset_system.h"
 #include "parser.cpp"
@@ -263,7 +262,7 @@ void SetWorkingDirRelativeToExe(const char* path)
     StringBuilder assetsPath = {0};
     defer { FreeBuffers(&assetsPath); };
     
-    char* exePath = OS_GetExecutablePath();
+    char* exePath = GetExecutablePath();
     defer { free(exePath); };
     
     // Get rid of the .exe file itself in the path
@@ -283,7 +282,7 @@ void SetWorkingDirRelativeToExe(const char* path)
     // Currently in Project/Build/utils
     Append(&assetsPath, path);
     NullTerminate(&assetsPath);
-    OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
+    B_SetCurrentDirectory(ToString(&assetsPath).ptr);
 }
 
 // Return the slice of includers as well?

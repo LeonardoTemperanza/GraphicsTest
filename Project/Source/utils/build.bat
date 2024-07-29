@@ -11,7 +11,7 @@ set include_dirs=/I..\..\Source /I..\..\Source\include
 set lib_dirs=/LIBPATH:..\..\Libs
 
 REM Compile utility programs
-cl /nologo /std:c++20 ..\..\Source\utils\bin2h.cpp /Od %include_dirs% /link /out:bin2h.exe
+cl /nologo /std:c++20 /FC ..\..\Source\utils\bin2h.cpp /Od %include_dirs% /link /out:bin2h.exe
 del bin2h.obj
 cl /nologo /Od /Zi /std:c++20 /FC ..\..\Source\utils\model_importer.cpp %include_dirs% /link %lib_dirs% assimp-vc143-mt.lib /out:model_importer.exe
 del model_importer.obj

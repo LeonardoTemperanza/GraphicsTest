@@ -81,3 +81,7 @@ void ExecuteCommand(const char* command);
 int TextEditCallback(ImGuiInputTextCallbackData* data);
 
 void ShowConsole(Editor* ui);
+
+// From: https://github.com/ocornut/imgui/issues/1831 by volcoma
+static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full);
+bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f");

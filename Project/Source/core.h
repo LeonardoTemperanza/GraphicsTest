@@ -36,6 +36,8 @@ struct DerivedKey
     u32 gen;
 };
 
+
+introspect()
 struct Entity
 {
     // These are local with respect to the mounted entity
@@ -57,6 +59,7 @@ struct Entity
     u16 mountBone;
 };
 
+introspect()
 struct Camera
 {
     Entity* base;
@@ -66,6 +69,7 @@ struct Camera
     float farClip;
 };
 
+introspect()
 struct Player
 {
     Entity* base;
@@ -74,6 +78,7 @@ struct Player
     bool grounded;
 };
 
+introspect()
 struct PointLight
 {
     Entity* base;

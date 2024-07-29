@@ -3,7 +3,6 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include "os/os_base.cpp"
 #include "base.cpp"
 #include "asset_system.h"
 
@@ -83,7 +82,7 @@ bool WriteMaterial(const char* modelPath, int materialIdx, const char* path, con
 // The path is relative to the Assets folder
 int main(int argCount, char** args)
 {
-    char* exePathCStr = OS_GetExecutablePath();
+    char* exePathCStr = GetExecutablePath();
     std::string exePath = exePathCStr;
     exePath = RemovePathLastPart(exePath);
     free(exePathCStr);
@@ -91,7 +90,7 @@ int main(int argCount, char** args)
     // Force current working directory to be the Assets folder.
     // Currently in Project/Build/utils
     std::string assetsPath = exePath + "/../../../Assets/";
-    OS_SetCurrentDirectory(assetsPath.c_str());
+    B_SetCurrentDirectory(assetsPath.c_str());
     
     if(argCount < 2)
     {

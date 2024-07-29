@@ -47,8 +47,10 @@ struct Token
 
 struct Tokenizer
 {
+    char* start;
     char* at;
     int numLines;
+    char* lineStart;
     
     bool error;
 };

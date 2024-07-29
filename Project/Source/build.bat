@@ -22,7 +22,7 @@ REM set gfx_api=
 set common=/nologo /std:c++20 /FC /W3 /we4062 /we4714 /D_CRT_SECURE_NO_WARNINGS %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
 
 REM Generate introspection info from the metaprogram
-cl /std:c++20 /nologo /FC ..\Source\metaprogram.cpp
+cl /Zi /std:c++20 /nologo /FC ..\Source\metaprogram.cpp
 metaprogram > ..\Source\generated_meta.h
 
 REM Development build, debug is enabled, profiling and optimization disabled

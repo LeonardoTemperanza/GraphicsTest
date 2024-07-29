@@ -172,10 +172,11 @@ Parser InitParser(const char* path, Arena* dst)
     Parser parser = {0};
     Tokenizer tokenizer = {0};
     
-    String contents = LoadEntireFile(path, dst);
-    if(!contents.ptr)
+    bool success = true;
+    String contents = LoadEntireFile(path, dst, &success);
+    if(!success)
     {
-        DebugMessage("Could not open file...\n");
+        Log("Failed to open file '%s'...\n", path);
         return parser;
     }
     

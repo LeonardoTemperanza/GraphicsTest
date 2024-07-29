@@ -1372,12 +1372,22 @@ ScratchArena::ScratchArena(int idx)
 
 ////
 // Miscellaneous
-String LoadEntireFile(const char* path)
+
+// TODO: Maybe a more descriptive error state would be useful
+String LoadEntireFile(const char* path, bool* outSuccess)
 {
+    *outSuccess = true;
+    
     String res = {0};
     FILE* file = fopen(path, "rb");
-    // TODO: Error reporting
-    if(!file) return res;
+    if(!file)
+    {
+        *outSuccess = false;
+        res.ptr = nullptr;
+        res.len = 0;
+        return res;
+    }
+    
     defer { fclose(file); };
     
     fseek(file, 0, SEEK_END);
@@ -1390,12 +1400,19 @@ String LoadEntireFile(const char* path)
     return res;
 }
 
-char* LoadEntireFileAndNullTerminate(const char* path)
+char* LoadEntireFileAndNullTerminate(const char* path, bool* outSuccess)
 {
-    char* res = nullptr;
+    *outSuccess = true;
+    
+    char* res;
     FILE* file = fopen(path, "rb");
-    // TODO: Error reporting
-    if(!file) return res;
+    if(!file)
+    {
+        *outSuccess = false;
+        res = (char*)malloc(1);
+        res[0] = '\0';
+        return res;
+    }
     defer { fclose(file); };
     
     fseek(file, 0, SEEK_END);
@@ -1409,13 +1426,19 @@ char* LoadEntireFileAndNullTerminate(const char* path)
     return res;
 }
 
-String LoadEntireFile(const char* path, Arena* dst)
+String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess)
 {
+    *outSuccess = true;
+    
     String res = {0};
     FILE* file = fopen(path, "rb");
-    // TODO: Error reporting
-    if(!file) return res;
-    defer { fclose(file); };
+    if(!file)
+    {
+        *outSuccess = false;
+        res.ptr = nullptr;  // This can be freed with no repercussions
+        res.len = 0;
+        return res;
+    }
     
     fseek(file, 0, SEEK_END);
     res.len = ftell(file);
@@ -1427,12 +1450,19 @@ String LoadEntireFile(const char* path, Arena* dst)
     return res;
 }
 
-char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst)
+char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst, bool* outSuccess)
 {
-    char* res = nullptr;
+    *outSuccess = true;
+    
+    char* res;
     FILE* file = fopen(path, "rb");
-    // TODO: Error reporting
-    if(!file) return res;
+    if(!file)
+    {
+        *outSuccess = false;
+        res = (char*)ArenaAlloc(dst, 1, 1);
+        res[0] = '\0';
+        return res;
+    }
     defer { fclose(file); };
     
     fseek(file, 0, SEEK_END);
@@ -1478,6 +1508,26 @@ String GetPathNoExtension(const char* path)
     return {.ptr=path, .len=lastDotIdx};
 }
 
+String PopLastDirFromPath(const char* path)
+{
+    int lastSlashPos = -1;
+    int i;
+    for(i = 0; path[i] != '\0'; ++i)
+    {
+        if(path[i] == '/' || path[i] == '\\')
+        {
+            lastSlashPos = i;
+        }
+    }
+    
+    int pathLen = i - 1;
+    
+    if(lastSlashPos == -1)
+        return {.ptr=path, .len=pathLen};
+    
+    return {.ptr=path, .len=lastSlashPos};
+}
+
 #ifdef _WIN32
 char* GetExecutablePath()
 {
@@ -1490,29 +1540,57 @@ char* GetExecutablePath()
 #endif
 
 #ifdef _WIN32
-void B_SetCurrentDirectory(const char* path)
+bool B_SetCurrentDirectory(const char* path)
 {
-    SetCurrentDirectory(path);
+    return SetCurrentDirectory(path);
 }
 #else
 #error "Unimplemented for this OS!"
 #endif
 
-void SetCurrentDirectoryRelativeToExe(const char* path)
+bool SetCurrentDirectoryRelativeToExe(const char* path)
 {
-    assert(false && "Unimplemented");
+    String exePath = PopLastDirFromPath(GetExecutablePath());
+    
+    StringBuilder builder = {0};
+    defer { FreeBuffers(&builder); };
+    
+    Append(&builder, exePath);
+    
+    if(path[0] != '/')
+        Append(&builder, "/");
+    
+    Append(&builder, path);
+    NullTerminate(&builder);
+    
+    String str = ToString(&builder);
+    
+    bool ok = B_SetCurrentDirectory(str.ptr);
+    return ok;
 }
 
 #ifdef _WIN32
-char* B_GetCurrentDirectory()
+char* B_GetCurrentDirectory(Arena* dst)
 {
-    char* res = (char*)malloc(MAX_PATH);
+    char* res = (char*)ArenaAlloc(dst, MAX_PATH, 1);
     GetCurrentDirectory(MAX_PATH, res);
     return res;
 }
 #else
 #error "Unimplemented for this OS!"
 #endif
+
+String GetFullPath(const char* path, Arena* dst)
+{
+    ScratchArena scratch;
+    StringBuilder builder = {0};
+    UseArena(&builder, dst);
+    
+    Append(&builder, B_GetCurrentDirectory(scratch));
+    Append(&builder, "/");
+    Append(&builder, path);
+    return ToString(&builder);
+}
 
 #ifdef _WIN32
 void B_Sleep(uint64_t millis)

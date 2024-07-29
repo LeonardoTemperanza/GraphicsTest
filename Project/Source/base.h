@@ -59,6 +59,7 @@ typedef unsigned char uchar;
 
 #define ToLenStr(str) String{.ptr=str, .len=((s64)strlen(str))}
 #define StrLit(str) String{.ptr=str, .len=sizeof(str)}
+#define StrPrintf(str) (int)str.len, str.ptr
 
 ////
 // Hash functions
@@ -618,21 +619,27 @@ t Next(const char** cursor, int count);
 String Next(const char** cursor, int strLen);
 
 ////
-// File system utils
+// Filesystem utils
 
-// TODO: Error handling. Should also accept arenas as arguments
-// instead of mallocing them.
-String LoadEntireFile(const char* path);
-char* LoadEntireFileAndNullTerminate(const char* path);
-String LoadEntireFile(const char* path, Arena* dst);
-char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst);
+// All these need to be freed, in all circumstances.
+// even if outSuccess is false, meaning the loading
+// has failed, the returned char*/String must be freed
+String LoadEntireFile(const char* path, bool* outSuccess);
+char* LoadEntireFileAndNullTerminate(const char* path, bool* outSuccess);
+
+// No need to free anything here because we're using arenas
+String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess);
+char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst, bool* outSuccess);
+
 String GetPathExtension(const char* path);
 String GetPathNoExtension(const char* path);
+String PopLastDirFromPath(const char* path);
 
 char* GetExecutablePath();
-void B_SetCurrentDirectory(const char* path);
-void SetCurrentDirectoryRelativeToExe(const char* path);
-char* B_GetCurrentDirectory();
+bool B_SetCurrentDirectory(const char* path);
+bool SetCurrentDirectoryRelativeToExe(const char* path);
+char* B_GetCurrentDirectory(Arena* dst);
+String GetFullPath(const char* path, Arena* dst);
 
 ////
 // Miscellaneous

@@ -27,10 +27,11 @@ Model* LoadModel(const char* path)
     
     auto res = ArenaZAllocTyped(Model, &sceneArena);
     
-    String contents = LoadEntireFile(path);
-    if(!contents.ptr)
+    bool success = true;
+    String contents = LoadEntireFile(path, &success);
+    if(!success)
     {
-        DebugMessage("Could not even load file...\n");
+        Log("Failed to log file '%s'", path);
         return res;
     }
     
@@ -44,7 +45,7 @@ Model* LoadModel(const char* path)
     // TODO: Error reporting
     if(magicBytes != "model")
     {
-        DebugMessage("This thing is not even a model file...\n");
+        Log("Attempted to load file '%s' as a model, which it is not.", path);
         return res;
     }
     
@@ -86,10 +87,11 @@ Material LoadMaterial(const char* path)
     
     Material mat = {0};
     
-    String contents = LoadEntireFile(path);
-    if(!contents.ptr)
+    bool success = true;
+    String contents = LoadEntireFile(path, &success);
+    if(!success)
     {
-        DebugMessage("Could not load file...\n");
+        Log("Failed to load file '%s'\n", path);
         return mat;
     }
     
@@ -100,10 +102,9 @@ Material LoadMaterial(const char* path)
     cursor = &c;
     
     String magicBytes = Next(cursor, sizeof("material")-1);  // Excluding null terminator
-    // TODO: Error reporting
     if(magicBytes != "material")
     {
-        DebugMessage("This file is corrupt or does not contain material\n");
+        Log("Attempted to load file '%s' as a material, which it is not.", path);
         return mat;
     }
     
@@ -127,10 +128,11 @@ Shader* LoadShader(const char* path)
 {
     Shader* shader = ArenaZAllocTyped(Shader, &sceneArena);
     
-    String contents = LoadEntireFile(path);
-    if(!contents.ptr)
+    bool success = true;
+    String contents = LoadEntireFile(path, &success);
+    if(!success)
     {
-        DebugMessage("Could not load file...\n");
+        Log("Failed to load file '%s'\n", path);
         return shader;
     }
     
@@ -143,14 +145,14 @@ Shader* LoadShader(const char* path)
     String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
     if(magicBytes != "shader")
     {
-        DebugMessage("This file is corrupt or does not contain shader\n");
+        Log("Attempted to load file '%s' as a shader, which it is not.", path);
         return shader;
     }
     
     u32 version = Next<u32>(cursor);
     if(version != 0)
     {
-        DebugMessage("Wrong shader version\n");
+        Log("Attempted to load file '%s' as a shader, but its version is unsupported.", path);
         return shader;
     }
     
