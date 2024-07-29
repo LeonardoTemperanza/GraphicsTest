@@ -2,16 +2,17 @@
 #include "base.h"
 #include "os/os_generic.h"
 #include "core.h"
+#include "editor.h"
 #include "renderer/renderer_generic.h"
 
-void SetWorkingDirToAssets();
+void SetWorkingDirRelativeToExe(const char* path);
 
 int main()
 {
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
     
-    SetWorkingDirToAssets();
+    SetWorkingDirRelativeToExe("../../Assets/");
     
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -23,7 +24,7 @@ int main()
     };
     
     OS_InitDearImgui();
-    UIState ui = InitUI();
+    Editor editor = InitEditor();
     
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
@@ -55,7 +56,7 @@ int main()
             OS_SwapBuffers();
         }
         
-        MainUpdate(entities, &ui, deltaTime, &permArena, &frameArena);
+        MainUpdate(entities, &editor, deltaTime, &permArena, &frameArena);
         
         firstIter = false;
     }
@@ -63,12 +64,12 @@ int main()
     return 0;
 }
 
-void SetWorkingDirToAssets()
+void SetWorkingDirRelativeToExe(const char* path)
 {
     StringBuilder assetsPath = {0};
     defer { FreeBuffers(&assetsPath); };
     
-    char* exePath = OS_GetExecutablePath();
+    char* exePath = GetExecutablePath();
     defer { free(exePath); };
     
     // Get rid of the .exe file itself in the path
@@ -85,7 +86,7 @@ void SetWorkingDirToAssets()
     
     String exePathNoFile = {.ptr=exePath, .len=lastSeparator+1};
     Append(&assetsPath, exePathNoFile);
-    Append(&assetsPath, "../../Assets/");
+    Append(&assetsPath, path);
     NullTerminate(&assetsPath);
-    OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
+    B_SetCurrentDirectory(ToString(&assetsPath).ptr);
 }

@@ -175,7 +175,7 @@ Parser InitParser(const char* path, Arena* dst)
     String contents = LoadEntireFile(path, dst);
     if(!contents.ptr)
     {
-        OS_DebugMessage("Could not open file...\n");
+        DebugMessage("Could not open file...\n");
         return parser;
     }
     
@@ -275,5 +275,5 @@ Token EatRequiredToken(Parser* p, TokenKind token)
 void ParseError(const char* error)
 {
     // TODO better error handling!
-    OS_DebugMessage(error);
+    DebugMessage(error);
 }

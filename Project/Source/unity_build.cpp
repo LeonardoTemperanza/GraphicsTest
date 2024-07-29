@@ -1,6 +1,8 @@
 
 #define UnityBuild
 
+#include "metaprogram_custom_keywords.h"
+
 // Misc preprocessor directives
 #if !defined(Development) && !defined(Release)
 #define Development
@@ -8,7 +10,6 @@
 
 #include "include/glad.c"
 
-#include "os/os_base.cpp"
 #include "os/os_generic.cpp"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -17,7 +18,7 @@
 #include "main.cpp"
 #include "input.cpp"
 #include "core.cpp"
-#include "ui_core.cpp"
+#include "editor.cpp"
 #include "asset_system.cpp"
 #include "parser.cpp"
 

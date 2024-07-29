@@ -401,6 +401,46 @@ Mat4 transpose(Mat4 m)
     return res;
 }
 
+float Determinant(const Mat4& m) {
+    return
+        m.m11 * (m.m22 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m23 * (m.m32 * m.m44 - m.m34 * m.m42) + m.m24 * (m.m32 * m.m43 - m.m33 * m.m42)) -
+        m.m12 * (m.m21 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m23 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m24 * (m.m31 * m.m43 - m.m33 * m.m41)) +
+        m.m13 * (m.m21 * (m.m32 * m.m44 - m.m34 * m.m42) - m.m22 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m24 * (m.m31 * m.m42 - m.m32 * m.m41)) -
+        m.m14 * (m.m21 * (m.m32 * m.m43 - m.m33 * m.m42) - m.m22 * (m.m31 * m.m43 - m.m33 * m.m41) + m.m23 * (m.m31 * m.m42 - m.m32 * m.m41));
+}
+
+// Function to invert a 4x4 matrix
+Mat4 inverse(const Mat4 m) {
+    float det = Determinant(m);
+    assert(det != 0 && "Matrix is not invertible");
+    
+    float invDet = 1.0f / det;
+    
+    Mat4 inv;
+    
+    inv.m11 = invDet * (m.m22 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m23 * (m.m32 * m.m44 - m.m34 * m.m42) + m.m24 * (m.m32 * m.m43 - m.m33 * m.m42));
+    inv.m12 = -invDet * (m.m12 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m13 * (m.m32 * m.m44 - m.m34 * m.m42) + m.m14 * (m.m32 * m.m43 - m.m33 * m.m42));
+    inv.m13 = invDet * (m.m12 * (m.m23 * m.m44 - m.m24 * m.m43) - m.m13 * (m.m22 * m.m44 - m.m24 * m.m42) + m.m14 * (m.m22 * m.m43 - m.m23 * m.m42));
+    inv.m14 = -invDet * (m.m12 * (m.m23 * m.m34 - m.m24 * m.m33) - m.m13 * (m.m22 * m.m34 - m.m24 * m.m32) + m.m14 * (m.m22 * m.m33 - m.m23 * m.m32));
+    
+    inv.m21 = -invDet * (m.m21 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m23 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m24 * (m.m31 * m.m43 - m.m33 * m.m41));
+    inv.m22 = invDet * (m.m11 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m13 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m14 * (m.m31 * m.m43 - m.m33 * m.m41));
+    inv.m23 = -invDet * (m.m11 * (m.m23 * m.m44 - m.m24 * m.m43) - m.m13 * (m.m21 * m.m44 - m.m24 * m.m41) + m.m14 * (m.m21 * m.m43 - m.m23 * m.m41));
+    inv.m24 = invDet * (m.m11 * (m.m23 * m.m34 - m.m24 * m.m33) - m.m13 * (m.m21 * m.m34 - m.m24 * m.m31) + m.m14 * (m.m21 * m.m33 - m.m23 * m.m31));
+    
+    inv.m31 = invDet * (m.m21 * (m.m32 * m.m44 - m.m34 * m.m42) - m.m22 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m24 * (m.m31 * m.m42 - m.m32 * m.m41));
+    inv.m32 = -invDet * (m.m11 * (m.m32 * m.m44 - m.m34 * m.m42) - m.m12 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m14 * (m.m31 * m.m42 - m.m32 * m.m41));
+    inv.m33 = invDet * (m.m11 * (m.m22 * m.m44 - m.m24 * m.m42) - m.m12 * (m.m21 * m.m44 - m.m24 * m.m41) + m.m14 * (m.m21 * m.m42 - m.m22 * m.m41));
+    inv.m34 = -invDet * (m.m11 * (m.m22 * m.m34 - m.m24 * m.m32) - m.m12 * (m.m21 * m.m34 - m.m24 * m.m31) + m.m14 * (m.m21 * m.m32 - m.m22 * m.m31));
+    
+    inv.m41 = -invDet * (m.m21 * (m.m32 * m.m43 - m.m33 * m.m42) - m.m22 * (m.m31 * m.m43 - m.m33 * m.m41) + m.m23 * (m.m31 * m.m42 - m.m32 * m.m41));
+    inv.m42 = invDet * (m.m11 * (m.m32 * m.m43 - m.m33 * m.m42) - m.m12 * (m.m31 * m.m43 - m.m33 * m.m41) + m.m13 * (m.m31 * m.m42 - m.m32 * m.m41));
+    inv.m43 = -invDet * (m.m11 * (m.m22 * m.m43 - m.m23 * m.m42) - m.m12 * (m.m21 * m.m43 - m.m23 * m.m41) + m.m13 * (m.m21 * m.m42 - m.m22 * m.m41));
+    inv.m44 = invDet * (m.m11 * (m.m22 * m.m33 - m.m23 * m.m32) - m.m12 * (m.m21 * m.m33 - m.m23 * m.m31) + m.m13 * (m.m21 * m.m32 - m.m22 * m.m31));
+    
+    return inv;
+}
+
 Quat& operator *=(Quat& a, Quat b)
 {
     a.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
@@ -606,6 +646,59 @@ Mat4 PositionMatrix(Vec3 pos)
 Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale)
 {
     return PositionMatrix(pos) * RotationMatrix(normalize(rot)) * ScaleMatrix(scale);
+}
+
+void PosRotScaleFromMat4(Mat4 m, Vec3* pos, Quat* rot, Vec3* scale)
+{
+    scale->x = sqrt(m.m11 * m.m11 + m.m12 * m.m12 + m.m13 * m.m13);
+    scale->y = sqrt(m.m21 * m.m21 + m.m22 * m.m22 + m.m23 * m.m23);
+    scale->z = sqrt(m.m31 * m.m31 + m.m32 * m.m32 + m.m33 * m.m33);
+    
+    pos->x = m.m14;
+    pos->y = m.m24;
+    pos->z = m.m34;
+    
+    Quat q;
+    float m00 = m.m11 / scale->x;
+    float m01 = m.m12 / scale->x;
+    float m02 = m.m13 / scale->x;
+    float m10 = m.m21 / scale->y;
+    float m11 = m.m22 / scale->y;
+    float m12 = m.m23 / scale->y;
+    float m20 = m.m31 / scale->z;
+    float m21 = m.m32 / scale->z;
+    float m22 = m.m33 / scale->z;
+    
+    float trace = m00 + m11 + m22;
+    if (trace > 0) {
+        float s = 0.5f / sqrt(trace + 1.0f);
+        q.w = 0.25f / s;
+        q.x = (m21 - m12) * s;
+        q.y = (m02 - m20) * s;
+        q.z = (m10 - m01) * s;
+    } else {
+        if (m00 > m11 && m00 > m22) {
+            float s = 2.0f * sqrt(1.0f + m00 - m11 - m22);
+            q.w = (m21 - m12) / s;
+            q.x = 0.25f * s;
+            q.y = (m01 + m10) / s;
+            q.z = (m02 + m20) / s;
+        } else if (m11 > m22) {
+            float s = 2.0f * sqrt(1.0f + m11 - m00 - m22);
+            q.w = (m02 - m20) / s;
+            q.x = (m01 + m10) / s;
+            q.y = 0.25f * s;
+            q.z = (m12 + m21) / s;
+        } else {
+            float s = 2.0f * sqrt(1.0f + m22 - m00 - m11);
+            q.w = (m10 - m01) / s;
+            q.x = (m02 + m20) / s;
+            q.y = (m12 + m21) / s;
+            q.z = 0.25f * s;
+        }
+    }
+    
+    *rot = q;
 }
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
@@ -931,6 +1024,41 @@ void Free(Array<t>* array)
     array->capacity = 0;
 }
 
+#ifdef _WIN32
+void* MemReserve(uint64_t size)
+{
+    void* res = VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
+    assert(res && "VirtualAlloc failed.");
+    if(!res) abort();
+    
+    return res;
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+#ifdef _WIN32
+void MemCommit(void* mem, uint64_t size)
+{
+    void* res = VirtualAlloc(mem, size, MEM_COMMIT, PAGE_READWRITE);
+    assert(res && "VirtualAlloc failed.");
+    if(!res) abort();
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+#ifdef _WIN32
+void MemFree(void* mem, uint64_t size)
+{
+    bool ok = VirtualFree(mem, 0, MEM_RELEASE);
+    assert(ok && "VirtualFree failed.");
+    if(!ok) abort();
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
 ////
 // Memory Allocations
 
@@ -964,7 +1092,7 @@ void ArenaInit(Arena* arena,
     arena->commitSize = commitSize;
     
     if(commitSize > 0)
-        OS_MemCommit(backingBuffer, commitSize);
+        MemCommit(backingBuffer, commitSize);
 }
 
 Arena ArenaVirtualMemInit(size_t reserveSize, size_t commitSize)
@@ -972,14 +1100,14 @@ Arena ArenaVirtualMemInit(size_t reserveSize, size_t commitSize)
     assert(commitSize > 0);
     
     Arena result = {0};
-    result.buffer     = (unsigned char*)OS_MemReserve(reserveSize);
+    result.buffer     = (unsigned char*)MemReserve(reserveSize);
     result.length     = reserveSize;
     result.offset     = 0;
     result.prevOffset = 0;
     result.commitSize = commitSize;
     
     assert(result.buffer);
-    OS_MemCommit(result.buffer, commitSize);
+    MemCommit(result.buffer, commitSize);
     
     return result;
 }
@@ -1005,7 +1133,7 @@ void* ArenaAlloc(Arena* arena, size_t size, size_t align)
             if(commitAligned > arena->offset)
             {
                 size_t toCommit = commitAligned + arena->commitSize;
-                OS_MemCommit(arena->buffer, toCommit);
+                MemCommit(arena->buffer, toCommit);
             }
         }
         
@@ -1054,7 +1182,7 @@ void* ArenaResizeLastAlloc(Arena* arena, void* oldMemory, size_t oldSize, size_t
                     if(commitAligned > prevOffset)
                     {
                         size_t toCommit = commitAligned + arena->commitSize;
-                        OS_MemCommit(arena->buffer, toCommit);
+                        MemCommit(arena->buffer, toCommit);
                     }
                 }
                 
@@ -1349,3 +1477,85 @@ String GetPathNoExtension(const char* path)
     
     return {.ptr=path, .len=lastDotIdx};
 }
+
+#ifdef _WIN32
+char* GetExecutablePath()
+{
+    char* res = (char*)malloc(MAX_PATH);
+    GetModuleFileName(nullptr, res, MAX_PATH);
+    return res;
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+#ifdef _WIN32
+void B_SetCurrentDirectory(const char* path)
+{
+    SetCurrentDirectory(path);
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+void SetCurrentDirectoryRelativeToExe(const char* path)
+{
+    assert(false && "Unimplemented");
+}
+
+#ifdef _WIN32
+char* B_GetCurrentDirectory()
+{
+    char* res = (char*)malloc(MAX_PATH);
+    GetCurrentDirectory(MAX_PATH, res);
+    return res;
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+#ifdef _WIN32
+void B_Sleep(uint64_t millis)
+{
+    Sleep((DWORD)millis);
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+#ifdef _WIN32
+void DebugMessage(const char* message)
+{
+    OutputDebugString(message);
+}
+#else
+#error "Unimplemented for this OS!"
+#endif
+
+void DebugMessageFmt(const char* fmt, ...)
+{
+    // MSVC doesn't have vasprintf, so we'll have to get
+    // a bit creative...
+    va_list args;
+    va_start(args, fmt);
+    int size = vsnprintf(nullptr, 0, fmt, args);  // Extra call to get the size of the string
+    va_end(args);
+    
+    char* str = (char*)malloc(size+1);
+    defer { free(str); };
+    
+    va_start(args, fmt);
+    vsnprintf(str, size+1, fmt, args);
+    va_end(args);
+    
+    DebugMessage(str);
+}
+
+#ifdef _WIN32
+bool B_IsDebuggerPresent()
+{
+    return IsDebuggerPresent();
+}
+#else
+#error "Unimplemented for this OS!"
+#endif

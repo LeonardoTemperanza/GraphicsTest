@@ -33,6 +33,8 @@
 
 #include <cmath>
 
+#include "editor.h"
+
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #include "imgui/imgui.h"
@@ -248,12 +250,13 @@ static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, 
 {
     if(type == GL_DEBUG_TYPE_ERROR || type == GL_DEBUG_TYPE_PERFORMANCE)
     {
-        OS_DebugMessage(message);
-        OS_DebugMessage("\n");
+        Log("%s", message);
+        DebugMessage(message);
+        DebugMessage("\n");
         
         if(type == GL_DEBUG_TYPE_ERROR)
         {
-            if(OS_IsDebuggerPresent())
+            if(B_IsDebuggerPresent())
             {
                 assert(!"OpenGL error - check the callstack in debugger");
             }
@@ -1022,6 +1025,8 @@ VirtualKeycode Win32_ConvertToCustomKeyCodes(WPARAM code)
         case VK_LBUTTON: res = Keycode_LMouse; break;
         case VK_RBUTTON: res = Keycode_RMouse; break;
         case VK_MBUTTON: res = Keycode_MMouse; break;
+        case VK_INSERT:  res = Keycode_Insert; break;
+        case VK_CONTROL: res = Keycode_Ctrl;   break;
         default:         res = Keycode_Null;   break;
     }
     

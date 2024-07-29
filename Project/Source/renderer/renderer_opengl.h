@@ -1,16 +1,6 @@
 
 #pragma once
 
-struct Renderer
-{
-    GLuint appUbo;
-    GLuint frameUbo;
-    GLuint objUbo;
-    GLuint vertShader;
-    GLuint fragShader;
-    GLuint shaderProgram;
-};
-
 struct PerFrameUniforms
 {
     Mat4 world2View;
@@ -33,4 +23,45 @@ struct gl_MeshInfo
 struct gl_TextureInfo
 {
     GLuint objId;
+};
+
+struct Renderer
+{
+    GLuint appUbo;
+    GLuint frameUbo;
+    GLuint objUbo;
+    
+    GLuint vertShader;
+    GLuint fragShader;
+    GLuint shaderProgram;
+    
+    PerFrameUniforms perFrameUniforms;
+    
+    R_Shader boundShader;
+    
+    // Basic shapes
+    GLuint basicProgram;
+    GLuint colorUniform;
+    GLuint transformUniform;
+    
+    GLuint fullScreenQuadVao;
+    GLuint cylinderVbo;
+    GLuint coneVbo;
+    
+    // Mouse picking
+    GLuint mousePickingProgram;
+    GLuint mousePickingIdUniform;
+    GLuint mousePickingColor;
+    GLuint mousePickingDepth;
+    GLuint mousePickingFbo;
+    
+    // Selection outlines
+    GLuint selectionProgram;
+    GLuint selectionColor;
+    GLuint selectionDepth;
+    GLuint selectionFbo;
+    
+    GLuint outlineProgram;
+    GLuint outlineColorUniform;
+    GLuint outlineTransformUniform;
 };

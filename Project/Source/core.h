@@ -103,13 +103,13 @@ struct Entities
     Array<PointLight> pointLights;
 };
 
-struct UIState;
+struct Editor;
 
 Entities* InitEntities();
 void FreeEntities(Entities* entities);
-void MainUpdate(Entities* entities, UIState* ui, float deltaTime, Arena* permArena, Arena* frameArena);
+void MainUpdate(Entities* entities, Editor* ui, float deltaTime, Arena* permArena, Arena* frameArena);
 void UpdateEntities(Entities* entities, float deltaTime);
-void RenderEntities(Entities* entities, float deltaTime);
+void RenderEntities(Entities* entities, Editor* editor, bool inEditor, float deltaTime);
 
 // Entity manipulation.
 // All functions returning entity pointers can return null
@@ -122,6 +122,7 @@ EntityKey NullKey();
 bool IsKeyNull(EntityKey key);
 
 Entity* GetEntity(EntityKey key);  // Will return null if the entity does not exist
+Entity* GetEntity(u32 id);
 template<typename t>
 t* GetDerived(EntityKey key);
 template<typename t>
@@ -131,6 +132,7 @@ u32 GetId(Entity* entity);
 template<typename t>
 DerivedKey<t> GetDerivedKey(t* derived);
 Entity* GetMount(Entity* entity);
+// Pass null to mountTo to unmount from any entity
 void MountEntity(Entity* entity, Entity* mountTo);
 Mat4 ComputeWorldTransform(Entity* entity);
 
@@ -154,26 +156,10 @@ t* NextDerivedLive(t* current);
 
 // Utilities
 Camera* GetMainCamera();
+// Slices only contain direct children
 Slice<Slice<Entity*>> ComputeAllChildrenForEachEntity(Arena* dst);
+// Checks if an entity is a direct or indirect child of another
+bool IsChild(Entity* suspectedChild, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity);
 
 // Gameplay code
-void UpdateMainCamera(Camera* camera, float deltaTime);
 void UpdatePlayer(Player* player, float deltaTime);
-
-// Editor stuff
-struct UIState
-{
-    // Open windows
-    bool entityListWindowOpen;
-    bool propertyWindowOpen;
-    bool metricsWindowOpen;
-    bool consoleOpen;
-    
-    Array<u32> selected;
-};
-
-UIState InitUI();
-void UpdateUI(UIState* ui);
-void ShowMainMenuBar(UIState* ui);
-void ShowEntityList(UIState* ui);
-void ShowEntityChildren(UIState* ui, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity);

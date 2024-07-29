@@ -54,7 +54,7 @@ struct ShaderPragma
 
 String NextString(char* at);
 Slice<ShaderPragma> ParseShaderPragmas(char* source, Arena* dst);
-void SetWorkingDirToAssets();
+void SetWorkingDirRelativeToExe(const char* path);
 
 String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
 String CompileVulkanSpirv(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
@@ -74,8 +74,6 @@ int main(int argCount, char** args)
         return 1;
     }
     
-    SetWorkingDirToAssets();
-    
     const char* shaderPath = args[1];
     String ext = GetPathExtension(shaderPath);
     if(ext != "hlsl")
@@ -84,6 +82,8 @@ int main(int argCount, char** args)
         return 1;
     }
     
+    // Read to the shader source directory
+    SetWorkingDirRelativeToExe("../../../Shaders/");
     
     char* nullTerm = LoadEntireFileAndNullTerminate(shaderPath);
     if(!nullTerm)
@@ -91,6 +91,9 @@ int main(int argCount, char** args)
         fprintf(stderr, "Error: Could not open file\n");
         return 1;
     }
+    
+    // Write to the compiled shaders directory
+    SetWorkingDirRelativeToExe("../../../Assets/CompiledShaders/");
     
     ScratchArena scratch;
     String shaderSource = {0};
@@ -100,7 +103,7 @@ int main(int argCount, char** args)
     
     ParseResult result = {0};
     Slice<ShaderPragma> pragmas = ParseShaderPragmas(nullTerm, scratch);
-    bool anyStageDefined = false;
+    int definedStages = 0;
     for(int i = 0; i < pragmas.len; ++i)
     {
         if(pragmas[i].name == "vs")
@@ -108,18 +111,18 @@ int main(int argCount, char** args)
             auto& stage = result.stages[ShaderKind_Vertex];
             stage.defined = true;
             stage.entry = pragmas[i].param;
-            anyStageDefined = true;
+            ++definedStages;
         }
         else if(pragmas[i].name == "ps")
         {
             auto& stage = result.stages[ShaderKind_Pixel];
             stage.defined = true;
             stage.entry = pragmas[i].param;
-            anyStageDefined = true;
+            ++definedStages;
         }
     }
     
-    if(!anyStageDefined)
+    if(definedStages == 0)
     {
         fprintf(stderr, "Error: The shader %s does not have a pipeline stage specifier. If this shader is a vertex shader, add '#pragma vs vertex_main_function_name' at any point of the file. If it's a pixel shader, add '#pragma ps pixel_main_function_name'. The file can also include both shaders.\n", shaderPath);
         return 1;
@@ -176,8 +179,15 @@ int main(int argCount, char** args)
                 StringBuilder outPath = {0};
                 UseArena(&outPath, scratch);
                 Append(&outPath, pathNoExt);
-                Append(&outPath, "_");
-                Append(&outPath, GetShaderKindString(kind));
+                
+                // If there is more than one stage in this file,
+                // append the stage to the name
+                if(definedStages > 1)
+                {
+                    Append(&outPath, "_");
+                    Append(&outPath, GetShaderKindString(kind));
+                }
+                
                 Append(&outPath, ".shader");
                 NullTerminate(&outPath);
                 
@@ -246,9 +256,10 @@ Slice<ShaderPragma> ParseShaderPragmas(char* source, Arena* dst)
     return ToSlice(&res);
 }
 
-// @copypasta from main.cpp (with some modifications)
-void SetWorkingDirToAssets()
+void SetWorkingDirRelativeToExe(const char* path)
 {
+    // TODO: if path doesn't exist, create the directory
+    
     StringBuilder assetsPath = {0};
     defer { FreeBuffers(&assetsPath); };
     
@@ -270,7 +281,7 @@ void SetWorkingDirToAssets()
     String exePathNoFile = {.ptr=exePath, .len=lastSeparator+1};
     Append(&assetsPath, exePathNoFile);
     // Currently in Project/Build/utils
-    Append(&assetsPath, "../../../Assets/");
+    Append(&assetsPath, path);
     NullTerminate(&assetsPath);
     OS_SetCurrentDirectory(ToString(&assetsPath).ptr);
 }

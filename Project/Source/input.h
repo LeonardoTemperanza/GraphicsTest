@@ -24,6 +24,7 @@ struct Input
     
     // From OS layer
     bool virtualKeys[Keycode_Count];
+    bool unfilteredKeys[Keycode_Count];
     
     s64 mouseX;
     s64 mouseY;
@@ -38,6 +39,7 @@ struct Input
     {
         GamepadState gamepad;
         bool virtualKeys[Keycode_Count];
+        bool unfilteredKeys[Keycode_Count];
         s64 mouseX;
         s64 mouseY;
         Vec2 mouseDelta;
@@ -85,3 +87,5 @@ void SetMousePos(s64 mouseX, s64 mouseY);
 void ApplyDeadzones(OS_GamepadState* gamepadState);
 bool IsGamepadStateNull(OS_GamepadState gamepadState);
 InputDominator FindDominatingGamepad(OS_InputState input, InputDominator prevDom);
+bool PressedKey(Input input, VirtualKeycode key);
+bool PressedUnfilteredKey(Input input, VirtualKeycode key);

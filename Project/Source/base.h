@@ -6,9 +6,23 @@
 #include <stdlib.h>
 #include <cstdint>
 #include <cstring>
+#include <cstdarg>
 #include <string>
+#include <cassert>
 
 #include "os/os_generic.h"
+
+// For small platform dependent utility functions
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#elif defined(__linux__)
+#error "Not currently supported"
+#elif defined(__APPLE__)
+#error "Not currently supported"
+#else
+#error "Unknown operating system"
+#endif
 
 // Handy typedefs
 typedef uint8_t  u8;
@@ -81,6 +95,16 @@ inline double min(double f1, double f2)
 #endif
 
 #ifndef max
+inline int max(int i1, int i2)
+{
+    return i1 < i2 ? i2 : i1;
+}
+
+inline int min(int i1, int i2)
+{
+    return i1 < i2 ? i1 : i2;
+}
+
 inline float max(float f1, float f2)
 {
     return f1 < f2 ? f2 : f1;
@@ -95,6 +119,21 @@ inline double max(double f1, double f2)
 inline float clamp(float v, float min, float max)
 {
     return v < min? min : v > max? max : v;
+}
+
+inline int clamp(int v, int min, int max)
+{
+    return v < min? min : v > max? max : v;
+}
+
+inline float lerp(float a, float b, float t)
+{
+    return a + (b-a)*t;
+}
+
+inline float ApproachExponential(float source, float target, float smoothing, float deltaTime)
+{
+    return lerp(source, target, 1.0f - (float)pow(smoothing, deltaTime));
 }
 
 inline bool IsPowerOf2(uint32_t n)
@@ -281,6 +320,7 @@ Mat4 RotationMatrix(Quat rot);
 Mat4 ScaleMatrix(Vec3 scale);
 Mat4 PositionMatrix(Vec3 pos);
 Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale);
+void PosRotScaleFromMat4(Mat4 mat, Vec3* pos, Quat* rot, Vec3* scale);
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 
@@ -393,6 +433,10 @@ void Free(Array<t>* array);
 
 ////
 // Memory allocation
+
+void* MemReserve(uint64_t size);
+void MemCommit(void* mem, uint64_t size);
+void MemFree(void* mem, uint64_t size);
 
 #define ArenaDefAlign sizeof(void*)
 
@@ -585,6 +629,11 @@ char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst);
 String GetPathExtension(const char* path);
 String GetPathNoExtension(const char* path);
 
+char* GetExecutablePath();
+void B_SetCurrentDirectory(const char* path);
+void SetCurrentDirectoryRelativeToExe(const char* path);
+char* B_GetCurrentDirectory();
+
 ////
 // Miscellaneous
 
@@ -619,3 +668,8 @@ template<typename t>
 Defer<t> operator +(DeferDummy, t&& var) { return deferCreate<t>(std::forward<t>(var)); }
 
 #define defer auto defer_(__LINE__) = DeferDummy() + [&]()
+
+void B_Sleep(uint64_t millis);
+void DebugMessage(const char* message);
+void DebugMessageFmt(const char* fmt, ...);
+bool B_IsDebuggerPresent();

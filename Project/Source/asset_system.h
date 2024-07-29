@@ -103,7 +103,7 @@ struct Model
     // @tmp testing
     Shader* vertex;
     Shader* pixel;
-    R_Program program;
+    R_Pipeline program;
 };
 
 inline const char* GetShaderKindString(ShaderKind kind)

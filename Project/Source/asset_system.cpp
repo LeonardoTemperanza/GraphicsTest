@@ -30,7 +30,7 @@ Model* LoadModel(const char* path)
     String contents = LoadEntireFile(path);
     if(!contents.ptr)
     {
-        OS_DebugMessage("Could not even load file...\n");
+        DebugMessage("Could not even load file...\n");
         return res;
     }
     
@@ -44,7 +44,7 @@ Model* LoadModel(const char* path)
     // TODO: Error reporting
     if(magicBytes != "model")
     {
-        OS_DebugMessage("This thing is not even a model file...\n");
+        DebugMessage("This thing is not even a model file...\n");
         return res;
     }
     
@@ -58,7 +58,7 @@ Model* LoadModel(const char* path)
     
     char buffer[1024];
     snprintf(buffer, 1024, "Version: %d, Num meshes: %d, Num materials: %d\n", version, numMeshes, numMaterials);
-    OS_DebugMessage(buffer);
+    DebugMessage(buffer);
     
     for(int i = 0; i < numMeshes; ++i)
     {
@@ -89,7 +89,7 @@ Material LoadMaterial(const char* path)
     String contents = LoadEntireFile(path);
     if(!contents.ptr)
     {
-        OS_DebugMessage("Could not load file...\n");
+        DebugMessage("Could not load file...\n");
         return mat;
     }
     
@@ -103,7 +103,7 @@ Material LoadMaterial(const char* path)
     // TODO: Error reporting
     if(magicBytes != "material")
     {
-        OS_DebugMessage("This file is corrupt or does not contain material\n");
+        DebugMessage("This file is corrupt or does not contain material\n");
         return mat;
     }
     
@@ -130,7 +130,7 @@ Shader* LoadShader(const char* path)
     String contents = LoadEntireFile(path);
     if(!contents.ptr)
     {
-        OS_DebugMessage("Could not load file...\n");
+        DebugMessage("Could not load file...\n");
         return shader;
     }
     
@@ -143,14 +143,14 @@ Shader* LoadShader(const char* path)
     String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
     if(magicBytes != "shader")
     {
-        OS_DebugMessage("This file is corrupt or does not contain shader\n");
+        DebugMessage("This file is corrupt or does not contain shader\n");
         return shader;
     }
     
     u32 version = Next<u32>(cursor);
     if(version != 0)
     {
-        OS_DebugMessage("Wrong shader version\n");
+        DebugMessage("Wrong shader version\n");
         return shader;
     }
     

@@ -2,11 +2,6 @@
 #include "base.h"
 #include "input.h"
 
-// TODO: I think the mouse delta is not particularly good here.
-// A better approach would be to provide this sort of functionality to the OS layer
-
-// Maybe all this stuff could just be moved to the core layer, because it's not much code
-
 // Will be adjustable settings in the future
 static const float stickDeadzone = 0.1f;
 static const float triggerDeadzone = 0.1f;
@@ -14,21 +9,25 @@ static InputCtx inputCtx;
 
 void PollAndProcessInput()
 {
-    auto& curInput = inputCtx.curInput;
+    Input& curInput = inputCtx.curInput;
     
     // Current frame's input becomes last frame's
     curInput.prev.gamepad    = curInput.gamepad;
     memcpy(curInput.prev.virtualKeys, curInput.virtualKeys, sizeof(curInput.virtualKeys));
+    memcpy(curInput.prev.unfilteredKeys, curInput.unfilteredKeys, sizeof(curInput.unfilteredKeys));
     curInput.prev.mouseX     = curInput.mouseX;
     curInput.prev.mouseY     = curInput.mouseY;
     curInput.prev.mouseDelta = curInput.prev.mouseDelta;
     
     OS_InputState input = OS_PollInput();
+    curInput.mouseX = input.mouse.xPos;
+    curInput.mouseY = input.mouse.yPos;
     curInput.mouseDelta.x = input.mouse.deltaX;
     curInput.mouseDelta.y = input.mouse.deltaY;
     
     // Update input state
     memcpy(curInput.virtualKeys, input.virtualKeys, sizeof(input.virtualKeys));
+    memcpy(curInput.unfilteredKeys, input.virtualKeys, sizeof(input.virtualKeys));
     
     // If this mouse input belongs to DearImgui let's zero it out
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -37,6 +36,18 @@ void PollAndProcessInput()
         curInput.virtualKeys[Keycode_LMouse] = false;
         curInput.virtualKeys[Keycode_RMouse] = false;
         curInput.virtualKeys[Keycode_MMouse] = false;
+    }
+    
+    // If this keyboard input belongs to DearImgui let's zero it out
+    if(io.WantCaptureKeyboard)
+    {
+        for(int i = 0; i < ArrayCount(curInput.virtualKeys); ++i)
+        {
+            if(i != Keycode_LMouse && i != Keycode_MMouse && i != Keycode_RMouse)
+            {
+                curInput.virtualKeys[i] = {0};
+            }
+        }
     }
     
     // Process gamepad input
@@ -130,4 +141,14 @@ InputDominator FindDominatingGamepad(OS_InputState input, InputDominator prevDom
     }
     
     return res;
+}
+
+bool PressedKey(Input input, VirtualKeycode key)
+{
+    return input.virtualKeys[key] && !input.prev.virtualKeys[key];
+}
+
+bool PressedUnfilteredKey(Input input, VirtualKeycode key)
+{
+    return input.unfilteredKeys[key] && !input.prev.unfilteredKeys[key];
 }
