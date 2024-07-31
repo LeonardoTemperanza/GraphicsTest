@@ -563,13 +563,21 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
             break;
         }
         
-        // Raw input
         case WM_INPUT:
         {
-            int x, y;
-            Win32_PollRawInputMouseDelta(&x, &y);
-            win32.mouseDeltaX += x;
-            win32.mouseDeltaY += y;
+            // From: https://gist.github.com/luluco250/ac79d72a734295f167851ffdb36d77ee
+            // The official Microsoft examples are pretty terrible about this.
+			// Size needs to be non-constant because GetRawInputData() can return the
+			// size necessary for the RAWINPUT data, which is a weird feature.
+			unsigned size = sizeof(RAWINPUT);
+			static RAWINPUT raw[sizeof(RAWINPUT)];
+			GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
+            if (raw->header.dwType == RIM_TYPEMOUSE)
+            {
+                win32.mouseDeltaX += raw->data.mouse.lLastX;
+                win32.mouseDeltaY -= raw->data.mouse.lLastY;
+			}
+            
             break;
         }
     }

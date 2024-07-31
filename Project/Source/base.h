@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cstdarg>
 #include <string>
+#include <cmath>
 #include <cassert>
 
 #include "os/os_generic.h"
@@ -60,6 +61,7 @@ typedef unsigned char uchar;
 #define ToLenStr(str) String{.ptr=str, .len=((s64)strlen(str))}
 #define StrLit(str) String{.ptr=str, .len=sizeof(str)}
 #define StrPrintf(str) (int)str.len, str.ptr
+#define ArrayToSlice(array) Slice{.ptr=array, .len=ArrayCount(array)};
 
 ////
 // Hash functions
@@ -130,6 +132,16 @@ inline int clamp(int v, int min, int max)
 inline float lerp(float a, float b, float t)
 {
     return a + (b-a)*t;
+}
+
+inline int sign(float v)
+{
+    return v == 0.0f ? 0 : v > 0.0f ? 1 : -1;
+}
+
+inline int sign(int v)
+{
+    return v == 0 ? 0 : v > 0 ? 1 : -1;
 }
 
 inline float ApproachExponential(float source, float target, float smoothing, float deltaTime)
@@ -322,6 +334,14 @@ Mat4 ScaleMatrix(Vec3 scale);
 Mat4 PositionMatrix(Vec3 pos);
 Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale);
 void PosRotScaleFromMat4(Mat4 mat, Vec3* pos, Quat* rot, Vec3* scale);
+Vec3 QuatToEulerRad(Quat q);
+Quat EulerRadToQuat(Vec3 euler);
+Vec3 EulerRadToDeg(Vec3 euler);
+Vec3 EulerDegToRad(Vec3 euler);
+Vec3 NormalizeDegAngles(Vec3 euler);
+float NormalizeDegAngle(float angle);
+Vec3 NormalizeRadAngles(Vec3 angles);
+float NormalizeRadAngle(float angle);
 
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 

@@ -46,7 +46,7 @@ struct Editor
     Quat camRot;
 };
 
-// TODO: @tmp This is mostly taken from the example
+// TODO: @tmp This is mostly taken from the dear imgui example
 struct Console
 {
     char               inputBuf[256];
@@ -57,6 +57,15 @@ struct Console
     ImGuiTextFilter    filter;
     bool               autoScroll;
     bool               scrollToBottom;
+};
+
+// Info to be stored in the widget table
+// where we store widget specific data persistently
+struct Widget
+{
+    static u64 frameCounter;
+    u64 lastUsedFrame;
+    Vec3 eulerAngles;
 };
 
 Editor InitEditor();
@@ -81,6 +90,12 @@ void ExecuteCommand(const char* command);
 int TextEditCallback(ImGuiInputTextCallbackData* data);
 
 void ShowConsole(Editor* ui);
+
+// Introspection
+struct MemberDefinition;
+void ShowEntityProperties(Editor* editor, Entity* entity);
+void ShowStruct(Slice<MemberDefinition> structMembers, void* address);
+void RemoveUnusedWidgets();
 
 // From: https://github.com/ocornut/imgui/issues/1831 by volcoma
 static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full);

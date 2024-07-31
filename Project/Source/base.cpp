@@ -701,17 +701,123 @@ void PosRotScaleFromMat4(Mat4 m, Vec3* pos, Quat* rot, Vec3* scale)
     *rot = q;
 }
 
+float SafeAtan2(double y, double x)
+{
+    if(x == 0.0f) return 0.0f;
+    return (float)std::atan2(y, x);
+}
+
+Vec3 QuatToEulerRad(Quat q)
+{
+    Vec3 angles;
+    
+    // Roll (X-axis rotation)
+    double sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z);
+    double cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y);
+    angles.x = (float)std::atan2(sinr_cosp, cosr_cosp);
+    
+    // Pitch (Y-axis rotation)
+    double sinp = 2.0 * (q.w * q.y - q.z * q.x);
+    if (std::abs(sinp) >= 1.0)
+        angles.y = (float)std::copysign(Pi / 2.0, sinp); // use ±90 degrees if out of range
+    else
+        angles.y = (float)std::asin(sinp);
+    
+    // Yaw (Z-axis rotation)
+    double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
+    double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+    angles.z = (float)std::atan2(siny_cosp, cosy_cosp);
+    
+    return angles;
+}
+
+Quat EulerRadToQuat(Vec3 euler)
+{
+    float cy = std::cos(euler.z * 0.5f);
+    float sy = std::sin(euler.z * 0.5f);
+    float cp = std::cos(euler.y * 0.5f);
+    float sp = std::sin(euler.y * 0.5f);
+    float cr = std::cos(euler.x * 0.5f);
+    float sr = std::sin(euler.x * 0.5f);
+    
+    Quat q;
+    q.w = cr * cp * cy + sr * sp * sy;
+    q.x = sr * cp * cy - cr * sp * sy;
+    q.y = cr * sp * cy + sr * cp * sy;
+    q.z = cr * cp * sy - sr * sp * cy;
+    
+    return q;
+}
+
+Vec3 EulerRadToDeg(Vec3 euler)
+{
+    return {.x=Rad2Deg(euler.x), .y=Rad2Deg(euler.y), .z=Rad2Deg(euler.z)};
+}
+
+Vec3 EulerDegToRad(Vec3 euler)
+{
+    return {.x=Deg2Rad(euler.x), .y=Deg2Rad(euler.y), .z=Deg2Rad(euler.z)};
+}
+
+Vec3 NormalizeDegAngles(Vec3 euler)
+{
+    return {.x=NormalizeDegAngle(euler.x), .y=NormalizeDegAngle(euler.y), .z=NormalizeDegAngle(euler.z)};
+}
+
+Vec3 NormalizeRadAngles(Vec3 euler)
+{
+    return {.x=NormalizeRadAngle(euler.x), .y=NormalizeRadAngle(euler.y), .z=NormalizeRadAngle(euler.z)};
+}
+
+float NormalizeDegAngle(float angle)
+{
+    // TODO @speed
+    
+    while(angle < 0.0f) angle += 360.0f;
+    while(angle >= 360.0f) angle -= 360.0f;
+    return angle;
+}
+
+float NormalizeRadAngle(float angle)
+{
+    // TODO @speed
+    
+    while(angle < 2.0f * Pi) angle += 2.0f * Pi;
+    while(angle >= 2.0f * Pi) angle -= 2.0f * Pi;
+    return angle;
+}
+
+Quat EulerToQuat(Vec3 eulerDegrees)
+{
+    Vec3 euler;
+    euler.x = eulerDegrees.x * Pi / 180.0f;
+    euler.y = eulerDegrees.y * Pi / 180.0f;
+    euler.z = eulerDegrees.z * Pi / 180.0f;
+    
+    float cy = cos(euler.y * 0.5f);
+    float sy = sin(euler.y * 0.5f);
+    float cp = cos(euler.x * 0.5f);
+    float sp = sin(euler.x * 0.5f);
+    float cr = cos(euler.z * 0.5f);
+    float sr = sin(euler.z * 0.5f);
+    
+    Quat q;
+    q.w = cr * cp * cy + sr * sp * sy;
+    q.x = sr * cp * cy - cr * sp * sy;
+    q.y = cr * sp * cy + sr * cp * sy;
+    q.z = cr * cp * sy - sr * sp * cy;
+    
+    return q;
+}
+
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
 {
     // Inverse rotation matrix
     //Mat4 res = Mat4::identity;
     Mat4 res = RotationMatrix(normalize(inverse(camRot)));
     // Apply inverse of translation before having applied inverse of rotation
-    // NOTE: The camera appeared slightly shifted forward (it could not turn in place)
-    // but applying a position matrix of -1 along the z axis seems to fix the issue. Why
-    // is that?
     res = res * PositionMatrix(-camPos);
-    return res; 
+    return res;
 }
 
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio)

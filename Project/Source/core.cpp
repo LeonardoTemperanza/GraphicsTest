@@ -226,6 +226,19 @@ t* GetDerived(EntityKey key)
     return derivedArray->ptr + res->derivedId;
 }
 
+template<typename t>
+t* GetDerived(Entity* entity)
+{
+    static_assert(!std::is_same_v<t, Entity>, "Use GetEntity instead.");
+    
+    if(!entity) return nullptr;
+    
+    if(entity->derivedKind != GetEntityKindFromType<t>()) return nullptr;
+    
+    Array<t>* derivedArray = GetArrayFromType<t>();
+    return derivedArray->ptr + entity->derivedId;
+}
+
 EntityKey GetKey(Entity* entity)
 {
     if(!entity) return NullKey();

@@ -3,6 +3,11 @@
 #include "imgui/imgui_internal.h"
 #include "generated_meta.h"
 
+// TODO: @tmp Use something else later
+#include <unordered_map>
+std::unordered_map<ImGuiID, Widget> widgetTable;
+u64 Widget::frameCounter = 0;
+
 Console InitConsole()
 {
     Console res = {0};
@@ -144,6 +149,9 @@ Editor InitEditor()
 
 void UpdateEditor(Editor* ui, float deltaTime)
 {
+    // Prune widgets which weren't used last frame
+    RemoveUnusedWidgets();
+    
     // Hide mouse cursor if right clicking on main window
     Input input = GetInput();
     if(input.virtualKeys[Keycode_RMouse])
@@ -168,6 +176,24 @@ void UpdateEditor(Editor* ui, float deltaTime)
     ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, 0, flags);
     
     ShowMainMenuBar(ui);
+    
+    // TODO: @tmp Testing here
+    {
+        EntityKey key = {.id=0, .gen=0};
+        Entity* entity = GetEntity(key);
+        if(entity)
+        {
+            static float time = 0.0f;
+            time += deltaTime;
+            float angle = time * 0.2f;
+            entity->rot = AngleAxis(Vec3::forward, angle);
+            entity->rot *= AngleAxis(Vec3::up, angle);
+            Vec3 euler = QuatToEulerRad(entity->rot);
+            Log("Rot: %f %f %f", euler.x, euler.y, euler.z);
+            euler = QuatToEulerRad(EulerRadToQuat(euler));
+            Log("Converted rot: %f %f %f", euler.x, euler.y, euler.z);
+        }
+    }
     
     // Editor Camera
     {
@@ -208,6 +234,8 @@ void UpdateEditor(Editor* ui, float deltaTime)
             {
                 SelectEntity(ui, GetEntity(picked));
             }
+            else
+                Free(&ui->selected);
         }
     }
     
@@ -225,44 +253,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
         if(ui->selected.len == 1)
         {
             Entity* selected = ui->selected[0];
-            for(int i = 0; i < ArrayCount(membersOfEntity); ++i)
-            {
-                MemberDefinition member = membersOfEntity[i];
-                MetaType metaType = member.typeInfo.metaType;
-                if(metaType == Meta_Unknown) continue;
-                
-                ImGui::Text("%s: ", member.cName);
-                
-                ImGui::PushID(member.cName);
-                ImGui::PushID(i);
-                
-                ImGui::SameLine();
-                
-                switch(metaType)
-                {
-                    case Meta_Unknown: break;
-                    case Meta_Int:
-                    {
-                        ImGui::SliderInt("##int", (int*)((char*)selected + member.offset), -1000, 1000);
-                        break;
-                    }
-                    case Meta_Float:
-                    {
-                        ImGui::SliderFloat("##float", (float*)((char*)selected + member.offset), -1000.0f, 1000.0f);
-                        break;
-                    }
-                    case Meta_Vec3:
-                    {
-                        const char* names[] = {"X", "Y", "Z"};
-                        DragFloatNEx(names, (float*)((char*)selected + member.offset), 3, 0.05f);
-                        break;
-                    }
-                    //Meta_RecursiveCases
-                }
-                
-                ImGui::PopID();
-                ImGui::PopID();
-            }
+            ShowEntityProperties(ui, selected);
         }
         else if(ui->selected.len == 0)
         {
@@ -505,7 +496,7 @@ void UpdateEditorCamera(Editor* editor, float deltaTime)
     // Camera rotation
     const float rotateXSpeed = Deg2Rad(120);
     const float rotateYSpeed = Deg2Rad(80);
-    const float mouseSensitivity = Deg2Rad(0.08f);  // Degrees per pixel
+    const float mouseSensitivity = Deg2Rad(0.2f);  // Degrees per pixel
     static float angleX = 0.0f;
     static float angleY = 0.0f;
     
@@ -534,17 +525,19 @@ void UpdateEditorCamera(Editor* editor, float deltaTime)
     
     float keyboardX = 0.0f;
     float keyboardY = 0.0f;
+    float keyboardZ = 0.0f;
     if(input.virtualKeys[Keycode_RMouse])
     {
         keyboardX = (float)(input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A]);
-        keyboardY = (float)(input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S]);
+        keyboardY = (float)(input.virtualKeys[Keycode_E] - input.virtualKeys[Keycode_Q]);
+        keyboardZ = (float)(input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S]);
     }
     
     Vec3 targetVel =
     {
         .x = (input.gamepad.leftStick.x + keyboardX) * moveSpeed,
         .y = 0.0f,
-        .z = (input.gamepad.leftStick.y + keyboardY) * moveSpeed
+        .z = (input.gamepad.leftStick.y + keyboardZ) * moveSpeed
     };
     
     if(dot(targetVel, targetVel) > moveSpeed * moveSpeed)
@@ -552,7 +545,7 @@ void UpdateEditorCamera(Editor* editor, float deltaTime)
     
     targetVel = rot * targetVel;
     targetVel.y += (input.gamepad.rightTrigger - input.gamepad.leftTrigger) * moveSpeed;
-    targetVel.y += (input.virtualKeys[Keycode_E] - input.virtualKeys[Keycode_Q]) * moveSpeed;
+    targetVel.y += keyboardY * moveSpeed;
     
     curVel = ApproachLinear(curVel, targetVel, moveAccel * deltaTime);
     pos += curVel * deltaTime;
@@ -637,7 +630,10 @@ void TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
     
     // Draw a quad, scaled to be the same size even when further away
     float fov = Deg2Rad(editor->horizontalFOV);
-    float screenHeightAtDistance = 2.0f * magnitude(*pos - editor->camPos) * tan(fov / 2.0f);
+    Vec3 diff = *pos - editor->camPos;
+    // Get forward distance only
+    float dist = dot(diff, editor->camRot * Vec3::forward);
+    float screenHeightAtDistance = 2.0f * dist * tan(fov / 2.0f);
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     float pixelsPerUnit = height / screenHeightAtDistance;
@@ -651,29 +647,30 @@ void TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
         Vec3 v4 = v1 + Vec3::right * scale;
         Vec4 color = {.x=1.0f, .y=0.0f, .z=0.0f, .w=1.0f};
         R_ImDrawQuad(v1, v2, v3, v4, color);
+        R_ImDrawQuad(v4, v3, v2, v1, color);
     }
     
-    /*
     // Y axis
     {
-        Vec3 v1 = *pos + Vec3::forward * 0.04f * scale;
-        Vec3 v2 = *pos - Vec3::forward * 0.04f * scale;
-        Vec3 v3 = v2 + Vec3::right * scale;
-        Vec3 v4 = v1 + Vec3::right * scale;
-        Vec4 color = {.x=1.0f, .y=0.0f, .z=0.0f, .w=1.0f};
+        Vec3 v1 = *pos + Vec3::right * 0.04f * scale;
+        Vec3 v2 = *pos - Vec3::right * 0.04f * scale;
+        Vec3 v3 = v2 + Vec3::up * scale;
+        Vec3 v4 = v1 + Vec3::up * scale;
+        Vec4 color = {.x=0.0f, .y=1.0f, .z=0.0f, .w=1.0f};
         R_ImDrawQuad(v1, v2, v3, v4, color);
+        R_ImDrawQuad(v4, v3, v2, v1, color);
     }
     
     // Z axis
     {
-        Vec3 v1 = *pos + Vec3::forward * 0.04f * scale;
-        Vec3 v2 = *pos - Vec3::forward * 0.04f * scale;
-        Vec3 v3 = v2 + Vec3::right * scale;
-        Vec3 v4 = v1 + Vec3::right * scale;
-        Vec4 color = {.x=1.0f, .y=0.0f, .z=0.0f, .w=1.0f};
+        Vec3 v1 = *pos + Vec3::right * 0.04f * scale;
+        Vec3 v2 = *pos - Vec3::right * 0.04f * scale;
+        Vec3 v3 = v2 + Vec3::forward * scale;
+        Vec3 v4 = v1 + Vec3::forward * scale;
+        Vec4 color = {.x=0.0f, .y=0.0f, .z=1.0f, .w=1.0f};
         R_ImDrawQuad(v1, v2, v3, v4, color);
+        R_ImDrawQuad(v4, v3, v2, v1, color);
     }
-    */
     
     //static std::unordered_map<const char*, > gizmos;
 }
@@ -1013,6 +1010,9 @@ void ShowConsole(Editor* ui)
     if (reclaim_focus)
         ImGui::SetKeyboardFocusHere(-1); // Auto focus previous widget
     
+    if(console.items.len > 3000)
+        ClearLog();
+    
     ImGui::End();
 }
 
@@ -1065,4 +1065,112 @@ bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed,
 	EndGroup();
     
 	return value_changed;
+}
+
+void ShowEntityProperties(Editor* editor, Entity* entity)
+{
+    ImGui::PushID(GetId(entity));
+    
+    // Show base entity
+    ShowStruct(metaEntity.members, entity);
+    
+    // Show derived entity
+    switch(entity->derivedKind)
+    {
+        case Entity_None: break;
+        case Entity_Count: break;
+        case Entity_Player: ShowStruct(metaPlayer.members, GetDerived<Player>(entity)); break;
+        case Entity_Camera: ShowStruct(metaCamera.members, GetDerived<Camera>(entity)); break;
+        case Entity_PointLight: ShowStruct(metaPointLight.members, GetDerived<PointLight>(entity)); break;
+    }
+    
+    ImGui::PopID();
+}
+
+void ShowStruct(Slice<MemberDefinition> structMembers, void* address)
+{
+    for(int i = 0; i < structMembers.len; ++i)
+    {
+        MemberDefinition member = structMembers[i];
+        MetaType metaType = member.typeInfo.metaType;
+        if(metaType == Meta_Unknown) continue;
+        
+        ImGui::PushID(member.cName);
+        ImGui::PushID(i);
+        
+        ImGui::Text("%s: ", member.cName);
+        
+        ImGui::SameLine();
+        
+        switch(metaType)
+        {
+            case Meta_Unknown: break;
+            case Meta_Int:
+            {
+                ImGui::DragInt("##int", (int*)((char*)address + member.offset), 0.05f);
+                break;
+            }
+            case Meta_Float:
+            {
+                ImGui::DragFloat("##float", (float*)((char*)address + member.offset), 0.05f);
+                break;
+            }
+            case Meta_Vec3:
+            {
+                const char* names[] = {"X", "Y", "Z"};
+                DragFloatNEx(names, (float*)((char*)address + member.offset), 3, 0.05f);
+                break;
+            }
+            case Meta_Quat:
+            {
+                // NOTE: As far as i know there's no way to convert to quaternion
+                // and then back in a consistent way, so the euler representation
+                // needs to be kept between frames.
+                
+                const char* names[] = {"X", "Y", "Z"};
+                Quat* rotation = (Quat*)((char*)address + member.offset);
+                
+                ImGuiID id = ImGui::GetID("");
+                if(!widgetTable.contains(id))
+                {
+                    Widget widget = {0};
+                    widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*rotation));
+                    widgetTable[id] = widget;
+                }
+                
+                widgetTable[id].lastUsedFrame = Widget::frameCounter;
+                
+                Vec3* euler = &widgetTable[id].eulerAngles;
+                if(DragFloatNEx(names, (float*)euler, 3, 1.0f))
+                {
+                    Vec3 eulerRad = EulerDegToRad(*euler);
+                    *rotation = EulerRadToQuat(eulerRad);
+                }
+                
+                break;
+            }
+            //Meta_RecursiveCases
+        }
+        
+        ImGui::PopID();
+        ImGui::PopID();
+    }
+}
+
+void RemoveUnusedWidgets()
+{
+    for(auto it = widgetTable.begin(); it != widgetTable.end();)
+    {
+        bool removeThis = false;
+        
+        if(it->second.lastUsedFrame < Widget::frameCounter)
+            removeThis = true;
+        
+        if(removeThis)
+            it = widgetTable.erase(it);
+        else
+            it++;
+    }
+    
+    ++Widget::frameCounter;
 }

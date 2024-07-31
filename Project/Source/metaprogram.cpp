@@ -114,6 +114,7 @@ int main()
     printf("    Meta_Int,\n");
     printf("    Meta_Float,\n");
     printf("    Meta_Vec3,\n");
+    printf("    Meta_Quat,\n");
     printf("};\n");
     
     printf("\n");
@@ -138,6 +139,15 @@ int main()
     
     printf("\n");
     
+    printf("struct MetaStruct\n");
+    printf("{\n");
+    printf("    Slice<MemberDefinition> members;\n");
+    printf("    String name;\n");
+    printf("    const char* cName;\n");
+    printf("};\n");
+    
+    printf("\n");
+    
     for(int i = 0; i < ArrayCount(paths); ++i)
     {
         Slice<Token> tokens = LexFile(paths[i], &permArena);
@@ -146,7 +156,7 @@ int main()
     
     // Generate templated membersOf function
     printf("template<typename t>\n");
-    printf("Slice<MemberDefinition> MembersOf()\n");
+    printf("MetaStruct GetMetaStruct()\n");
     printf("{\n");
     for(int i = 0; i < introspectables.len; ++i)
     {
@@ -157,8 +167,7 @@ int main()
         printf("constexpr (std::is_same_v<%.*s, t>)\n", StrPrintf(introspectables[i]));
         
         printf("    {\n");
-        printf("        return {.ptr=membersOf%.*s, .len=ArrayCount(membersOf%.*s)};\n",
-               StrPrintf(introspectables[i]), StrPrintf(introspectables[i]));
+        printf("        return meta%.*s;\n", StrPrintf(introspectables[i]));
         printf("    }\n");
     }
     
@@ -392,7 +401,7 @@ void ParseIntrospection(Parser* p)
             ++p->at;
             
             Token* structName = p->at;
-            printf("MemberDefinition membersOf%.*s[] =\n", (int)structName->text.len, structName->text.ptr);
+            printf("MemberDefinition _membersOf%.*s[] =\n", (int)structName->text.len, structName->text.ptr);
             printf("{\n");
             
             
@@ -409,6 +418,12 @@ void ParseIntrospection(Parser* p)
                 ParseError(p, p->at, "Expected identifier after 'struct' keyword");
             
             printf("};\n\n");
+            
+            printf("MetaStruct meta%.*s =\n", StrPrintf(structName->text));
+            printf("{ {.ptr=_membersOf%.*s, .len=ArrayCount(_membersOf%.*s)}, StrLit(\"%.*s\"), \"%.*s\" };\n",
+                   StrPrintf(structName->text), StrPrintf(structName->text), StrPrintf(structName->text),
+                   StrPrintf(structName->text), StrPrintf(structName->text));
+            printf("\n");
         }
         else
             ParseError(p, p->at, "Introspection is only supported on structs at the moment");
@@ -436,6 +451,10 @@ void ParseMemberList(Parser* p, String structName)
         else if(typeName == "Vec3")
         {
             metaType = "Meta_Vec3";
+        }
+        else if(typeName == "Quat")
+        {
+            metaType = "Meta_Quat";
         }
         
         int numPtrs = 0;

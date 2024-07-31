@@ -14,6 +14,7 @@ enum MetaType
     Meta_Int,
     Meta_Float,
     Meta_Vec3,
+    Meta_Quat,
 };
 
 struct MetaTypeInfo
@@ -32,10 +33,17 @@ struct MemberDefinition
     const char* cName;
 };
 
-MemberDefinition membersOfEntity[] =
+struct MetaStruct
+{
+    Slice<MemberDefinition> members;
+    String name;
+    const char* cName;
+};
+
+MemberDefinition _membersOfEntity[] =
 {
 { { Meta_Vec3, 0, false, false }, offsetof(Entity, pos), StrLit("pos"), "pos" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, rot), StrLit("rot"), "rot" },
+{ { Meta_Quat, 0, false, false }, offsetof(Entity, rot), StrLit("rot"), "rot" },
 { { Meta_Vec3, 0, false, false }, offsetof(Entity, scale), StrLit("scale"), "scale" },
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, flags), StrLit("flags"), "flags" },
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, gen), StrLit("gen"), "gen" },
@@ -46,7 +54,10 @@ MemberDefinition membersOfEntity[] =
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, mountBone), StrLit("mountBone"), "mountBone" },
 };
 
-MemberDefinition membersOfCamera[] =
+MetaStruct metaEntity =
+{ {.ptr=_membersOfEntity, .len=ArrayCount(_membersOfEntity)}, StrLit("Entity"), "Entity" };
+
+MemberDefinition _membersOfCamera[] =
 {
 { { Meta_Unknown, 0, false, false }, offsetof(Camera, base), StrLit("base"), "base" },
 { { Meta_Float, 0, false, false }, offsetof(Camera, horizontalFOV), StrLit("horizontalFOV"), "horizontalFOV" },
@@ -54,38 +65,47 @@ MemberDefinition membersOfCamera[] =
 { { Meta_Float, 0, false, false }, offsetof(Camera, farClip), StrLit("farClip"), "farClip" },
 };
 
-MemberDefinition membersOfPlayer[] =
+MetaStruct metaCamera =
+{ {.ptr=_membersOfCamera, .len=ArrayCount(_membersOfCamera)}, StrLit("Camera"), "Camera" };
+
+MemberDefinition _membersOfPlayer[] =
 {
 { { Meta_Unknown, 0, false, false }, offsetof(Player, base), StrLit("base"), "base" },
 { { Meta_Vec3, 0, false, false }, offsetof(Player, speed), StrLit("speed"), "speed" },
 { { Meta_Unknown, 0, false, false }, offsetof(Player, grounded), StrLit("grounded"), "grounded" },
 };
 
-MemberDefinition membersOfPointLight[] =
+MetaStruct metaPlayer =
+{ {.ptr=_membersOfPlayer, .len=ArrayCount(_membersOfPlayer)}, StrLit("Player"), "Player" };
+
+MemberDefinition _membersOfPointLight[] =
 {
 { { Meta_Unknown, 0, false, false }, offsetof(PointLight, base), StrLit("base"), "base" },
 { { Meta_Float, 0, false, false }, offsetof(PointLight, intensity), StrLit("intensity"), "intensity" },
 { { Meta_Vec3, 0, false, false }, offsetof(PointLight, offset), StrLit("offset"), "offset" },
 };
 
+MetaStruct metaPointLight =
+{ {.ptr=_membersOfPointLight, .len=ArrayCount(_membersOfPointLight)}, StrLit("PointLight"), "PointLight" };
+
 template<typename t>
-Slice<MemberDefinition> MembersOf()
+MetaStruct GetMetaStruct()
 {
     if constexpr (std::is_same_v<Entity, t>)
     {
-        return {.ptr=membersOfEntity, .len=ArrayCount(membersOfEntity)};
+        return metaEntity;
     }
     else if constexpr (std::is_same_v<Camera, t>)
     {
-        return {.ptr=membersOfCamera, .len=ArrayCount(membersOfCamera)};
+        return metaCamera;
     }
     else if constexpr (std::is_same_v<Player, t>)
     {
-        return {.ptr=membersOfPlayer, .len=ArrayCount(membersOfPlayer)};
+        return metaPlayer;
     }
     else if constexpr (std::is_same_v<PointLight, t>)
     {
-        return {.ptr=membersOfPointLight, .len=ArrayCount(membersOfPointLight)};
+        return metaPointLight;
     }
     else
         static_assert(false, "Given type is not being introspected (add introspect keyword)");

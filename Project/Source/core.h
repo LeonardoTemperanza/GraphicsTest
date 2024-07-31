@@ -131,6 +131,8 @@ Entity* GetEntity(u32 id);
 template<typename t>
 t* GetDerived(EntityKey key);
 template<typename t>
+t* GetDerived(Entity* entity);
+template<typename t>
 t* GetDerived(DerivedKey<t> key);
 EntityKey GetKey(Entity* entity);
 u32 GetId(Entity* entity);
