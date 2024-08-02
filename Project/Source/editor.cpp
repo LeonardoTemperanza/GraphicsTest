@@ -3,6 +3,9 @@
 #include "imgui/imgui_internal.h"
 #include "generated_meta.h"
 
+// Need it for gizmo intersection
+#include "collision.h"
+
 // TODO: @tmp Use something else later
 #include <unordered_map>
 std::unordered_map<ImGuiID, Widget> widgetTable;
@@ -177,27 +180,31 @@ void UpdateEditor(Editor* ui, float deltaTime)
     
     ShowMainMenuBar(ui);
     
-    // TODO: @tmp Testing here
-    {
-        EntityKey key = {.id=0, .gen=0};
-        Entity* entity = GetEntity(key);
-        if(entity)
-        {
-            static float time = 0.0f;
-            time += deltaTime;
-            float angle = time * 0.2f;
-            entity->rot = AngleAxis(Vec3::forward, angle);
-            entity->rot *= AngleAxis(Vec3::up, angle);
-            Vec3 euler = QuatToEulerRad(entity->rot);
-            Log("Rot: %f %f %f", euler.x, euler.y, euler.z);
-            euler = QuatToEulerRad(EulerRadToQuat(euler));
-            Log("Converted rot: %f %f %f", euler.x, euler.y, euler.z);
-        }
-    }
-    
     // Editor Camera
     {
         UpdateEditorCamera(ui, deltaTime);
+    }
+    
+    // Gizmos handling
+    // This should consume inputs, so that the main editor
+    // stuff such as clicking on entities does not take
+    // precedence over this
+    bool isInteractingWithGizmos = false;
+    {
+        if(ui->selected.len == 1)
+        {
+            Entity* selected = ui->selected[0];
+            
+            Mat4 world = ComputeWorldTransform(selected);
+            Vec3 pos, scale;
+            Quat rot;
+            PosRotScaleFromMat4(world, &pos, &rot, &scale);
+            isInteractingWithGizmos = TranslationGizmo("EntityTranslate", ui, &selected->pos);
+            Mat4 newWorld = Mat4FromPosRotScale(pos, rot, scale);
+            ConvertToLocalTransform(selected, newWorld);
+            PosRotScaleFromMat4(newWorld, &pos, &rot, &scale);
+            //selected->pos = pos;
+        }
     }
     
     // Render scene
@@ -212,22 +219,9 @@ void UpdateEditor(Editor* ui, float deltaTime)
         R_DrawSelectionOutlines(color);
     }
     
-    // Gizmos here
-    {
-        // This should consume inputs, so that the main editor
-        // stuff such as clicking on entities does not take
-        // precedence over this
-        if(ui->selected.len == 1)
-        {
-            Entity* selected = ui->selected[0];
-            
-            TranslationGizmo("EntityTranslate", ui, &selected->pos);
-        }
-    }
-    
     // Main editor stuff
     {
-        if(PressedKey(input, Keycode_LMouse))
+        if(!isInteractingWithGizmos && PressedKey(input, Keycode_LMouse))
         {
             int picked = R_ReadMousePickId((int)input.mouseX, (int)input.mouseY);
             if(picked != -1)
@@ -311,6 +305,14 @@ void UpdateEditor(Editor* ui, float deltaTime)
         ImGui::End();
     }
     
+    // Camera settings window
+    if(ui->cameraSettingsWindowOpen)
+    {
+        ImGui::Begin("Editor Camera", &ui->cameraSettingsWindowOpen);
+        ImGui::DragFloat("Horizontal FOV", &ui->horizontalFOV, 0.05f);
+        ImGui::End();
+    }
+    
     // ImGui Demo window
     if(ui->demoWindowOpen)
         ImGui::ShowDemoWindow(&ui->demoWindowOpen);
@@ -360,6 +362,8 @@ void ShowMainMenuBar(Editor* ui)
                 ui->debugWindowOpen ^= true;
             if(ImGui::MenuItem("Stats", "", ui->statsWindowOpen, true))
                 ui->statsWindowOpen ^= true;
+            if(ImGui::MenuItem("Stats", "", ui->cameraSettingsWindowOpen, true))
+                ui->cameraSettingsWindowOpen ^= true;
             
             ImGui::EndMenu();
         }
@@ -578,111 +582,6 @@ void SelectEntity(Editor* ui, Entity* entity)
     }
     else
         Append(&ui->selected, entity);
-}
-
-// Immediate mode gizmos
-
-// TODO: Using unordered_map for now. This path is not exactly
-// performance critical so it's ok for now
-#include <unordered_map>
-
-struct TranslationGizmoData
-{
-    bool touchedLastFrame;
-    Vec3 pos;
-    Quat rot;
-};
-
-static std::unordered_map<ImGuiID, TranslationGizmoData> translationWidgets;
-
-void CustomWidgetsBeginFrame()
-{
-    
-}
-
-void CustomWidgetsEndFrame()
-{
-    
-}
-
-void TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
-{
-    ImGuiID id = ImGui::GetID(strId);
-    
-    Input input = GetInput();
-    
-    TranslationGizmoData data = {0};
-    if(translationWidgets.contains(id))
-    {
-        // Found from last frame, keep using this
-        data = translationWidgets[id];
-        
-        // Check if this widget has been touched
-        
-    }
-    else
-    {
-        // Not found, need to create new one
-        data.touchedLastFrame = true;
-        data.pos = *pos;
-        //translationWidgets.insert(data);
-    }
-    
-    // Draw a quad, scaled to be the same size even when further away
-    float fov = Deg2Rad(editor->horizontalFOV);
-    Vec3 diff = *pos - editor->camPos;
-    // Get forward distance only
-    float dist = dot(diff, editor->camRot * Vec3::forward);
-    float screenHeightAtDistance = 2.0f * dist * tan(fov / 2.0f);
-    int width, height;
-    OS_GetClientAreaSize(&width, &height);
-    float pixelsPerUnit = height / screenHeightAtDistance;
-    float scale = 125.0f / pixelsPerUnit;
-    
-    // X axis
-    {
-        Vec3 v1 = *pos + Vec3::forward * 0.04f * scale;
-        Vec3 v2 = *pos - Vec3::forward * 0.04f * scale;
-        Vec3 v3 = v2 + Vec3::right * scale;
-        Vec3 v4 = v1 + Vec3::right * scale;
-        Vec4 color = {.x=1.0f, .y=0.0f, .z=0.0f, .w=1.0f};
-        R_ImDrawQuad(v1, v2, v3, v4, color);
-        R_ImDrawQuad(v4, v3, v2, v1, color);
-    }
-    
-    // Y axis
-    {
-        Vec3 v1 = *pos + Vec3::right * 0.04f * scale;
-        Vec3 v2 = *pos - Vec3::right * 0.04f * scale;
-        Vec3 v3 = v2 + Vec3::up * scale;
-        Vec3 v4 = v1 + Vec3::up * scale;
-        Vec4 color = {.x=0.0f, .y=1.0f, .z=0.0f, .w=1.0f};
-        R_ImDrawQuad(v1, v2, v3, v4, color);
-        R_ImDrawQuad(v4, v3, v2, v1, color);
-    }
-    
-    // Z axis
-    {
-        Vec3 v1 = *pos + Vec3::right * 0.04f * scale;
-        Vec3 v2 = *pos - Vec3::right * 0.04f * scale;
-        Vec3 v3 = v2 + Vec3::forward * scale;
-        Vec3 v4 = v1 + Vec3::forward * scale;
-        Vec4 color = {.x=0.0f, .y=0.0f, .z=1.0f, .w=1.0f};
-        R_ImDrawQuad(v1, v2, v3, v4, color);
-        R_ImDrawQuad(v4, v3, v2, v1, color);
-    }
-    
-    //static std::unordered_map<const char*, > gizmos;
-}
-
-void RotationGizmo(const char* strId, Quat* rot)
-{
-    
-}
-
-void ScaleGizmo(const char* strId, Vec3* scale)
-{
-    
 }
 
 // TODO: @tmp This is temporary, it's largely from the dear imgui demo debug window
@@ -1019,52 +918,52 @@ void ShowConsole(Editor* ui)
 // From: https://github.com/ocornut/imgui/issues/1831 by volcoma
 static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full)
 {
-	using namespace ImGui;
+    using namespace ImGui;
     
     ImGuiWindow* window = GetCurrentWindow();
-	const ImGuiStyle& style = GImGui->Style;
-	if(w_full <= 0.0f)
-		w_full = GetContentRegionAvail().x;
+    const ImGuiStyle& style = GImGui->Style;
+    if(w_full <= 0.0f)
+        w_full = GetContentRegionAvail().x;
     
-	const float w_item_one =
-		ImMax(1.0f, (w_full - (style.ItemInnerSpacing.x * 2.0f) * (components - 1)) / (float)components) -
-		style.ItemInnerSpacing.x;
-	for(int i = 0; i < components; i++)
-		window->DC.ItemWidthStack.push_back(w_item_one - CalcTextSize(labels[i]).x);
-	window->DC.ItemWidth = window->DC.ItemWidthStack.back();
+    const float w_item_one =
+        ImMax(1.0f, (w_full - (style.ItemInnerSpacing.x * 2.0f) * (components - 1)) / (float)components) -
+        style.ItemInnerSpacing.x;
+    for(int i = 0; i < components; i++)
+        window->DC.ItemWidthStack.push_back(w_item_one - CalcTextSize(labels[i]).x);
+    window->DC.ItemWidth = window->DC.ItemWidthStack.back();
 }
 
 // From: https://github.com/ocornut/imgui/issues/1831 by volcoma
 bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed, float v_min, float v_max,
-				  const char* display_format)
+                  const char* display_format)
 {
-	using namespace ImGui;
+    using namespace ImGui;
     
     ImGuiWindow* window = GetCurrentWindow();
-	if(window->SkipItems)
-		return false;
+    if(window->SkipItems)
+        return false;
     
-	ImGuiContext& g = *GImGui;
-	bool value_changed = false;
-	BeginGroup();
+    ImGuiContext& g = *GImGui;
+    bool value_changed = false;
+    BeginGroup();
     
-	PushMultiItemsWidthsAndLabels(labels, components, 0.0f);
-	for(int i = 0; i < components; i++)
-	{
-		PushID(labels[i]);
-		PushID(i);
-		TextUnformatted(labels[i], FindRenderedTextEnd(labels[i]));
-		SameLine();
-		value_changed |= DragFloat("", &v[i], v_speed, v_min, v_max, display_format);
-		SameLine(0, g.Style.ItemInnerSpacing.x);
-		PopID();
-		PopID();
-		PopItemWidth();
-	}
+    PushMultiItemsWidthsAndLabels(labels, components, 0.0f);
+    for(int i = 0; i < components; i++)
+    {
+        PushID(labels[i]);
+        PushID(i);
+        TextUnformatted(labels[i], FindRenderedTextEnd(labels[i]));
+        SameLine();
+        value_changed |= DragFloat("", &v[i], v_speed, v_min, v_max, display_format);
+        SameLine(0, g.Style.ItemInnerSpacing.x);
+        PopID();
+        PopID();
+        PopItemWidth();
+    }
     
-	EndGroup();
+    EndGroup();
     
-	return value_changed;
+    return value_changed;
 }
 
 void ShowEntityProperties(Editor* editor, Entity* entity)
@@ -1072,26 +971,35 @@ void ShowEntityProperties(Editor* editor, Entity* entity)
     ImGui::PushID(GetId(entity));
     
     // Show base entity
-    ShowStruct(metaEntity.members, entity);
+    ShowStruct(metaEntity, entity);
     
-    // Show derived entity
-    switch(entity->derivedKind)
+    if(entity->derivedKind != Entity_None)
     {
-        case Entity_None: break;
-        case Entity_Count: break;
-        case Entity_Player: ShowStruct(metaPlayer.members, GetDerived<Player>(entity)); break;
-        case Entity_Camera: ShowStruct(metaCamera.members, GetDerived<Camera>(entity)); break;
-        case Entity_PointLight: ShowStruct(metaPointLight.members, GetDerived<PointLight>(entity)); break;
+        // Show derived entity
+        MetaStruct metaStruct = {0};
+        switch(entity->derivedKind)
+        {
+            case Entity_None: break;
+            case Entity_Count: break;
+            case Entity_Player: metaStruct = metaPointLight; break;
+            case Entity_Camera: metaStruct = metaCamera; break;
+            case Entity_PointLight: metaStruct = metaPointLight; break;
+        }
+        
+        ShowStruct(metaStruct, GetDerivedAddr(entity));
     }
     
     ImGui::PopID();
 }
 
-void ShowStruct(Slice<MemberDefinition> structMembers, void* address)
+void ShowStruct(MetaStruct metaStruct, void* address)
 {
-    for(int i = 0; i < structMembers.len; ++i)
+    ImGui::SeparatorText(metaStruct.cName);
+    Slice<MemberDefinition> members = metaStruct.members;
+    
+    for(int i = 0; i < members.len; ++i)
     {
-        MemberDefinition member = structMembers[i];
+        MemberDefinition member = members[i];
         MetaType metaType = member.typeInfo.metaType;
         if(metaType == Meta_Unknown) continue;
         
@@ -1131,10 +1039,12 @@ void ShowStruct(Slice<MemberDefinition> structMembers, void* address)
                 Quat* rotation = (Quat*)((char*)address + member.offset);
                 
                 ImGuiID id = ImGui::GetID("");
+                Widget widget = {0};
+                widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*rotation));
+                AddWidgetIfNotPresent(id, widget);
                 if(!widgetTable.contains(id))
                 {
                     Widget widget = {0};
-                    widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*rotation));
                     widgetTable[id] = widget;
                 }
                 
@@ -1173,4 +1083,205 @@ void RemoveUnusedWidgets()
     }
     
     ++Widget::frameCounter;
+}
+
+bool AddWidgetIfNotPresent(ImGuiID id, Widget initialState)
+{
+    bool res = true;
+    if(!widgetTable.contains(id))
+    {
+        res = false;
+        widgetTable[id] = initialState;
+    }
+    
+    widgetTable[id].lastUsedFrame = Widget::frameCounter;
+    return res;
+}
+
+// TODO: @tmp Quick function that we use for now. Will later be
+// pushed to the renderer
+void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
+{
+    Vec3 diff = v2 - v1;
+    diff = normalize(diff);
+    
+    // Direction to choose, to put in cross product to get
+    // perpendicular direction
+    Vec3 dir = Vec3::up;
+    if(std::abs(dot(diff, dir)) > 0.8f)
+        dir = Vec3::right;
+    if(std::abs(dot(diff, dir)) > 0.8f)
+        dir = Vec3::forward;
+    
+    Vec3 perp = cross(diff, dir);
+    Vec3 q1 = v1 + perp * scale;
+    Vec3 q2 = v1 - perp * scale;
+    Vec3 q3 = v2 - perp * scale;
+    Vec3 q4 = v2 + perp * scale;
+    R_ImDrawQuad(q1, q2, q3, q4, color);
+    R_ImDrawQuad(q4, q3, q2, q1, color);
+}
+
+bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
+{
+    ImGuiID id = ImGui::GetID(strId);
+    Widget initial = {0};
+    AddWidgetIfNotPresent(id, initial);
+    Widget& widget = widgetTable[id];
+    
+    Input input = GetInput();
+    bool interacting = false;
+    bool interactingX = false;
+    bool interactingY = false;
+    bool interactingZ = false;
+    
+    // Draw a quad, scaled to be the same size even when further away
+    float fov = Deg2Rad(editor->horizontalFOV);
+    Vec3 diff = *pos - editor->camPos;
+    // Get forward distance only
+    float dist = dot(diff, editor->camRot * Vec3::forward);
+    float screenHeightAtDistance = 2.0f * dist * tan(fov / 2.0f);
+    int width, height;
+    OS_GetClientAreaSize(&width, &height);
+    float pixelsPerUnit = height / screenHeightAtDistance;
+    float scale = 125.0f / pixelsPerUnit;
+    
+    Ray cameraRay = CameraRay((int)input.mouseX, (int)input.mouseY, editor->camPos, editor->camRot, editor->horizontalFOV);
+    
+    Vec4 red    = {1, 0, 0, 1};
+    Vec4 green  = {0, 1, 0, 1};
+    Vec4 blue   = {0, 0, 1, 1};
+    Vec4 yellow = {1, 1, 0, 1};
+    
+    // X
+    if(!interacting)
+    {
+        interactingX = AxisHandle(cameraRay, pos, Vec3::right, red, scale,
+                                  &widget.clickedX, &widget.vecDragStart, &widget.dragStartMousePos);
+        interacting |= interactingX;
+    }
+    
+    // Y
+    if(!interacting)
+    {
+        interactingY = AxisHandle(cameraRay, pos, Vec3::up, green, scale,
+                                  &widget.clickedY, &widget.vecDragStart, &widget.dragStartMousePos);
+        interacting |= interactingY;
+    }
+    
+    // Z
+    if(!interacting)
+    {
+        interactingZ = AxisHandle(cameraRay, pos, Vec3::forward, blue, scale,
+                                  &widget.clickedZ, &widget.vecDragStart, &widget.dragStartMousePos);
+        interacting |= interactingZ;
+    }
+    
+    // Rendering
+    DrawQuickLine(*pos, *pos + Vec3::right * scale, 0.05f * scale, interactingX ? yellow : red);
+    DrawQuickLine(*pos, *pos + Vec3::up * scale, 0.05f * scale, interactingY ? yellow : green);
+    DrawQuickLine(*pos, *pos + Vec3::forward * scale, 0.05f * scale, interactingZ ? yellow : blue);
+    
+    return interacting;
+}
+
+void RotationGizmo(const char* strId, Quat* rot)
+{
+    
+}
+
+void ScaleGizmo(const char* strId, Vec3* scale)
+{
+    
+}
+
+bool AxisHandle(Ray cameraRay, Vec3* pos, Vec3 dir, Vec4 color, float scale, bool* clicked, Vec3* dragStart, Vec3* dragStartMousePos)
+{
+    bool interacting = false;
+    
+    Input input = GetInput();
+    bool pressingLMouse = input.virtualKeys[Keycode_LMouse];
+    bool pressedLMouse = PressedKey(input, Keycode_LMouse);
+    if(*clicked && pressingLMouse)
+    {
+        interacting = true;
+        
+        bool ok = true;
+        Vec3 projected = ProjectToLine(cameraRay, *pos, dir, &ok);
+        if(ok)
+            *pos = *dragStart + (projected - *dragStartMousePos);
+    }
+    else if(*clicked && !pressingLMouse)
+    {
+        *clicked = false;
+    }
+    else if(!*clicked && pressedLMouse)
+    {
+        // TODO: This part doesn't work in general for all directions,
+        // only cardinal directions for now
+        Vec3 v1 = {0};
+        Vec3 v2 = {0};
+        Vec3 v3 = {0};
+        if(dot(dir, Vec3::up) > 0.8f)
+        {
+            v1 = Vec3::right;
+            v2 = Vec3::forward;
+            v3 = Vec3::up;
+        }
+        else if(dot(dir, Vec3::right) > 0.8f)
+        {
+            v1 = Vec3::forward;
+            v2 = Vec3::up;
+            v3 = Vec3::right;
+        }
+        else if(dot(dir, Vec3::forward) > 0.8f)
+        {
+            v1 = Vec3::right;
+            v2 = Vec3::up;
+            v3 = Vec3::forward;
+        }
+        
+        Aabb aabb = {.min=*pos - v1*0.05f*scale - v2*0.05f*scale, .max=*pos + v1*0.05f*scale + v2*0.05f*scale + v3*scale};
+        if(RayAabbIntersection(cameraRay, aabb))
+        {
+            interacting = true;
+            
+            bool wasClicked = *clicked;
+            *clicked = true;
+            *dragStart = *pos;
+            
+            bool ok = true;
+            Vec3 projected = ProjectToLine(cameraRay, *pos, dir, &ok);
+            if(ok)
+                *dragStartMousePos = projected;
+            else
+                *dragStartMousePos = *pos;
+        }
+    }
+    
+    return interacting;
+}
+
+Vec3 ProjectToLine(Ray cameraRay, Vec3 pos, Vec3 dir, bool* outSuccess)
+{
+    Vec3 planeNormal = Vec3::up;
+    if(std::abs(dot(dir, planeNormal)) > 0.8f)
+        planeNormal = Vec3::right;
+    if(std::abs(dot(dir, planeNormal)) > 0.8f)
+        planeNormal = Vec3::forward;
+    planeNormal = cross(dir, planeNormal);
+    
+    if(dot(planeNormal, cameraRay.dir) >= 0.0f)
+        planeNormal = -planeNormal;
+    
+    float planeDst = RayPlaneDst(cameraRay, pos, planeNormal);
+    if(planeDst != FLT_MAX)
+    {
+        Vec3 intersectionPoint = cameraRay.ori + cameraRay.dir * planeDst;
+        Vec3 projected = dir * dot(intersectionPoint, dir);
+        return projected;
+    }
+    
+    *outSuccess = false;
+    return pos;
 }

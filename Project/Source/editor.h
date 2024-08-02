@@ -6,6 +6,8 @@
 #include "core.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui/imgui.h"
+#include "generated_meta.h"
+#include "collision.h"
 
 struct QueryElement
 {
@@ -23,6 +25,7 @@ struct Editor
     bool demoWindowOpen;
     bool statsWindowOpen;
     bool debugWindowOpen;
+    bool cameraSettingsWindowOpen;
     bool inEditor;
     
     bool focusOnConsole;
@@ -59,15 +62,6 @@ struct Console
     bool               scrollToBottom;
 };
 
-// Info to be stored in the widget table
-// where we store widget specific data persistently
-struct Widget
-{
-    static u64 frameCounter;
-    u64 lastUsedFrame;
-    Vec3 eulerAngles;
-};
-
 Editor InitEditor();
 void UpdateEditor(Editor* editor, float deltaTime);
 void ShowMainMenuBar(Editor* editor);
@@ -78,11 +72,6 @@ void UpdateEditorCamera(Editor* editor, float deltaTime);
 int GetEntitySelectionId(Editor* ui, Entity* entity);
 void SelectEntity(Editor* ui, Entity* entity);
 
-// Immediate mode gizmos
-void TranslationGizmo(const char* id, Editor* editor, Vec3* pos);
-void RotationGizmo(Quat* rot);
-void ScaleGizmo(Vec3* scale);
-
 // Console print utilities
 void ClearLog();
 void Log(const char* fmt, ...);
@@ -92,11 +81,44 @@ int TextEditCallback(ImGuiInputTextCallbackData* data);
 void ShowConsole(Editor* ui);
 
 // Introspection
-struct MemberDefinition;
 void ShowEntityProperties(Editor* editor, Entity* entity);
-void ShowStruct(Slice<MemberDefinition> structMembers, void* address);
-void RemoveUnusedWidgets();
+void ShowStruct(MetaStruct metaStruct, void* address);
 
 // From: https://github.com/ocornut/imgui/issues/1831 by volcoma
 static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full);
 bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f");
+
+// Info to be stored in the widget table
+// where we store widget specific data persistently
+struct Widget
+{
+    static u64 frameCounter;
+    u64 lastUsedFrame;
+    
+    // Any state that might be used by any widget
+    
+    // Quaternion euler angle drag UI
+    Vec3 eulerAngles;
+    
+    // 3D gizmos
+    bool clickedX;
+    bool clickedY;
+    bool clickedZ;
+    bool clickedXY;
+    bool clickedXZ;
+    bool clickedYZ;
+    Vec3 vecDragStart;
+    Vec3 dragStartMousePos;
+    Quat quatDragStart;
+};
+
+void RemoveUnusedWidgets();
+// Returns whether it was present or not
+bool AddWidgetIfNotPresent(ImGuiID id, Widget initialState);
+
+// Immediate mode gizmos
+bool TranslationGizmo(const char* id, Editor* editor, Vec3* pos);
+bool AxisHandle(Ray cameraRay, Vec3* pos, Vec3 dir, Vec4 color, float scale, bool* clicked, Vec3* dragStart, Vec3* dragStartMousePos);
+Vec3 ProjectToLine(Ray cameraRay, Vec3 pos, Vec3 dir, bool* outSuccess);
+bool RotationGizmo(Quat* rot);
+bool ScaleGizmo(Vec3* scale);

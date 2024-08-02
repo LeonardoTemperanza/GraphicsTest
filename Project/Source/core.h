@@ -134,6 +134,7 @@ template<typename t>
 t* GetDerived(Entity* entity);
 template<typename t>
 t* GetDerived(DerivedKey<t> key);
+void* GetDerivedAddr(u32 id);
 EntityKey GetKey(Entity* entity);
 u32 GetId(Entity* entity);
 template<typename t>
@@ -142,6 +143,7 @@ Entity* GetMount(Entity* entity);
 // Pass null to mountTo to unmount from any entity
 void MountEntity(Entity* entity, Entity* mountTo);
 Mat4 ComputeWorldTransform(Entity* entity);
+Mat4 ConvertToLocalTransform(Entity* entity, Mat4 world);
 
 Entity* NewEntity();
 template<typename t>

@@ -26,8 +26,8 @@ struct Input
     bool virtualKeys[Keycode_Count];
     bool unfilteredKeys[Keycode_Count];
     
-    s64 mouseX;
-    s64 mouseY;
+    int mouseX;
+    int mouseY;
     Vec2 mouseDelta;
     
     // Prev input state (names are

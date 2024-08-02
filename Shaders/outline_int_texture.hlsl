@@ -13,7 +13,6 @@ float4 main(float4 position: SV_POSITION) : SV_TARGET
     if(pixel)
         return (float4)1.0f;
     
-    discard;
     return (float4)1.0f;
 }
 

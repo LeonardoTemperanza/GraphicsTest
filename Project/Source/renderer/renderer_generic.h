@@ -7,6 +7,7 @@ struct Model;
 struct Texture;
 struct Entities;
 enum ShaderKind;
+enum UniformType;
 
 // Used for GPU resources
 typedef u32 R_Texture;
@@ -61,8 +62,11 @@ void R_DrawModelEditor(Model* model, Mat4 transform, int id = -1, bool selected 
 void R_DrawSelectionOutlines(Vec4 color);
 #endif
 void R_SetPipeline(R_Pipeline pipeline);
-template<typename t>
-void R_SetUniform(u32 binding, t value);
+void R_SetUniformFloat(u32 binding, float value);
+void R_SetUniformInt(u32 binding, int value);
+void R_SetUniformVec3(u32 binding, Vec3 value);
+void R_SetUniformVec4(u32 binding, Vec4 value);
+void R_SetUniformMat4(u32 binding, Mat4 value);
 template<typename t>
 void R_SetUniformNamed(const char* name, t value);
 void R_SetUniformBuffer(u32 binding, void* buffer);

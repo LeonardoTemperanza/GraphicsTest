@@ -34,7 +34,23 @@ enum ShaderKind
     ShaderKind_Vertex  = 1,
     ShaderKind_Pixel   = 2,
     ShaderKind_Compute = 3,
+    
     ShaderKind_Count,
+};
+
+// NOTE: Shaders are serialized using these enum
+// values, so already existing ones should not be changed
+// (Count can and should be changed of course)
+enum UniformType
+{
+    Uniform_None  = 0,
+    Uniform_Int   = 1,
+    Uniform_Float = 2,
+    Uniform_Vec3  = 3,
+    Uniform_Vec4  = 4,
+    Uniform_Mat4  = 5,
+    
+    Uniform_Count,
 };
 
 struct ShaderBinaryHeader_v0

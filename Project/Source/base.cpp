@@ -249,6 +249,11 @@ float dot(Vec3 v1, Vec3 v2)
     return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
 }
 
+Vec3 cross(Vec3 v1, Vec3 v2)
+{
+    return {.x=v1.y*v2.z - v1.z*v2.y, .y=v1.z*v2.x - v1.x*v2.z, .z=v1.x*v2.y - v1.y*v2.x};
+}
+
 Vec3 ApproachLinear(Vec3 current, Vec3 target, float delta)
 {
     Vec3 diff = target - current;
@@ -820,16 +825,14 @@ Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
     return res;
 }
 
-Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio)
+Mat4 View2ProjMatrix(float nearClip, float farClip, float horizontalDegFov, float aspectRatio)
 {
     const float n = nearClip;
     const float f = farClip;
-    const float r = n * tan(fov / 2.0f);
+    const float r = n * tan(Deg2Rad(horizontalDegFov) / 2.0f);
     const float l = -r;
     const float t = r / aspectRatio;
     const float b = -t;
-    
-    // @temp NOTE: negated third column for opengl, change later
     
     Mat4 res;
     res.set

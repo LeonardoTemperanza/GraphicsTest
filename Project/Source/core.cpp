@@ -14,11 +14,15 @@ Entities* InitEntities()
     // Let's load the scene here
     //Model* gunModel = LoadModel("Gun/Gun.model");
     Model* raptoidModel = LoadModel("Raptoid/Raptoid.model");
+    Model* cubeModel = LoadModel("Common/Cube.model");
     
     raptoidModel->vertex  = LoadShader("Shaders/simple_vertex.shader");
+    cubeModel->vertex = raptoidModel->vertex;
     raptoidModel->pixel   = LoadShader("Shaders/simple_pixel.shader");
+    cubeModel->pixel = raptoidModel->pixel;
     R_Shader shaders[] = {raptoidModel->vertex->handle, raptoidModel->pixel->handle};
     raptoidModel->program = R_LinkShaders({.ptr=shaders, .len=ArrayCount(shaders)});
+    cubeModel->program = raptoidModel->program;
     
     //SetMaterial(raptoidModel, raptoidMaterial, 0);
     //SetMaterial(raptoidModel, raptoidMaterial, 1);
@@ -55,18 +59,28 @@ Entities* InitEntities()
     
     float pos = 0.0f;
     
-    Entity* e[1000];
-    for(int i = 0; i < 10; ++i)
     {
-        e[i] = NewEntity();
-        e[i]->model = raptoidModel;
-        e[i]->pos.x = pos;
-        pos += 3.0f;
+        Entity* e[1000];
+        for(int i = 0; i < 10; ++i)
+        {
+            e[i] = NewEntity();
+            e[i]->model = raptoidModel;
+            e[i]->pos.x = pos;
+            pos += 3.0f;
+        }
+        
+        MountEntity(e[4], e[3]);
+        MountEntity(e[5], e[4]);
+        MountEntity(e[6], e[5]);
     }
     
-    MountEntity(e[4], e[3]);
-    MountEntity(e[5], e[4]);
-    MountEntity(e[6], e[5]);
+    {
+        Entity* e = NewEntity();
+        e->model = cubeModel;
+        e->pos.x = pos;
+        e->scale = {0, 0, 0};
+        pos += 3.0f;
+    }
     
     return &res;
 }
@@ -239,6 +253,20 @@ t* GetDerived(Entity* entity)
     return derivedArray->ptr + entity->derivedId;
 }
 
+void* GetDerivedAddr(Entity* entity)
+{
+    switch(entity->derivedKind)
+    {
+        case Entity_None: return nullptr;
+        case Entity_Count: return nullptr;
+        case Entity_Player: return (void*)&entities.players[entity->derivedId];
+        case Entity_Camera: return (void*)&entities.cameras[entity->derivedId];
+        case Entity_PointLight: return (void*)&entities.pointLights[entity->derivedId];
+    }
+    
+    return nullptr;
+}
+
 EntityKey GetKey(Entity* entity)
 {
     if(!entity) return NullKey();
@@ -295,6 +323,14 @@ Mat4 ComputeWorldTransform(Entity* entity)
     Mat4 transform = Mat4FromPosRotScale(entity->pos, entity->rot, entity->scale);
     transform = ComputeWorldTransform(GetMount(entity)) * transform;
     return transform;
+}
+
+Mat4 ConvertToLocalTransform(Entity* entity, Mat4 world)
+{
+    if(!entity) return world;
+    
+    Mat4 mountTransform = ComputeWorldTransform(GetMount(entity));
+    return inverse(mountTransform) * world;
 }
 
 Entity* NewEntity()

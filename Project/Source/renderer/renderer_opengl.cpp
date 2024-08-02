@@ -400,16 +400,18 @@ void R_BeginPass(Vec3 camPos, Quat camRot, float horizontalFOV, float nearClip, 
     const float f   = farClip;
     const float fov = horizontalFOV;
     
-    const float right = n * tan(fov / 2.0f);
-    const float top   = right / aspectRatio;
-    
     PerFrameUniforms u;
     u.world2View = transpose(World2ViewMatrix(camPos, camRot));
     u.view2Proj  = View2ProjMatrix(n, f, fov, aspectRatio);
     // Negate z axis because in OpenGL, -z is forward while in our coordinate system it's the other way around
     u.view2Proj.c3 *= -1;
     u.view2Proj.m43 = 1;
+    
+    // TODO: Apparently because we translate from hlsl it seems like matrices are actually
+    // access in a row-major manner (like in hlsl), so i guess retranspose it back, for now.
+    // Don't forget to just make everything row major
     u.view2Proj = transpose(u.view2Proj);
+    
     u.viewPos   = camPos;
     r->perFrameUniforms = u;
     glNamedBufferSubData(r->frameUbo, 0, sizeof(u), &u);
@@ -752,25 +754,31 @@ void R_SetPipeline(R_Pipeline pipeline)
     glUseProgram(pipeline);
 }
 
-template<typename t>
-void R_SetUniform(u32 binding, t value)
+void R_SetUniformFloat(R_Pipeline pipeline, u32 binding, float value)
 {
-    if constexpr (std::is_same_v<int, t>)
-    {
-        glUniform1iv(binding, value);
-    }
-    else if constexpr (std::is_same_v<float, t>)
-    {
-        glUniform1fv(binding, value);
-    }
-    else if constexpr (std::is_same_v<Vec3, t>)
-    {
-        glUniform3fv(binding, value.x, value.y, value.z);
-    }
-    else if constexpr (std::is_same_v<Vec4, t>)
-    {
-        glUniform4fv(binding, value.x, value.y, value.z, value.w);
-    }
+    GLuint globals = glGetUniformLocation(pipeline, "_Globals");
+    
+    glUniform1f(binding, value);
+}
+
+void R_SetUniformInt(R_Pipeline pipeline, u32 binding, int value)
+{
+    glUniform1i(binding, value);
+}
+
+void R_SetUniformVec3(R_Pipeline pipeline, u32 binding, Vec3 value)
+{
+    glUniform3fv(binding, 1, (float*)&value);
+}
+
+void R_SetUniformVec4(u32 binding, Vec4 value)
+{
+    glUniform4fv(binding, 1, (float*)&value);
+}
+
+void R_SetUniformMat4(u32 binding, Mat4 value)
+{
+    glUniformMatrix4fv(binding, 1, false, (float*)&value);
 }
 
 void R_SetUniformBuffer(u32 binding, void* buffer)

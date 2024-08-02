@@ -83,8 +83,8 @@ struct OS_MouseState
     // In pixels starting from the top-left corner
     // of the application window. This is guaranteed
     // to be < 0 if the cursor is not on the window
-    int64_t xPos;
-    int64_t yPos;
+    int xPos;
+    int yPos;
     float deltaX;
     float deltaY;
 };

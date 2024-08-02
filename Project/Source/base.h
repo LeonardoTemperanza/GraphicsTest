@@ -253,6 +253,7 @@ Vec4& operator /=(Vec4& v, float f);
 Vec3 normalize(Vec3 v);
 float magnitude(Vec3 v);
 float dot(Vec3 v1, Vec3 v2);
+Vec3 cross(Vec3 v1, Vec3 v2);
 Vec3 ApproachLinear(Vec3 current, Vec3 target, float delta);
 
 // Column major
