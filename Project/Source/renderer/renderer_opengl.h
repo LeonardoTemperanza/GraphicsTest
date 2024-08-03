@@ -1,17 +1,10 @@
 
 #pragma once
 
-struct PerFrameUniforms
-{
-    Mat4 world2View;
-    Mat4 view2Proj;
-    Vec3 viewPos;
-};
-
-struct PerObjectUniforms
-{
-    Mat4 model2World;
-};
+// GPU Resources
+typedef u32 R_Texture;
+typedef u32 R_Buffer;
+typedef u32 R_Framebuffer;
 
 struct gl_MeshInfo
 {
@@ -31,7 +24,12 @@ struct gl_UniformBlock
     Slice<UniformType> types;
 };
 
-#if 0
+struct R_UniformBuffer
+{
+    u32 buffer;
+    u32 binding;
+};
+
 struct R_Shader
 {
     ShaderKind kind;
@@ -47,47 +45,12 @@ struct R_Pipeline
     // a "_Globals" uniform block
     Slice<u32> uniformOffsets;
     
+    u32 globalsBinding;
+    
     Slice<gl_UniformBlock> blocks;
 };
-#endif
 
 struct Renderer
 {
-    GLuint appUbo;
-    GLuint frameUbo;
-    GLuint objUbo;
-    
-    GLuint vertShader;
-    GLuint fragShader;
-    GLuint shaderProgram;
-    
-    PerFrameUniforms perFrameUniforms;
-    
-    R_Shader boundShader;
-    
-    // Basic shapes
-    GLuint basicProgram;
-    GLuint colorUniform;
-    GLuint transformUniform;
-    
-    GLuint fullScreenQuadVao;
-    GLuint cylinderVbo;
-    GLuint coneVbo;
-    
-    // Mouse picking
-    GLuint mousePickingProgram;
-    GLuint mousePickingIdUniform;
-    GLuint mousePickingColor;
-    GLuint mousePickingDepth;
-    GLuint mousePickingFbo;
-    
-    // Selection outlines
-    GLuint selectionProgram;
-    GLuint selectionColor;
-    GLuint selectionDepth;
-    GLuint selectionFbo;
-    
-    GLuint outlineProgram;
-    GLuint outlineColorUniform;
-    GLuint outlineTransformUniform;
+    R_Pipeline boundPipeline;
 };

@@ -23,9 +23,6 @@ int main()
         ImGui::DestroyContext();
     };
     
-    OS_InitDearImgui();
-    Editor editor = InitEditor();
-    
     Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
@@ -34,6 +31,9 @@ int main()
     
     Entities* entities = InitEntities();
     defer { FreeEntities(entities); };
+    
+    OS_InitDearImgui();
+    Editor editor = InitEditor();
     
     OS_ShowWindow();
     

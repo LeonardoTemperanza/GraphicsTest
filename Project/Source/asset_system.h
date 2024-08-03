@@ -45,10 +45,11 @@ enum UniformType
 {
     Uniform_None  = 0,
     Uniform_Int   = 1,
-    Uniform_Float = 2,
-    Uniform_Vec3  = 3,
-    Uniform_Vec4  = 4,
-    Uniform_Mat4  = 5,
+    Uniform_UInt  = 2,
+    Uniform_Float = 3,
+    Uniform_Vec3  = 4,
+    Uniform_Vec4  = 5,
+    Uniform_Mat4  = 6,
     
     Uniform_Count,
 };
@@ -116,10 +117,7 @@ struct Model
     Slice<Mesh>     meshes;
     Slice<Material> materials;
     
-    // @tmp testing
-    Shader* vertex;
-    Shader* pixel;
-    R_Pipeline program;
+    R_Pipeline pipeline;
 };
 
 inline const char* GetShaderKindString(ShaderKind kind)

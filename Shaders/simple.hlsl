@@ -22,19 +22,19 @@ struct Vert2Pixel
     float3 color    : COLOR;
 };
 
-cbuffer PerScene
+cbuffer PerScene : register(b0)
 {
     
 };
 
-cbuffer PerFrame
+cbuffer PerFrame : register(b1)
 {
     column_major float4x4 world2View;
     column_major float4x4 view2Proj;
     float3 viewPos;
 };
 
-cbuffer PerObj
+cbuffer PerObj : register(b2)
 {
     column_major float4x4 model2World;
 };

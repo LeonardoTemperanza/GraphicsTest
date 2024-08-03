@@ -1,4 +1,9 @@
 
+// NOTE: Some parts of the code are kind of messy,
+// but it's honestly inevitable when working with the
+// win32 api. Especially the window proc function and the
+// whole window resize debacle
+
 #include "os_generic.h"
 
 #define WIN32_LEAN_AND_MEAN

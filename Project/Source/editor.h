@@ -42,11 +42,9 @@ struct Editor
     EntityFlags entityQuery;
     
     // Editor camera
-    float horizontalFOV;
-    float nearClip;
-    float farClip;
     Vec3 camPos;
     Quat camRot;
+    CameraParams camParams;
 };
 
 // TODO: @tmp This is mostly taken from the dear imgui example
@@ -64,6 +62,7 @@ struct Console
 
 Editor InitEditor();
 void UpdateEditor(Editor* editor, float deltaTime);
+void RenderEditor(Editor* editor);
 void ShowMainMenuBar(Editor* editor);
 void ShowEntityList(Editor* editor);
 void ShowEntityAndChildren(Editor* editor, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity);

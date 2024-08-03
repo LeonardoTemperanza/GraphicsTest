@@ -61,7 +61,7 @@ typedef unsigned char uchar;
 #define ToLenStr(str) String{.ptr=str, .len=((s64)strlen(str))}
 #define StrLit(str) String{.ptr=str, .len=sizeof(str)}
 #define StrPrintf(str) (int)str.len, str.ptr
-#define ArrayToSlice(array) Slice{.ptr=array, .len=ArrayCount(array)};
+#define ArrToSlice(array) {.ptr=array, .len=ArrayCount(array)}
 
 ////
 // Hash functions

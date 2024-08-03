@@ -8,12 +8,24 @@ struct Texture;
 struct Entities;
 enum ShaderKind;
 enum UniformType;
+struct R_Pipeline;
+struct R_Shader;
 
-// Used for GPU resources
-typedef u32 R_Texture;
-typedef u32 R_Shader;
-typedef u32 R_Pipeline;
-typedef u32 R_Buffer;
+// GPU Resource
+
+struct R_UniformValue
+{
+    UniformType type;
+    union
+    {
+        float f;
+        int i;
+        u32 ui;
+        Mat4 mat4;
+        Vec3 v3;
+        Vec4 v4;
+    } value;
+};
 
 struct Vertex
 {
@@ -21,6 +33,13 @@ struct Vertex
     Vec3 normal;
     Vec2 texCoord;
     Vec3 tangent;
+};
+
+struct CameraParams
+{
+    float nearClip;
+    float farClip;
+    float fov;  // Horizontal, and in degrees
 };
 
 // TODO: First draft of what it would look like for
@@ -40,43 +59,48 @@ struct AnimVert
     } boneWeights[MaxBonesInfluence];
 };
 
+R_UniformValue MakeUniformFloat(float value);
+R_UniformValue MakeUniformInt(int value);
+R_UniformValue MakeUniformUInt(u32 value);
+R_UniformValue MakeUniformVec3(Vec3 value);
+R_UniformValue MakeUniformVec4(Vec4 value);
+R_UniformValue MakeUniformMat4(Mat4 value);
+
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
 #elif GFX_D3D12
 #include "renderer_d3d12.h"
 #endif
 
+// Utils
+Mat4 R_ConvertView2ProjMatrix(Mat4 mat);
+
 // CPU <-> GPU transfers
 R_Buffer   R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
 R_Buffer   R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
 R_Texture  R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
+R_UniformBuffer R_CreateUniformBuffer(u32 binding);
+void       R_UploadUniformBuffer(R_UniformBuffer buffer, Slice<R_UniformValue> desc);
 R_Shader   R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
-R_Pipeline R_LinkShaders(Slice<R_Shader> shaders);
+R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders);
+R_Framebuffer R_DefaultFramebuffer();
 
 void R_Init();
-void R_BeginPass(Vec3 camPos, Quat camRot, float horizontalFOV, float nearClip, float farClip);
-void R_DrawModelNoReload(Model* model, Mat4 transform, int id = -1);
-void R_DrawModel(Model* model, Mat4 transform, int id = -1);  // Id for entity selection
-#ifdef Development
-void R_DrawModelEditor(Model* model, Mat4 transform, int id = -1, bool selected = false);
-void R_DrawSelectionOutlines(Vec4 color);
-#endif
-void R_SetPipeline(R_Pipeline pipeline);
-void R_SetUniformFloat(u32 binding, float value);
-void R_SetUniformInt(u32 binding, int value);
-void R_SetUniformVec3(u32 binding, Vec3 value);
-void R_SetUniformVec4(u32 binding, Vec4 value);
-void R_SetUniformMat4(u32 binding, Mat4 value);
-template<typename t>
-void R_SetUniformNamed(const char* name, t value);
-void R_SetUniformBuffer(u32 binding, void* buffer);
-void R_SetUniformBufferNamed(const char* name, void* buffer);
-void R_Cleanup();
 
-// Utils
-#ifdef Development
-int R_ReadMousePickId(int xPos, int yPos);  // Returns -1 if no id was picked
-#endif
+// Drawing
+void R_DrawModelNoReload(Model* model);
+void R_DrawModel(Model* model);
+
+// Setting state
+void R_SetViewport(int width, int height);
+void R_SetPipeline(R_Pipeline pipeline);
+void R_SetUniforms(Slice<R_UniformValue> desc);
+void R_SetFramebuffer(R_Framebuffer framebuffer);
+void R_ClearFrame(Vec4 color);
+void R_EnableDepthTest(bool enable);
+void R_EnableCullFace(bool enable);
+void R_EnableAlphaBlending(bool enable);
+void R_Cleanup();
 
 // Immediate operations
 void R_ImDrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneLength, float coneRadius, Vec4 color);
@@ -88,4 +112,3 @@ void R_ImDrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4, Vec4 color);
 // Libraries
 void R_RenderDearImgui();
 void R_ShutdownDearImgui();
-void R_ImGuiShowDebugTextures();

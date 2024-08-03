@@ -11,27 +11,21 @@ Entities* InitEntities()
     entities = {0};
     auto& res = entities;
     
-    // Let's load the scene here
-    //Model* gunModel = LoadModel("Gun/Gun.model");
     Model* raptoidModel = LoadModel("Raptoid/Raptoid.model");
     Model* cubeModel = LoadModel("Common/Cube.model");
     
-    raptoidModel->vertex  = LoadShader("Shaders/simple_vertex.shader");
-    cubeModel->vertex = raptoidModel->vertex;
-    raptoidModel->pixel   = LoadShader("Shaders/simple_pixel.shader");
-    cubeModel->pixel = raptoidModel->pixel;
-    R_Shader shaders[] = {raptoidModel->vertex->handle, raptoidModel->pixel->handle};
-    raptoidModel->program = R_LinkShaders({.ptr=shaders, .len=ArrayCount(shaders)});
-    cubeModel->program = raptoidModel->program;
+    Shader* simpleVertex = LoadShader("CompiledShaders/simple_vertex.shader");
+    Shader* simplePixel  = LoadShader("CompiledShaders/simple_pixel.shader");
+    R_Shader shaders[] = {simpleVertex->handle, simplePixel->handle};
+    raptoidModel->pipeline = R_CreatePipeline({.ptr=shaders, .len=ArrayCount(shaders)});
+    cubeModel->pipeline = raptoidModel->pipeline;
     
     //SetMaterial(raptoidModel, raptoidMaterial, 0);
     //SetMaterial(raptoidModel, raptoidMaterial, 1);
     
     //Model* sphereModel = LoadModelAsset("Common/sphere.model");
     Model* sphereModel = raptoidModel;
-    sphereModel->vertex = raptoidModel->vertex;
-    sphereModel->pixel  = raptoidModel->pixel;
-    sphereModel->program = raptoidModel->program;
+    sphereModel->pipeline = raptoidModel->pipeline;
     
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
     static Arena cameraArena = ArenaVirtualMemInit(MB(64), MB(2));
@@ -47,9 +41,9 @@ Entities* InitEntities()
     raptoid->model = raptoidModel;
     
     auto camera = NewEntity<Camera>();
-    camera->horizontalFOV = 90.0f;
-    camera->nearClip = 0.1f;
-    camera->farClip = 1000.0f;
+    camera->params.fov      = 90.0f;
+    camera->params.nearClip = 0.1f;
+    camera->params.farClip  = 1000.0f;
     
     res.mainCamera = GetKey(camera->base);
     
@@ -82,6 +76,11 @@ Entities* InitEntities()
         pos += 3.0f;
     }
     
+    // Init rendering fields
+    // NOTE: These are defined in the shaders!!
+    res.perSceneBuffer = R_CreateUniformBuffer(0);
+    res.perFrameBuffer = R_CreateUniformBuffer(1);
+    res.perObjBuffer   = R_CreateUniformBuffer(2);
     return &res;
 }
 
@@ -110,31 +109,80 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
         destroyed = true;
     }
     
-    bool inEditor = editor->inEditor;
+    bool inEditor = false;
+#ifdef Development
+    inEditor = editor->inEditor;
+#endif
+    
     Camera* cam = GetMainCamera();
-    if(inEditor)
-    {
-        Editor* e = editor;
-        R_BeginPass(e->camPos, e->camRot, e->horizontalFOV, e->nearClip, e->farClip);
-    }
-    else if(cam)
-    {
-        R_BeginPass(cam->base->pos, cam->base->rot, cam->horizontalFOV, cam->nearClip, cam->farClip);
-    }
+    int width, height;
+    OS_GetClientAreaSize(&width, &height);
+    float aspectRatio = (float)width / (float)height;
     
     if(!inEditor)
-    {
         UpdateEntities(entities, deltaTime);
+    
+    Vec3 camPos = {0};
+    Quat camRot = Quat::identity;
+    CameraParams camParams = {.nearClip=0.1f, .farClip=1000.0f};
+    if(cam)
+    {
+        camPos    = cam->base->pos;
+        camRot    = cam->base->rot;
+        camParams = cam->params;
     }
     
-#ifdef Development
     if(inEditor)
     {
+#ifdef Development
         UpdateEditor(editor, deltaTime);
-    }
-    else
-        RenderEntities(entities, editor, inEditor, deltaTime);
+        camPos = editor->camPos;
+        camRot = editor->camRot;
+        camParams = editor->camParams;
 #endif
+    }
+    
+    // Renderer beginning of frame stuff
+    {
+        R_SetViewport(width, height);
+    }
+    
+    // Render entities in the scene
+    {
+        R_ClearFrame({0.12f, 0.3f, 0.25f, 1.0f});
+        R_EnableDepthTest(true);
+        R_EnableCullFace(true);
+        R_EnableAlphaBlending(true);
+        
+        // TODO: per scene shouldn't be here but it's empty at the moment so it's fine
+        R_UploadUniformBuffer(entities->perSceneBuffer, {0});
+        Mat4 view2Proj = View2ProjMatrix(camParams.nearClip, camParams.farClip, camParams.fov, aspectRatio);
+        view2Proj = transpose(R_ConvertView2ProjMatrix(view2Proj));
+        R_UniformValue perFrameValues[] =
+        {
+            MakeUniformMat4(transpose(World2ViewMatrix(camPos, camRot))),
+            MakeUniformMat4(view2Proj),
+            MakeUniformVec3(camPos),
+        };
+        R_UploadUniformBuffer(entities->perFrameBuffer, ArrToSlice(perFrameValues));
+        
+        for_live_entities(ent)
+        {
+            if(ent->model)
+            {
+                R_UniformValue perObjValues[] =
+                {
+                    MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
+                };
+                R_UploadUniformBuffer(entities->perObjBuffer, ArrToSlice(perObjValues));
+                
+                R_SetPipeline(ent->model->pipeline);
+                R_DrawModel(ent->model);
+            }
+        }
+    }
+    
+    RenderEditor(editor);
     
     CommitDestroy(entities);
     
@@ -160,7 +208,7 @@ void RenderEntities(Entities* entities, Editor* editor, bool inEditor, float del
     for_live_entities(ent)
     {
         if(ent->model)
-            R_DrawModel(ent->model, ComputeWorldTransform(ent), GetId(ent));
+            R_DrawModel(ent->model);
     }
 }
 

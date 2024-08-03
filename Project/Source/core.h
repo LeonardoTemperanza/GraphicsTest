@@ -64,9 +64,7 @@ struct Camera
 {
     Entity* base;
     
-    float horizontalFOV;  // Degrees
-    float nearClip;
-    float farClip;
+    CameraParams params;
 };
 
 introspect()
@@ -106,6 +104,11 @@ struct Entities
     Array<Camera> cameras;
     Array<Player> players;
     Array<PointLight> pointLights;
+    
+    // Rendering fields
+    R_UniformBuffer perObjBuffer;
+    R_UniformBuffer perFrameBuffer;
+    R_UniformBuffer perSceneBuffer;
 };
 
 struct Editor;

@@ -136,9 +136,9 @@ Editor InitEditor()
     Editor state = {0};
     state.entityListWindowOpen = true;
     state.propertyWindowOpen = true;
-    state.horizontalFOV = 90.0f;
-    state.nearClip = 0.1f;
-    state.farClip = 1000.0f;
+    state.camParams.fov = 90.0f;
+    state.camParams.nearClip = 0.1f;
+    state.camParams.farClip = 1000.0f;
     state.camRot = Quat::identity;
     
 #ifdef Development
@@ -207,22 +207,12 @@ void UpdateEditor(Editor* ui, float deltaTime)
         }
     }
     
-    // Render scene
-    {
-        for_live_entities(e)
-        {
-            bool selected = GetEntitySelectionId(ui, e) > -1;
-            R_DrawModelEditor(e->model, ComputeWorldTransform(e), GetId(e), selected);
-        }
-        
-        Vec4 color = {.x=1.0f, .y=1.0f, .z=0.0f, .w=1.0f};
-        R_DrawSelectionOutlines(color);
-    }
-    
     // Main editor stuff
     {
         if(!isInteractingWithGizmos && PressedKey(input, Keycode_LMouse))
         {
+            // TODO: @tmp Uncomment this
+#if 0
             int picked = R_ReadMousePickId((int)input.mouseX, (int)input.mouseY);
             if(picked != -1)
             {
@@ -230,6 +220,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
             }
             else
                 Free(&ui->selected);
+#endif
         }
     }
     
@@ -301,7 +292,6 @@ void UpdateEditor(Editor* ui, float deltaTime)
     if(ui->debugWindowOpen)
     {
         ImGui::Begin("Debugging", &ui->debugWindowOpen);
-        R_ImGuiShowDebugTextures();
         ImGui::End();
     }
     
@@ -309,7 +299,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
     if(ui->cameraSettingsWindowOpen)
     {
         ImGui::Begin("Editor Camera", &ui->cameraSettingsWindowOpen);
-        ImGui::DragFloat("Horizontal FOV", &ui->horizontalFOV, 0.05f);
+        ImGui::DragFloat("Horizontal FOV", &ui->camParams.fov, 0.05f);
         ImGui::End();
     }
     
@@ -321,9 +311,14 @@ void UpdateEditor(Editor* ui, float deltaTime)
     if(ui->statsWindowOpen)
     {
         ImGui::Begin("Stats", &ui->statsWindowOpen);
-        ImGui::Text("Picked id: %d", R_ReadMousePickId((int)input.mouseX, (int)input.mouseY));
         ImGui::End();
     }
+}
+
+void RenderEditor(Editor* editor)
+{
+    // Render pass for selected entities
+    
 }
 
 void ShowMainMenuBar(Editor* ui)
@@ -362,7 +357,7 @@ void ShowMainMenuBar(Editor* ui)
                 ui->debugWindowOpen ^= true;
             if(ImGui::MenuItem("Stats", "", ui->statsWindowOpen, true))
                 ui->statsWindowOpen ^= true;
-            if(ImGui::MenuItem("Stats", "", ui->cameraSettingsWindowOpen, true))
+            if(ImGui::MenuItem("Editor Camera Settings", "", ui->cameraSettingsWindowOpen, true))
                 ui->cameraSettingsWindowOpen ^= true;
             
             ImGui::EndMenu();
@@ -1136,7 +1131,7 @@ bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
     bool interactingZ = false;
     
     // Draw a quad, scaled to be the same size even when further away
-    float fov = Deg2Rad(editor->horizontalFOV);
+    float fov = Deg2Rad(editor->camParams.fov);
     Vec3 diff = *pos - editor->camPos;
     // Get forward distance only
     float dist = dot(diff, editor->camRot * Vec3::forward);
@@ -1146,7 +1141,7 @@ bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
     float pixelsPerUnit = height / screenHeightAtDistance;
     float scale = 125.0f / pixelsPerUnit;
     
-    Ray cameraRay = CameraRay((int)input.mouseX, (int)input.mouseY, editor->camPos, editor->camRot, editor->horizontalFOV);
+    Ray cameraRay = CameraRay((int)input.mouseX, (int)input.mouseY, editor->camPos, editor->camRot, editor->camParams.fov);
     
     Vec4 red    = {1, 0, 0, 1};
     Vec4 green  = {0, 1, 0, 1};

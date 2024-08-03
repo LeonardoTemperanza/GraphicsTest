@@ -60,9 +60,7 @@ MetaStruct metaEntity =
 MemberDefinition _membersOfCamera[] =
 {
 { { Meta_Unknown, 0, false, false }, offsetof(Camera, base), StrLit("base"), "base" },
-{ { Meta_Float, 0, false, false }, offsetof(Camera, horizontalFOV), StrLit("horizontalFOV"), "horizontalFOV" },
-{ { Meta_Float, 0, false, false }, offsetof(Camera, nearClip), StrLit("nearClip"), "nearClip" },
-{ { Meta_Float, 0, false, false }, offsetof(Camera, farClip), StrLit("farClip"), "farClip" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Camera, params), StrLit("params"), "params" },
 };
 
 MetaStruct metaCamera =
