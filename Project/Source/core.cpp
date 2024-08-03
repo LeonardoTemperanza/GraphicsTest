@@ -81,6 +81,12 @@ Entities* InitEntities()
     res.perSceneBuffer = R_CreateUniformBuffer(0);
     res.perFrameBuffer = R_CreateUniformBuffer(1);
     res.perObjBuffer   = R_CreateUniformBuffer(2);
+    
+    // Renderer settings that should really just be enabled by default
+    R_EnableDepthTest(true);
+    R_EnableCullFace(true);
+    R_EnableAlphaBlending(true);
+    
     return &res;
 }
 
@@ -150,9 +156,6 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     // Render entities in the scene
     {
         R_ClearFrame({0.12f, 0.3f, 0.25f, 1.0f});
-        R_EnableDepthTest(true);
-        R_EnableCullFace(true);
-        R_EnableAlphaBlending(true);
         
         // TODO: per scene shouldn't be here but it's empty at the moment so it's fine
         R_UploadUniformBuffer(entities->perSceneBuffer, {0});

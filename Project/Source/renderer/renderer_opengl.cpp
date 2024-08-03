@@ -26,6 +26,22 @@ u32 Opengl_ShaderKind(ShaderKind kind)
     return GL_VERTEX_SHADER;
 }
 
+R_Framebuffer R_DefaultFramebuffer()
+{
+    return 0;
+}
+
+R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, bool depth, bool stencil)
+{
+    TODO;
+    return 0;
+}
+
+void R_ResizeFramebuffer(int width, int height)
+{
+    TODO;
+}
+
 void R_Init()
 {
     Renderer* r = &renderer;
@@ -217,12 +233,12 @@ void R_SetUniforms(u32 binding, Slice<R_UniformValue> desc)
     Slice<uchar> buffer = MakeUniformBufferStd140(desc, scratch);
     
     // Send the buffer to the GPU
-    
+    TODO;
 }
 
-void R_SetUniformBuffer(u32 index, Slice<R_UniformValue> desc)
+void R_SetFramebuffer(R_Framebuffer framebuffer)
 {
-    
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 }
 
 void R_ClearFrame(Vec4 color)
@@ -260,17 +276,30 @@ void R_EnableAlphaBlending(bool enable)
 
 void R_Cleanup()
 {
-}
-
-void R_ImDrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneLength, float coneRadius, Vec4 color);
-void R_ImDrawCone(Vec3 baseCenter, Vec3 dir, float length, float radius, Vec4 color);
-
-void R_ImDrawCylinder(Vec3 center, float radius, float height, Vec4 color)
-{
     
 }
 
-void R_ImDrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4, Vec4 color)
+void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneLength, float coneRadius)
+{
+    TODO;
+}
+
+void R_DrawCone(Vec3 baseCenter, Vec3 dir, float length, float radius)
+{
+    TODO;
+}
+
+void R_DrawCylinder(Vec3 center, float radius, float height)
+{
+    TODO;
+}
+
+void R_DrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4)
+{
+    TODO;
+}
+
+void R_DrawFullscreenQuad()
 {
     TODO;
 }
@@ -284,6 +313,10 @@ void R_ShutdownDearImgui()
 {
     ImGui_ImplOpenGL3_Shutdown();
 }
+
+// TODO: We want a function that lets us show a texture
+// with DearImgui, regardless of the renderer, and of the
+// texture format and size
 
 void Opengl_ImGuiShowTexture(GLuint texture)
 {

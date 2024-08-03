@@ -8,10 +8,6 @@ struct Texture;
 struct Entities;
 enum ShaderKind;
 enum UniformType;
-struct R_Pipeline;
-struct R_Shader;
-
-// GPU Resource
 
 struct R_UniformValue
 {
@@ -84,6 +80,8 @@ void       R_UploadUniformBuffer(R_UniformBuffer buffer, Slice<R_UniformValue> d
 R_Shader   R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
 R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders);
 R_Framebuffer R_DefaultFramebuffer();
+R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, bool depth, bool stencil);
+void R_ResizeFramebuffer(int width, int height);
 
 void R_Init();
 
@@ -103,11 +101,12 @@ void R_EnableAlphaBlending(bool enable);
 void R_Cleanup();
 
 // Immediate operations
-void R_ImDrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneLength, float coneRadius, Vec4 color);
-void R_ImDrawCone(Vec3 baseCenter, Vec3 dir, float length, float radius, Vec4 color);
-void R_ImDrawCylinder(Vec3 center, float radius, float height, Vec4 color);
+void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneLength, float coneRadius);
+void R_DrawCone(Vec3 baseCenter, Vec3 dir, float length, float radius);
+void R_DrawCylinder(Vec3 center, float radius, float height);
 // Counter clockwise is assumed. Both faces face the same way
-void R_ImDrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4, Vec4 color);
+void R_DrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4);
+void R_DrawFullscreenQuad();
 
 // Libraries
 void R_RenderDearImgui();

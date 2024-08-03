@@ -36,6 +36,7 @@ struct Editor
     
     // Rendering
     R_Pipeline outlineForIntTexture;
+    R_Framebuffer selectedFramebuffer;  // Only has depth
     
     // Entity list query
     Array<QueryElement> queryElements;

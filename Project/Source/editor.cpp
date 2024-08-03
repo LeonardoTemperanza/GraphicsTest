@@ -145,8 +145,8 @@ Editor InitEditor()
     state.inEditor = true;
 #endif
     
-    Shader* screenSpaceVertex = LoadShader("CompiledShaders/screen_space.shader");
-    
+    // Rendering
+    state.selectedFramebuffer = R_CreateFramebuffer(0, 0, false, true, false);
     return state;
 }
 
@@ -318,7 +318,26 @@ void UpdateEditor(Editor* ui, float deltaTime)
 void RenderEditor(Editor* editor)
 {
     // Render pass for selected entities
+    {
+        R_SetFramebuffer(editor->selectedFramebuffer);
+        R_ClearFrame({0});
+        
+        for(int i = 0; i < editor->selected.len; ++i)
+        {
+            Entity* ent = editor->selected[i];
+            if(ent->flags & EntityFlags_Destroyed) continue;
+            
+            
+            R_DrawModel(ent->model);
+        }
+        
+        R_SetFramebuffer(R_DefaultFramebuffer());
+    }
     
+    // Draw fullscreen quad with appropriate shader
+    {
+        R_DrawFullscreenQuad();
+    }
 }
 
 void ShowMainMenuBar(Editor* ui)
@@ -1113,8 +1132,8 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     Vec3 q2 = v1 - perp * scale;
     Vec3 q3 = v2 - perp * scale;
     Vec3 q4 = v2 + perp * scale;
-    R_ImDrawQuad(q1, q2, q3, q4, color);
-    R_ImDrawQuad(q4, q3, q2, q1, color);
+    //R_ImDrawQuad(q1, q2, q3, q4, color);
+    //R_ImDrawQuad(q4, q3, q2, q1, color);
 }
 
 bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
