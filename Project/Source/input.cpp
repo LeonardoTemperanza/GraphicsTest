@@ -7,7 +7,7 @@ static const float stickDeadzone = 0.1f;
 static const float triggerDeadzone = 0.1f;
 static InputCtx inputCtx;
 
-void PollAndProcessInput()
+void PollAndProcessInput(bool inEditor)
 {
     Input& curInput = inputCtx.curInput;
     
@@ -29,23 +29,26 @@ void PollAndProcessInput()
     memcpy(curInput.virtualKeys, input.virtualKeys, sizeof(input.virtualKeys));
     memcpy(curInput.unfilteredKeys, input.virtualKeys, sizeof(input.virtualKeys));
     
-    // If this mouse input belongs to DearImgui let's zero it out
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    if(io.WantCaptureMouse)
+    // If these inputs belong to DearImgui let's zero it out
+    if(inEditor)
     {
-        curInput.virtualKeys[Keycode_LMouse] = false;
-        curInput.virtualKeys[Keycode_RMouse] = false;
-        curInput.virtualKeys[Keycode_MMouse] = false;
-    }
-    
-    // If this keyboard input belongs to DearImgui let's zero it out
-    if(io.WantCaptureKeyboard)
-    {
-        for(int i = 0; i < ArrayCount(curInput.virtualKeys); ++i)
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
+        if(io.WantCaptureMouse)
         {
-            if(i != Keycode_LMouse && i != Keycode_MMouse && i != Keycode_RMouse)
+            curInput.virtualKeys[Keycode_LMouse] = false;
+            curInput.virtualKeys[Keycode_RMouse] = false;
+            curInput.virtualKeys[Keycode_MMouse] = false;
+        }
+        
+        // If this keyboard input belongs to DearImgui let's zero it out
+        if(io.WantCaptureKeyboard)
+        {
+            for(int i = 0; i < ArrayCount(curInput.virtualKeys); ++i)
             {
-                curInput.virtualKeys[i] = {0};
+                if(i != Keycode_LMouse && i != Keycode_MMouse && i != Keycode_RMouse)
+                {
+                    curInput.virtualKeys[i] = {0};
+                }
             }
         }
     }
@@ -146,6 +149,11 @@ InputDominator FindDominatingGamepad(OS_InputState input, InputDominator prevDom
 bool PressedKey(Input input, VirtualKeycode key)
 {
     return input.virtualKeys[key] && !input.prev.virtualKeys[key];
+}
+
+bool PressedGamepadButton(Input input, GamepadButtonField button)
+{
+    return (input.gamepad.buttons & button) && !(input.prev.gamepad.buttons & button);
 }
 
 bool PressedUnfilteredKey(Input input, VirtualKeycode key)

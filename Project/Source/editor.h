@@ -36,7 +36,11 @@ struct Editor
     
     // Rendering
     R_Pipeline outlineForIntTexture;
-    R_Framebuffer selectedFramebuffer;  // Only has depth
+    R_Framebuffer selectedFramebuffer;  // Serves to draw selected objects to
+    R_Framebuffer entityIdFramebuffer;  // Serves to draw entity id to (for clicking on entities)
+    R_Pipeline paintTruePipeline;  // Shader for drawing selected objects to separate buffer
+    R_Pipeline paintIdPipeline;  // Shader for painting entities' id to separate buffer
+    R_Pipeline outlinePipeline;  // Shader for drawing outline on fullscreen quad
     
     // Entity list query
     Array<QueryElement> queryElements;
@@ -81,12 +85,12 @@ int TextEditCallback(ImGuiInputTextCallbackData* data);
 void ShowConsole(Editor* ui);
 
 // Introspection
-void ShowEntityProperties(Editor* editor, Entity* entity);
-void ShowStruct(MetaStruct metaStruct, void* address);
+void ShowEntityControl(Editor* editor, Entity* entity);
+void ShowStructControl(MetaStruct metaStruct, void* address);
 
-// From: https://github.com/ocornut/imgui/issues/1831 by volcoma
-static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full);
-bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed, float v_min = 0.0f, float v_max = 0.0f, const char* format = "%.3f");
+// Dear Imgui helpers for basic types
+void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float sensitivity);
+void ShowQuatControl(const char* strId, Quat* value, float columnWidth, float sensitivity);
 
 // Info to be stored in the widget table
 // where we store widget specific data persistently

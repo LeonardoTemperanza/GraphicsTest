@@ -22,8 +22,8 @@
 #include "asset_system.cpp"
 #include "parser.cpp"
 #include "collision.cpp"
-
 #include "renderer/renderer_generic.cpp"
+#include "sound/sound_generic.cpp"
 
 // Libraries
 #include "imgui/imgui.cpp"

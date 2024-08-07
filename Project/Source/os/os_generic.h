@@ -73,6 +73,8 @@ enum VirtualKeycode
     Keycode_Z,
     Keycode_Insert,
     Keycode_Ctrl,
+    Keycode_Space,
+    Keycode_Esc,
     Keycode_Count // This is just for the size of enum
 };
 

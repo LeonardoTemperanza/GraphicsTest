@@ -1,7 +1,6 @@
 
 #include "base.cpp"
-#include "asset_system.h"
-#include "parser.cpp"
+#include "serialization.h"
 
 #include <iostream>
 
@@ -21,6 +20,50 @@
 const wchar_t* vertexTarget  = L"vs_6_0";
 const wchar_t* pixelTarget   = L"ps_6_0";
 const wchar_t* computeTarget = L"cs_6_0";
+
+inline bool IsWhitespace(char c)
+{
+    return c == ' ' || c == '\t' || c == '\n';
+}
+
+int EatAllWhitespace(char** at)
+{
+    int newlines = 0;
+    int commentNestLevel = 0;
+    bool inSingleLineComment = false;
+    while(true)
+    {
+        if(**at == '\n')
+        {
+            inSingleLineComment = false;
+            ++newlines;
+            ++*at;
+        }
+        else if((*at)[0] == '/' && (*at)[1] == '/')
+        {
+            if(commentNestLevel == 0) inSingleLineComment = true;
+            *at += 2;
+        }
+        else if((*at)[0] == '/' && (*at)[1] == '*')  // Multiline comment start
+        {
+            *at += 2;
+            ++commentNestLevel;
+        }
+        else if((*at)[0] == '*' && (*at)[1] == '/')  // Multiline comment end
+        {
+            *at += 2;
+            --commentNestLevel;
+        }
+        else if(IsWhitespace(**at) || commentNestLevel > 0 || inSingleLineComment)
+        {
+            ++*at;
+        }
+        else
+            break;
+    }
+    
+    return newlines;
+}
 
 const wchar_t* GetHLSLTarget(ShaderKind kind)
 {
@@ -84,8 +127,9 @@ int main(int argCount, char** args)
     // Read to the shader source directory
     SetWorkingDirRelativeToExe("../../../Shaders/");
     
-    char* nullTerm = LoadEntireFileAndNullTerminate(shaderPath);
-    if(!nullTerm)
+    bool ok = true;
+    char* nullTerm = LoadEntireFileAndNullTerminate(shaderPath, &ok);
+    if(!ok)
     {
         fprintf(stderr, "Error: Could not open file\n");
         return 1;
@@ -137,20 +181,27 @@ int main(int argCount, char** args)
             
             bool ok = true;
             
+            String dxil = {0};
+            String vulkanSpirv = {0};
+            String glslSource = {0};
+            
             // D3D12
-            String dxil = CompileDXIL(kind, shaderSource, stage.entry, scratch, &ok);
+            if(ok)
+                dxil = CompileDXIL(kind, shaderSource, stage.entry, scratch, &ok);
             
             // Vulkan
-            String vulkanSpirv = CompileVulkanSpirv(kind, shaderSource, stage.entry, scratch, &ok);
+            if(ok)
+                vulkanSpirv = CompileVulkanSpirv(kind, shaderSource, stage.entry, scratch, &ok);
             
             // OpenGL
-            String glslSource = CompileGLSL(kind, vulkanSpirv, scratch, &ok);
+            if(ok)
+                glslSource = CompileGLSL(kind, vulkanSpirv, scratch, &ok);
             
             // Build binary file
             if(ok)
             {
                 StringBuilder builder = {0};
-                //UseArena(&builder, scratch);  // Bug
+                defer { FreeBuffers(&builder); } ;
                 
                 Append(&builder, "shader");  // Magic bytes
                 Put(&builder, (u32)0);       // Version number
@@ -338,7 +389,7 @@ String CompileDXIL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     bool showErrors = errors && errors->GetStringLength();
     bool showRemarks = remarks && remarks->GetStringLength();
     if(showErrors || showRemarks)
-        printf("HLSL->SPIR-V Failed - %s shader compilation messages:\n", shaderKindStr);
+        printf("HLSL->DXIL Failed - %s shader compilation messages:\n", shaderKindStr);
     
     if(showErrors)  printf("%s", errors->GetStringPointer());
     if(showRemarks) printf("%s", remarks->GetStringPointer());
@@ -444,17 +495,36 @@ String CompileGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, 
     options.es = false;
     compiler.set_common_options(options);
     
-    std::string source = compiler.compile();
+    // Don't really get why I have to call this stuff
+    // myself, but ok...
+    try
+    {
+        compiler.build_dummy_sampler_for_combined_images();
+    }
+    catch(...) {}
+    
+    try
+    {
+        compiler.build_combined_image_samplers();
+    }
+    catch(...) {}
     
     const char* shaderKindStr = GetShaderKindString(shaderKind);
-    if(source.size() > 0)
+    
+    // TODO: Would probably be better to just use the C API
+    
+    std::string source;
+    try
     {
+        source = compiler.compile();
+        
+        // Success
         printf("SPIR-V->GLSL OK - %s shader successfully compiled.\n", shaderKindStr);
     }
-    else
+    catch(const CompilerError& e)
     {
         *ok = false;
-        printf("SPIR-V->GLSL Failed - %s shader compilation messages: ??\n", shaderKindStr);
+        printf("SPIR-V->GLSL Failed - %s shader compilation messages: %s\n", shaderKindStr, e.what());
     }
     
     binary = ArenaPushString(dst, source);

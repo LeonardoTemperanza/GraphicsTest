@@ -146,17 +146,29 @@ Editor InitEditor()
 #endif
     
     // Rendering
-    state.selectedFramebuffer = R_CreateFramebuffer(0, 0, false, true, false);
+    state.selectedFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR8UI, true, false);
+    state.entityIdFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR32I, true, false);
+    R_Shader screenVert = LoadShader("CompiledShaders/screenspace_vertex.shader");
+    R_Shader paintTrue = LoadShader("CompiledShaders/paint_bool_true.shader");
+    R_Shader paintInt = LoadShader("CompiledShaders/paint_int.shader");
+    R_Shader model2Proj = LoadShader("CompiledShaders/model2proj.shader");
+    R_Shader outlineFrag = LoadShader("CompiledShaders/outline_from_int_texture.shader");
+    R_Shader paintTrueShaders[] = {model2Proj, paintTrue};
+    state.paintTruePipeline = R_CreatePipeline(ArrToSlice(paintTrueShaders));
+    R_Shader outlineShaders[] = {screenVert, outlineFrag};
+    state.outlinePipeline = R_CreatePipeline(ArrToSlice(outlineShaders));
     return state;
 }
 
 void UpdateEditor(Editor* ui, float deltaTime)
 {
+    Input input = GetInput();
+    ImGuiIO& imguiIo = ImGui::GetIO();
+    
     // Prune widgets which weren't used last frame
     RemoveUnusedWidgets();
     
     // Hide mouse cursor if right clicking on main window
-    Input input = GetInput();
     if(input.virtualKeys[Keycode_RMouse])
     {
         OS_ShowCursor(false);
@@ -169,7 +181,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
     }
     
     // This makes it so we lose focus when right clicking as well
-    if (!ImGui::GetIO().WantCaptureMouse)
+    if (!imguiIo.WantCaptureMouse)
     {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) || ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
             ImGui::SetWindowFocus(nullptr);
@@ -179,6 +191,17 @@ void UpdateEditor(Editor* ui, float deltaTime)
     ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, 0, flags);
     
     ShowMainMenuBar(ui);
+    
+    // Shortcuts
+    {
+        if(input.unfilteredKeys[Keycode_Ctrl])
+        {
+            if(PressedUnfilteredKey(input, Keycode_P))
+            {
+                ui->inEditor = false;
+            }
+        }
+    }
     
     // Editor Camera
     {
@@ -238,7 +261,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
         if(ui->selected.len == 1)
         {
             Entity* selected = ui->selected[0];
-            ShowEntityProperties(ui, selected);
+            ShowEntityControl(ui, selected);
         }
         else if(ui->selected.len == 0)
         {
@@ -317,9 +340,15 @@ void UpdateEditor(Editor* ui, float deltaTime)
 
 void RenderEditor(Editor* editor)
 {
+    int width, height;
+    OS_GetClientAreaSize(&width, &height);
+    R_ResizeFramebuffer(editor->selectedFramebuffer, width, height);
+    R_ResizeFramebuffer(editor->entityIdFramebuffer, width, height);
+    
     // Render pass for selected entities
     {
         R_SetFramebuffer(editor->selectedFramebuffer);
+        R_SetPipeline(editor->paintTruePipeline);
         R_ClearFrame({0});
         
         for(int i = 0; i < editor->selected.len; ++i)
@@ -327,16 +356,52 @@ void RenderEditor(Editor* editor)
             Entity* ent = editor->selected[i];
             if(ent->flags & EntityFlags_Destroyed) continue;
             
-            
+            R_UniformValue perObjValues[] =
+            {
+                MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
+            };
+            R_UploadUniformBuffer(GetPerObjUniformBuffer(), ArrToSlice(perObjValues));
             R_DrawModel(ent->model);
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
     }
     
-    // Draw fullscreen quad with appropriate shader
+    // Render pass for entity ids (clicking on entities to select them)
+#if 0
     {
+        R_SetFramebuffer(editor->selectedFramebuffer);
+        R_SetPipeline(editor->paintIdPipeline);
+        R_ClearFrameInt(-1, -1, -1, -1);
+        
+        for(int i = 0; i < editor->selected.len; ++i)
+        {
+            Entity* ent = editor->selected[i];
+            if(ent->flags & EntityFlags_Destroyed) continue;
+            
+            R_UniformValue perObjValues[] =
+            {
+                MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
+            };
+            R_UploadUniformBuffer(GetPerObjUniformBuffer(), ArrToSlice(perObjValues));
+            
+            // Upload the int uniform here
+            
+            R_DrawModel(ent->model);
+        }
+        
+        R_SetFramebuffer(R_DefaultFramebuffer());
+    }
+#endif
+    
+    // Draw outline of selected objects
+    {
+        R_EnableDepthTest(false);
+        R_EnableAlphaBlending(true);
+        R_SetTexture(R_GetFramebufferColorTexture(editor->selectedFramebuffer), 0);
+        R_SetPipeline(editor->outlinePipeline);
         R_DrawFullscreenQuad();
+        R_EnableDepthTest(true);
     }
 }
 
@@ -980,12 +1045,12 @@ bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed,
     return value_changed;
 }
 
-void ShowEntityProperties(Editor* editor, Entity* entity)
+void ShowEntityControl(Editor* editor, Entity* entity)
 {
     ImGui::PushID(GetId(entity));
     
     // Show base entity
-    ShowStruct(metaEntity, entity);
+    ShowStructControl(metaEntity, entity);
     
     if(entity->derivedKind != Entity_None)
     {
@@ -1000,13 +1065,13 @@ void ShowEntityProperties(Editor* editor, Entity* entity)
             case Entity_PointLight: metaStruct = metaPointLight; break;
         }
         
-        ShowStruct(metaStruct, GetDerivedAddr(entity));
+        ShowStructControl(metaStruct, GetDerivedAddr(entity));
     }
     
     ImGui::PopID();
 }
 
-void ShowStruct(MetaStruct metaStruct, void* address)
+void ShowStructControl(MetaStruct metaStruct, void* address)
 {
     ImGui::SeparatorText(metaStruct.cName);
     Slice<MemberDefinition> members = metaStruct.members;
@@ -1020,57 +1085,27 @@ void ShowStruct(MetaStruct metaStruct, void* address)
         ImGui::PushID(member.cName);
         ImGui::PushID(i);
         
-        ImGui::Text("%s: ", member.cName);
-        
-        ImGui::SameLine();
-        
         switch(metaType)
         {
             case Meta_Unknown: break;
             case Meta_Int:
             {
-                ImGui::DragInt("##int", (int*)((char*)address + member.offset), 0.05f);
+                ImGui::DragInt(member.cNiceName, (int*)((char*)address + member.offset), 0.05f);
                 break;
             }
             case Meta_Float:
             {
-                ImGui::DragFloat("##float", (float*)((char*)address + member.offset), 0.05f);
+                ImGui::DragFloat(member.cNiceName, (float*)((char*)address + member.offset), 0.05f);
                 break;
             }
             case Meta_Vec3:
             {
-                const char* names[] = {"X", "Y", "Z"};
-                DragFloatNEx(names, (float*)((char*)address + member.offset), 3, 0.05f);
+                ShowVec3Control(member.cNiceName, (Vec3*)((char*)address + member.offset), 150.0f, 0.05f);
                 break;
             }
             case Meta_Quat:
             {
-                // NOTE: As far as i know there's no way to convert to quaternion
-                // and then back in a consistent way, so the euler representation
-                // needs to be kept between frames.
-                
-                const char* names[] = {"X", "Y", "Z"};
-                Quat* rotation = (Quat*)((char*)address + member.offset);
-                
-                ImGuiID id = ImGui::GetID("");
-                Widget widget = {0};
-                widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*rotation));
-                AddWidgetIfNotPresent(id, widget);
-                if(!widgetTable.contains(id))
-                {
-                    Widget widget = {0};
-                    widgetTable[id] = widget;
-                }
-                
-                widgetTable[id].lastUsedFrame = Widget::frameCounter;
-                
-                Vec3* euler = &widgetTable[id].eulerAngles;
-                if(DragFloatNEx(names, (float*)euler, 3, 1.0f))
-                {
-                    Vec3 eulerRad = EulerDegToRad(*euler);
-                    *rotation = EulerRadToQuat(eulerRad);
-                }
-                
+                ShowQuatControl(member.cNiceName, (Quat*)((char*)address + member.offset), 150.0f, 0.5f);
                 break;
             }
             //Meta_RecursiveCases
@@ -1079,6 +1114,97 @@ void ShowStruct(MetaStruct metaStruct, void* address)
         ImGui::PopID();
         ImGui::PopID();
     }
+}
+
+void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float sensitivity)
+{
+    ImGui::Columns(2);
+    ImGui::SetColumnWidth(0, columnWidth);
+    ImGui::Text(strId);
+    ImGui::NextColumn();
+    
+    ImGui::PushMultiItemsWidths(3, ImGui::CalcItemWidth());
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+    
+    float lineHeight = GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 2.0f;
+    ImVec2 buttonSize = { lineHeight + 3.0f, lineHeight };
+    
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.8f, 0.1f, 0.15f, 1.0f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ 0.9f, 0.2f, 0.2f, 1.0f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{ 0.8f, 0.1f, 0.15f, 1.0f });
+    
+    ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+    if(ImGui::ButtonEx("X", buttonSize, ImGuiButtonFlags_NoNavFocus))
+        value->x = 0.0f;
+    ImGui::SameLine();
+    
+    ImGui::PopStyleColor(3);
+    ImGui::PopItemFlag();
+    
+    ImGui::DragFloat("##X", &value->x, sensitivity);
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.2f, 0.7f, 0.3f, 1.0f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ 0.3f, 0.8f, 0.3f, 1.0f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f });
+    
+    ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+    if(ImGui::Button("Y", buttonSize))
+        value->y = 0.0f;
+    ImGui::SameLine();
+    
+    ImGui::PopStyleColor(3);
+    ImGui::PopItemFlag();
+    
+    ImGui::DragFloat("##Y", &value->y, sensitivity);
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{ 0.1f, 0.25f, 0.8f, 1.0f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ 0.2f, 0.35f, 0.9f, 1.0f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4{ 0.1f, 0.25f, 0.8f, 1.0f });
+    
+    ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+    if(ImGui::Button("Z", buttonSize))
+        value->z = 0.0f;
+    ImGui::SameLine();
+    
+    ImGui::PopStyleColor(3);
+    ImGui::PopItemFlag();
+    
+    ImGui::DragFloat("##Z", &value->z, sensitivity);
+    ImGui::PopItemWidth();
+    
+    ImGui::PopStyleVar();
+    
+    ImGui::Columns(1);
+}
+
+void ShowQuatControl(const char* strId, Quat* value, float columnWidth, float sensitivity)
+{
+    // NOTE: As far as i know there's no way to convert to quaternion
+    // and then back in a consistent way, so the euler representation
+    // needs to be kept between frames.
+    
+    ImGuiID id = ImGui::GetID("");
+    Widget widget = {0};
+    widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*value));
+    AddWidgetIfNotPresent(id, widget);
+    if(!widgetTable.contains(id))
+    {
+        Widget widget = {0};
+        widgetTable[id] = widget;
+    }
+    
+    widgetTable[id].lastUsedFrame = Widget::frameCounter;
+    
+    Vec3* euler = &widgetTable[id].eulerAngles;
+    ShowVec3Control(strId, euler, columnWidth, sensitivity);
+    
+    // Convert from euler angles to quaternion
+    Vec3 eulerRad = EulerDegToRad(*euler);
+    *value = EulerRadToQuat(eulerRad);
 }
 
 void RemoveUnusedWidgets()

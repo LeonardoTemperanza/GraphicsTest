@@ -16,89 +16,9 @@
 #pragma once
 
 #include "base.h"
-#include "renderer/renderer_generic.h"
+//#include "renderer/renderer_generic.h"
 
-struct ConstantBufferFormat
-{
-    u32 size;
-    Slice<String> names;
-    Slice<u32>    offsets;
-};
-
-// NOTE: Shaders are serialized using these enum
-// values, so already existing ones should not be changed
-// (Count can and should be changed of course)
-enum ShaderKind
-{
-    ShaderKind_None    = 0,
-    ShaderKind_Vertex  = 1,
-    ShaderKind_Pixel   = 2,
-    ShaderKind_Compute = 3,
-    
-    ShaderKind_Count,
-};
-
-// NOTE: Shaders are serialized using these enum
-// values, so already existing ones should not be changed
-// (Count can and should be changed of course)
-enum UniformType
-{
-    Uniform_None  = 0,
-    Uniform_Int   = 1,
-    Uniform_UInt  = 2,
-    Uniform_Float = 3,
-    Uniform_Vec3  = 4,
-    Uniform_Vec4  = 5,
-    Uniform_Mat4  = 6,
-    
-    Uniform_Count,
-};
-
-struct ShaderBinaryHeader_v0
-{
-    // Metadata on the shader itself
-    u8 shaderKind;
-    
-    // All of these are byte offsets from the address of this struct
-    
-    u32 numMatConstants;
-    u32 matNames;
-    u32 matOffsets;
-    
-    u32 dxil;
-    u32 dxilSize;
-    u32 vulkanSpirv;
-    u32 vulkanSpirvSize;
-    u32 glsl;
-    u32 glslSize;
-};
-
-typedef ShaderBinaryHeader_v0 ShaderBinaryHeader;
-
-struct Shader
-{
-    String id;
-    ShaderKind kind;
-    ConstantBufferFormat materialFormat;
-    R_Shader handle;
-};
-
-struct Texture
-{
-    String id;
-    s32 width;
-    s32 height;
-    s32 numChannels;
-    
-    R_Texture handle;
-};
-
-struct Material
-{
-    String id;
-    Slice<Texture*> textures;
-    Shader* shader;
-};
+#include "serialization.h"
 
 struct Mesh
 {
@@ -114,32 +34,14 @@ struct Mesh
 struct Model
 {
     String id;
-    Slice<Mesh>     meshes;
-    Slice<Material> materials;
-    
+    Slice<Mesh> meshes;
     R_Pipeline pipeline;
 };
 
-inline const char* GetShaderKindString(ShaderKind kind)
-{
-    switch(kind)
-    {
-        default:                 return "unknown";
-        case ShaderKind_Vertex:  return "vertex";
-        case ShaderKind_Pixel:   return "pixel";
-        case ShaderKind_Compute: return "compute";
-    }
-    
-    return "unknown";
-}
-
 void LoadScene(const char* path);
 Model* LoadModel(const char* path);
-Material LoadMaterial(const char* path);
-Texture* LoadTexture(const char* path);
-Shader* LoadShader(const char* path);
+R_Texture LoadTexture(const char* path);
+R_Shader LoadShader(const char* path);
 void LoadAssetBinding(const char* path);
-
-void SetMaterial(Model* model, Material* material, int idx);
 
 void UnloadScene(const char* path);

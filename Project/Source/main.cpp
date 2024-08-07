@@ -4,6 +4,7 @@
 #include "core.h"
 #include "editor.h"
 #include "renderer/renderer_generic.h"
+#include "sound/sound_generic.h"
 
 void SetWorkingDirRelativeToExe(const char* path);
 
@@ -28,6 +29,9 @@ int main()
     
     R_Init();
     defer { R_Cleanup(); };
+    
+    S_Init();
+    defer { S_Cleanup(); };
     
     Entities* entities = InitEntities();
     defer { FreeEntities(entities); };

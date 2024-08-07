@@ -81,7 +81,12 @@ Token* GetNullToken();
 void ParseError(Parser* p, Token* token, const char* message);
 void EatRequiredToken(Parser* p, TokenKind kind);
 
-void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString, String name);
+void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString,
+                           String name, String niceName);
+// Converts camel case to regular sentence, like this:
+// From: "thisIsAnExampleTest"
+// To:   "This Is An Example Test"
+String GetNiceNameFromMemberName(String memberName, Arena* dst);
 
 Array<String> introspectables = {0};
 
@@ -135,6 +140,8 @@ int main()
     printf("    int offset;\n");
     printf("    String name;\n");
     printf("    const char* cName;\n");
+    printf("    String niceName;\n");
+    printf("    const char* cNiceName;\n");
     printf("};\n");
     
     printf("\n");
@@ -251,7 +258,7 @@ Token GetNextToken(Tokenizer* t)
             {
                 token.kind = Tok_Ident;
                 
-                while(IsAlpha(t->at[0]) || IsNumber(t->at[0]) || t->at[0] == '*')
+                while(IsAlpha(t->at[0]) || IsNumber(t->at[0]) || t->at[0] == '_')
                     ++t->at;
                 
                 token.text.len = t->at - token.text.ptr;
@@ -404,8 +411,7 @@ void ParseIntrospection(Parser* p)
             printf("MemberDefinition _membersOf%.*s[] =\n", (int)structName->text.len, structName->text.ptr);
             printf("{\n");
             
-            
-            if(structName->kind == Tok_Ident)
+            if(p->at->kind == Tok_Ident)
             {
                 ++p->at;
                 
@@ -436,6 +442,47 @@ void ParseMemberList(Parser* p, String structName)
 {
     while(p->at->kind == Tok_Ident)
     {
+        bool niceNameDefined = false;
+        String niceName = {0};
+        
+        // Optional nice_name keyword
+        if(p->at->text == "nice_name")
+        {
+            ++p->at;
+            EatRequiredToken(p, Tok_OpenParen);
+            
+            if(p->at->kind == Tok_String)
+            {
+                niceName = p->at->text;
+                niceNameDefined = true;
+                ++p->at;
+            }
+            else
+                ParseError(p, p->at, "Expecting string literal after nice_name keyword");
+            
+            EatRequiredToken(p, Tok_CloseParen);
+            EatRequiredToken(p, Tok_Semicolon);
+        }
+        
+        // Ignore const keyword
+        if(p->at->text == "const")
+            ++p->at;
+        
+        if(p->at->text == "static")
+        {
+            // Ignore entire member
+            while(p->at->kind != Tok_Semicolon && p->at->kind != Tok_EndOfStream)
+                ++p->at;
+            if(p->at->kind == Tok_Semicolon)
+                ++p->at;
+            
+            continue;
+        }
+        
+        // Ignore const keyword
+        if(p->at->text == "const")
+            ++p->at;
+        
         String typeName = p->at->text;
         ++p->at;
         
@@ -464,15 +511,24 @@ void ParseMemberList(Parser* p, String structName)
             ++p->at;
         }
         
-        if(p->at->kind != Tok_Ident)
+        if(p->at->kind == Tok_Ident)
+        {
+            String memberName = p->at->text;
+            ++p->at;
+            
+            if(!niceNameDefined)
+            {
+                ScratchArena scratch;
+                niceName = GetNiceNameFromMemberName(memberName, scratch);
+            }
+            
+            EatRequiredToken(p, Tok_Semicolon);
+            PrintMemberDefinition(structName, metaType, numPtrs, false, false, memberName, niceName);
+        }
+        else
+        {
             ParseError(p, p->at, "Could not find member name");
-        
-        String memberName = p->at->text;
-        ++p->at;
-        
-        EatRequiredToken(p, Tok_Semicolon);
-        
-        PrintMemberDefinition(structName, metaType, numPtrs, false, false, memberName);
+        }
     }
 }
 
@@ -506,8 +562,45 @@ const char* BoolString(bool b)
     return b ? "true" : "false";
 }
 
-void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString, String name)
+void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString, String name, String niceName)
 {
-    printf("{ { %s, %d, %s, %s }, offsetof(%.*s, %.*s), StrLit(\"%.*s\"), \"%.*s\" },\n",
-           metaType, numPointers, BoolString(isSlice), BoolString(isString), StrPrintf(structName), StrPrintf(name), StrPrintf(name), StrPrintf(name));
+    printf("{ { %s, %d, %s, %s }, offsetof(%.*s, %.*s), StrLit(\"%.*s\"), \"%.*s\", StrLit(\"%.*s\"), \"%.*s\" },\n",
+           metaType, numPointers, BoolString(isSlice), BoolString(isString), StrPrintf(structName), StrPrintf(name),
+           StrPrintf(name), StrPrintf(name), StrPrintf(niceName), StrPrintf(niceName));
+}
+
+// TODO: put this is the base layer
+char ToUpperCase(char c)
+{
+    if(c >= 'a' && c <= 'z')
+        c += 'A' - 'a';
+    
+    return c;
+}
+
+String GetNiceNameFromMemberName(String memberName, Arena* dst)
+{
+    if(memberName.len <= 0) return {0};
+    
+    StringBuilder builder = {0};
+    UseArena(&builder, dst);
+    
+    Append(&builder, ToUpperCase(memberName[0]));
+    
+    int lastIdx = 1;
+    for(int i = 1; i < memberName.len; ++i)
+    {
+        if(memberName[i] >= 'A' && memberName[i] <= 'Z')
+        {
+            String toAppend = {.ptr=memberName.ptr + lastIdx, .len=i - lastIdx};
+            Append(&builder, toAppend);
+            Append(&builder, ' ');
+            lastIdx = i;
+        }
+    }
+    
+    String toAppend = {.ptr=memberName.ptr + lastIdx, .len=memberName.len - lastIdx};
+    Append(&builder, toAppend);
+    
+    return ToString(&builder);
 }

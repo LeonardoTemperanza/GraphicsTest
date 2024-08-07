@@ -13,7 +13,7 @@ REM Use utility programs
 REM utils\bin2h.exe %shader_dir%\shader.frag.spv fragShader %shader_dir%\shader.vert.spv vertShader -o ../Source/embedded_files.h
 
 set source_files=..\Source\unity_build.cpp
-set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib
+set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib Ole32.lib
 set output_name=graphics_test.exe
 
 REM gfx_api could be: GFX_OPENGL, GFX_D3D12, GFX_VULKAN, etc.

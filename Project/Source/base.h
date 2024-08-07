@@ -205,6 +205,7 @@ struct Vec3
     static const Vec3 left;
     static const Vec3 down;
     static const Vec3 backward;
+    static const Vec3 zero;
 };
 
 struct Vec4
@@ -622,6 +623,7 @@ struct StringBuilder
 
 inline void UseArena(StringBuilder* builder, Arena* arena);
 void Append(StringBuilder* builder, const char* str);
+void Append(StringBuilder* builder, char c);
 void Append(StringBuilder* builder, String str);
 void AppendFmt(StringBuilder* builder, const char* fmt, ...);
 void NullTerminate(StringBuilder* builder);

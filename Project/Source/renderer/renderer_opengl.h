@@ -4,7 +4,20 @@
 // GPU Resources
 typedef u32 R_Texture;
 typedef u32 R_Buffer;
-typedef u32 R_Framebuffer;
+
+#define gl_FramebufferMaxTextures 8
+struct R_Framebuffer
+{
+    GLuint handle;
+    bool color;
+    bool depth;
+    bool stencil;
+    int width;
+    int height;
+    R_TextureFormat colorFormat;
+    
+    GLuint textures[gl_FramebufferMaxTextures];
+};
 
 struct gl_MeshInfo
 {
@@ -53,4 +66,7 @@ struct R_Pipeline
 struct Renderer
 {
     R_Pipeline boundPipeline;
+    
+    // Objects for simple rendering
+    GLuint fullscreenQuad;
 };

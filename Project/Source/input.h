@@ -79,7 +79,7 @@ struct InputCtx
     // the deadzone values, etc.
 };
 
-void PollAndProcessInput();
+void PollAndProcessInput(bool inEditor);
 Input GetInput();
 void SetMousePos(s64 mouseX, s64 mouseY);
 

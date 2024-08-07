@@ -7,6 +7,7 @@
 #include "os_generic.h"
 
 #define WIN32_LEAN_AND_MEAN
+#define VC_EXTRALEAN
 #include <windows.h>
 
 // Opengl includes
@@ -1040,6 +1041,8 @@ VirtualKeycode Win32_ConvertToCustomKeyCodes(WPARAM code)
         case VK_MBUTTON: res = Keycode_MMouse; break;
         case VK_INSERT:  res = Keycode_Insert; break;
         case VK_CONTROL: res = Keycode_Ctrl;   break;
+        case VK_SPACE:   res = Keycode_Space;  break;
+        case VK_ESCAPE:  res = Keycode_Esc;    break;
         default:         res = Keycode_Null;   break;
     }
     

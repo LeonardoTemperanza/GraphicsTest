@@ -1,7 +1,6 @@
 
 #pragma vs VertMain
 
-
 cbuffer Uniforms : register(b1)
 {
     float4x4 transform;

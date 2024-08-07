@@ -31,6 +31,8 @@ struct MemberDefinition
     int offset;
     String name;
     const char* cName;
+    String niceName;
+    const char* cNiceName;
 };
 
 struct MetaStruct
@@ -42,16 +44,16 @@ struct MetaStruct
 
 MemberDefinition _membersOfEntity[] =
 {
-{ { Meta_Vec3, 0, false, false }, offsetof(Entity, pos), StrLit("pos"), "pos" },
-{ { Meta_Quat, 0, false, false }, offsetof(Entity, rot), StrLit("rot"), "rot" },
-{ { Meta_Vec3, 0, false, false }, offsetof(Entity, scale), StrLit("scale"), "scale" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, flags), StrLit("flags"), "flags" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, gen), StrLit("gen"), "gen" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedKind), StrLit("derivedKind"), "derivedKind" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedId), StrLit("derivedId"), "derivedId" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, model), StrLit("model"), "model" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, mount), StrLit("mount"), "mount" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, mountBone), StrLit("mountBone"), "mountBone" },
+{ { Meta_Vec3, 0, false, false }, offsetof(Entity, pos), StrLit("pos"), "pos", StrLit("Position"), "Position" },
+{ { Meta_Quat, 0, false, false }, offsetof(Entity, rot), StrLit("rot"), "rot", StrLit("Rotation"), "Rotation" },
+{ { Meta_Vec3, 0, false, false }, offsetof(Entity, scale), StrLit("scale"), "scale", StrLit("Scale"), "Scale" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, flags), StrLit("flags"), "flags", StrLit("Flags"), "Flags" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, gen), StrLit("gen"), "gen", StrLit("Gen"), "Gen" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedKind), StrLit("derivedKind"), "derivedKind", StrLit("Derived Kind"), "Derived Kind" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedId), StrLit("derivedId"), "derivedId", StrLit("Derived Id"), "Derived Id" },
+{ { Meta_Unknown, 1, false, false }, offsetof(Entity, model), StrLit("model"), "model", StrLit("Model"), "Model" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, mount), StrLit("mount"), "mount", StrLit("Mount"), "Mount" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, mountBone), StrLit("mountBone"), "mountBone", StrLit("Mount Bone"), "Mount Bone" },
 };
 
 MetaStruct metaEntity =
@@ -59,8 +61,8 @@ MetaStruct metaEntity =
 
 MemberDefinition _membersOfCamera[] =
 {
-{ { Meta_Unknown, 0, false, false }, offsetof(Camera, base), StrLit("base"), "base" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Camera, params), StrLit("params"), "params" },
+{ { Meta_Unknown, 1, false, false }, offsetof(Camera, base), StrLit("base"), "base", StrLit("Base"), "Base" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Camera, params), StrLit("params"), "params", StrLit("Params"), "Params" },
 };
 
 MetaStruct metaCamera =
@@ -68,9 +70,13 @@ MetaStruct metaCamera =
 
 MemberDefinition _membersOfPlayer[] =
 {
-{ { Meta_Unknown, 0, false, false }, offsetof(Player, base), StrLit("base"), "base" },
-{ { Meta_Vec3, 0, false, false }, offsetof(Player, speed), StrLit("speed"), "speed" },
-{ { Meta_Unknown, 0, false, false }, offsetof(Player, grounded), StrLit("grounded"), "grounded" },
+{ { Meta_Unknown, 1, false, false }, offsetof(Player, base), StrLit("base"), "base", StrLit("Base"), "Base" },
+{ { Meta_Vec3, 0, false, false }, offsetof(Player, speed), StrLit("speed"), "speed", StrLit("Speed"), "Speed" },
+{ { Meta_Unknown, 0, false, false }, offsetof(Player, grounded), StrLit("grounded"), "grounded", StrLit("Grounded"), "Grounded" },
+{ { Meta_Float, 0, false, false }, offsetof(Player, gravity), StrLit("gravity"), "gravity", StrLit("Gravity"), "Gravity" },
+{ { Meta_Float, 0, false, false }, offsetof(Player, jumpVel), StrLit("jumpVel"), "jumpVel", StrLit("Jump Vel"), "Jump Vel" },
+{ { Meta_Float, 0, false, false }, offsetof(Player, moveSpeed), StrLit("moveSpeed"), "moveSpeed", StrLit("Move Speed"), "Move Speed" },
+{ { Meta_Float, 0, false, false }, offsetof(Player, groundAccel), StrLit("groundAccel"), "groundAccel", StrLit("Ground Accel"), "Ground Accel" },
 };
 
 MetaStruct metaPlayer =
@@ -78,9 +84,9 @@ MetaStruct metaPlayer =
 
 MemberDefinition _membersOfPointLight[] =
 {
-{ { Meta_Unknown, 0, false, false }, offsetof(PointLight, base), StrLit("base"), "base" },
-{ { Meta_Float, 0, false, false }, offsetof(PointLight, intensity), StrLit("intensity"), "intensity" },
-{ { Meta_Vec3, 0, false, false }, offsetof(PointLight, offset), StrLit("offset"), "offset" },
+{ { Meta_Unknown, 1, false, false }, offsetof(PointLight, base), StrLit("base"), "base", StrLit("Base"), "Base" },
+{ { Meta_Float, 0, false, false }, offsetof(PointLight, intensity), StrLit("intensity"), "intensity", StrLit("Intensity"), "Intensity" },
+{ { Meta_Vec3, 0, false, false }, offsetof(PointLight, offset), StrLit("offset"), "offset", StrLit("Offset"), "Offset" },
 };
 
 MetaStruct metaPointLight =

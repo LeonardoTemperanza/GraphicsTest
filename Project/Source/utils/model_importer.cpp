@@ -4,7 +4,7 @@
 #include <assimp/postprocess.h>
 
 #include "base.cpp"
-#include "asset_system.h"
+#include "serialization.h"
 
 #include <iostream>
 

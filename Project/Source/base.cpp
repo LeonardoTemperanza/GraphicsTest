@@ -168,6 +168,7 @@ const Vec3 Vec3::forward  = { 0.0f,  0.0f,  1.0f};
 const Vec3 Vec3::left     = {-1.0f,  0.0f,  0.0f};
 const Vec3 Vec3::down     = { 0.0f, -1.0f,  0.0f};
 const Vec3 Vec3::backward = { 0.0f,  0.0f, -1.0f};
+const Vec3 Vec3::zero     = { 0.0f,  0.0f,  0.0f};
 
 const Quat Quat::identity = {.w=1.0f, .x=0.0f, .y=0.0f, .z=0.0f};
 
@@ -932,6 +933,13 @@ inline void Append(StringBuilder* builder, const char* str)
     int64_t len = (int64_t)strlen(str);
     String lenStr = {.ptr=str, .len=len};
     Append(builder, lenStr);
+}
+
+inline void Append(StringBuilder* builder, char c)
+{
+    int64_t len = 1;
+    String str = {.ptr=&c, .len=len};
+    Append(builder, str);
 }
 
 void Append(StringBuilder* builder, String str)

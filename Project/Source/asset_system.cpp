@@ -54,8 +54,6 @@ Model* LoadModel(const char* path)
     s32 numMaterials   = Next<s32>(cursor);
     res->meshes.ptr    = ArenaZAllocArray(Mesh, numMeshes, &sceneArena);
     res->meshes.len    = numMeshes;
-    res->materials.ptr = ArenaZAllocArray(Material, numMaterials, &sceneArena);
-    res->materials.len = numMaterials;
     
     char buffer[1024];
     snprintf(buffer, 1024, "Version: %d, Num meshes: %d, Num materials: %d\n", version, numMeshes, numMaterials);
@@ -81,59 +79,26 @@ Model* LoadModel(const char* path)
     return res;
 }
 
-Material LoadMaterial(const char* path)
+R_Texture LoadTexture(const char* path)
 {
-    ScratchArena scratch;
-    
-    Material mat = {0};
-    
-    bool success = true;
-    String contents = LoadEntireFile(path, &success);
-    if(!success)
-    {
-        Log("Failed to load file '%s'\n", path);
-        return mat;
-    }
-    
-    defer { free((void*)contents.ptr); };
-    
-    char** cursor;
-    char* c = (char*)contents.ptr;
-    cursor = &c;
-    
-    String magicBytes = Next(cursor, sizeof("material")-1);  // Excluding null terminator
-    if(magicBytes != "material")
-    {
-        Log("Attempted to load file '%s' as a material, which it is not.", path);
-        return mat;
-    }
-    
-    return mat;
-}
-
-Texture* LoadTexture(const char* path)
-{
-    Texture* texture = ArenaZAllocTyped(Texture, &sceneArena);
-    
     String stbImage = {0};
-    stbImage.ptr = (char*)stbi_load(path, &texture->width, &texture->height, &texture->numChannels, 0);
-    stbImage.len = texture->width * texture->height * texture->numChannels;
+    int width, height, numChannels;
+    stbImage.ptr = (char*)stbi_load(path, &width, &height, &numChannels, 0);
+    stbImage.len = width * height * numChannels;
     
-    texture->handle = R_UploadTexture(stbImage, texture->width, texture->height, texture->numChannels);
+    R_Texture res = R_UploadTexture(stbImage, width, height, numChannels);
     stbi_image_free((void*)stbImage.ptr);
-    return texture;
+    return res;
 }
 
-Shader* LoadShader(const char* path)
+R_Shader LoadShader(const char* path)
 {
-    Shader* shader = ArenaZAllocTyped(Shader, &sceneArena);
-    
     bool success = true;
     String contents = LoadEntireFile(path, &success);
     if(!success)
     {
         Log("Failed to load file '%s'\n", path);
-        return shader;
+        return {0};
     }
     
     defer { free((void*)contents.ptr); };
@@ -146,14 +111,14 @@ Shader* LoadShader(const char* path)
     if(magicBytes != "shader")
     {
         Log("Attempted to load file '%s' as a shader, which it is not.", path);
-        return shader;
+        return {0};
     }
     
     u32 version = Next<u32>(cursor);
     if(version != 0)
     {
         Log("Attempted to load file '%s' as a shader, but its version is unsupported.", path);
-        return shader;
+        return {0};
     }
     
     char* headerPtr = *cursor;
@@ -162,9 +127,7 @@ Shader* LoadShader(const char* path)
     String dxil        = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
     String vulkanSpirv = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
     String glsl        = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
-    shader->handle = R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
-    
-    return shader;
+    return R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
 }
 
 void LoadAssetBinding(const char* path)
@@ -175,12 +138,6 @@ void LoadAssetBinding(const char* path)
     //BindingParseResult result = ParseBinding();
     
     // Do some stuff with the result
-}
-
-void SetMaterial(Model* model, Material material, int idx)
-{
-    assert(idx < model->materials.len);
-    model->materials[idx] = material;
 }
 
 void UnloadScene()

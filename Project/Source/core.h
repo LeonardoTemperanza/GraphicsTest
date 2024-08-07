@@ -41,8 +41,11 @@ introspect()
 struct Entity
 {
     // These are local with respect to the mounted entity
+    nice_name("Position");
     Vec3 pos;
+    nice_name("Rotation");
     Quat rot;
+    nice_name("Scale");
     Vec3 scale;
     
     u16 flags;
@@ -74,6 +77,12 @@ struct Player
     
     Vec3 speed;
     bool grounded;
+    
+    // Movement constants
+    float gravity;
+    float jumpVel;
+    float moveSpeed;
+    float groundAccel;
 };
 
 introspect()
@@ -175,3 +184,6 @@ bool IsChild(Entity* suspectedChild, Entity* entity, Slice<Slice<Entity*>> child
 
 // Gameplay code
 void UpdatePlayer(Player* player, float deltaTime);
+
+// Some rendering stuff (do we really want this here?)
+R_UniformBuffer GetPerObjUniformBuffer();

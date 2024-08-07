@@ -14,10 +14,10 @@ Entities* InitEntities()
     Model* raptoidModel = LoadModel("Raptoid/Raptoid.model");
     Model* cubeModel = LoadModel("Common/Cube.model");
     
-    Shader* simpleVertex = LoadShader("CompiledShaders/simple_vertex.shader");
-    Shader* simplePixel  = LoadShader("CompiledShaders/simple_pixel.shader");
-    R_Shader shaders[] = {simpleVertex->handle, simplePixel->handle};
-    raptoidModel->pipeline = R_CreatePipeline({.ptr=shaders, .len=ArrayCount(shaders)});
+    R_Shader simpleVertex = LoadShader("CompiledShaders/simple_vertex.shader");
+    R_Shader simplePixel  = LoadShader("CompiledShaders/simple_pixel.shader");
+    R_Shader shaders[] = {simpleVertex, simplePixel};
+    raptoidModel->pipeline = R_CreatePipeline(ArrToSlice(shaders));
     cubeModel->pipeline = raptoidModel->pipeline;
     
     //SetMaterial(raptoidModel, raptoidMaterial, 0);
@@ -41,6 +41,9 @@ Entities* InitEntities()
     raptoid->model = raptoidModel;
     
     auto camera = NewEntity<Camera>();
+    camera->base->pos.z = -8.0f;
+    camera->base->pos.y = 7.0f;
+    camera->base->rot *= AngleAxis(Vec3::right, Deg2Rad(20.0f));
     camera->params.fov      = 90.0f;
     camera->params.nearClip = 0.1f;
     camera->params.farClip  = 1000.0f;
@@ -49,6 +52,11 @@ Entities* InitEntities()
     
     auto player = NewEntity<Player>();
     player->base->model = raptoidModel;
+    player->gravity = 9.8f;
+    player->jumpVel = 5.0f;
+    player->moveSpeed = 3.5f;
+    player->groundAccel = 40.0f;
+    
     auto pointLight = NewEntity<PointLight>();
     
     float pos = 0.0f;
@@ -101,24 +109,14 @@ void FreeEntities(Entities* entities)
 
 void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* permArena, Arena* frameArena)
 {
-    OS_DearImguiBeginFrame();
-    
-    PollAndProcessInput();
-    
-    // Test entity destruction
-    static float time = 0.0f;
-    static bool destroyed = false;
-    time += deltaTime;
-    if(time >= 1.0f && !destroyed)
-    {
-        //DeferDestroyEntity(entities, 2);
-        destroyed = true;
-    }
-    
     bool inEditor = false;
 #ifdef Development
     inEditor = editor->inEditor;
 #endif
+    
+    OS_DearImguiBeginFrame();
+    
+    PollAndProcessInput(inEditor);
     
     Camera* cam = GetMainCamera();
     int width, height;
@@ -140,12 +138,10 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     
     if(inEditor)
     {
-#ifdef Development
         UpdateEditor(editor, deltaTime);
         camPos = editor->camPos;
         camRot = editor->camRot;
         camParams = editor->camParams;
-#endif
     }
     
     // Renderer beginning of frame stuff
@@ -185,15 +181,27 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
         }
     }
     
-    RenderEditor(editor);
-    
-    CommitDestroy(entities);
-    
+    // Render and finalize editor
     if(inEditor)
     {
-        ImGui::Render();  // Render UI on top of scene
-        R_RenderDearImgui();
+        RenderEditor(editor);
     }
+    else
+    {
+        // Provide a way to go back to edit mode
+        // TODO: In a more complete engine this would actually
+        // reload the scene
+        Input input = GetInput();
+        if(PressedKey(input, Keycode_Esc))
+        {
+            editor->inEditor = true;
+        }
+    }
+    
+    ImGui::Render();  // Render UI on top of scene
+    R_RenderDearImgui();
+    
+    //CommitDestroy(entities);
 }
 
 void UpdateEntities(Entities* entities, float deltaTime)
@@ -450,6 +458,7 @@ void DestroyEntity(Entity* entity)
 void CommitDestroy(Entities* entities)
 {
     // TODO: stuff missing here
+    TODO;
 }
 
 // Entity iteration
@@ -552,33 +561,58 @@ bool IsChild(Entity* suspectedChild, Entity* entity, Slice<Slice<Entity*>> child
 
 void UpdatePlayer(Player* player, float deltaTime)
 {
-    const float moveSpeed = 4.0f;
-    const float moveAccel = 30.0f;
-    static Vec3 curVel = {0};
-    
     Input input = GetInput();
     
-    float keyboardX = 0.0f;
-    float keyboardY = 0.0f;
-    if(input.virtualKeys[Keycode_RMouse])
+    // Vertical movement
     {
-        keyboardX = (float)(input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A]);
-        keyboardY = (float)(input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S]);
+        player->speed.y -= player->gravity * deltaTime;
+        
+        if(player->grounded)
+        {
+            player->speed.y = 0.0f;
+        }
+        
+        bool pressedJump = PressedKey(input, Keycode_Space) || PressedGamepadButton(input, Gamepad_A);
+        if(player->grounded && pressedJump)
+        {
+            player->speed.y = player->jumpVel;
+            player->grounded = false;
+        }
     }
     
-    Vec3 targetVel =
+    // Horizontal movement
     {
-        .x = (input.gamepad.leftStick.x + keyboardX) * moveSpeed,
-        .y = 0.0f,
-        .z = (input.gamepad.leftStick.y + keyboardY) * moveSpeed
-    };
+        Vec3 horizontalSpeed = player->speed;
+        horizontalSpeed.y = 0.0f;
+        
+        float keyboardX = (float)(input.virtualKeys[Keycode_D] - input.virtualKeys[Keycode_A]);
+        float keyboardZ = (float)(input.virtualKeys[Keycode_W] - input.virtualKeys[Keycode_S]);
+        
+        Vec3 targetVel =
+        {
+            .x = (input.gamepad.leftStick.x + keyboardX) * player->moveSpeed,
+            .y = 0.0f,
+            .z = (input.gamepad.leftStick.y + keyboardZ) * player->moveSpeed
+        };
+        
+        if(dot(targetVel, targetVel) > player->moveSpeed * player->moveSpeed)
+            targetVel = normalize(targetVel) * player->moveSpeed;
+        
+        horizontalSpeed = ApproachLinear(horizontalSpeed, targetVel, player->groundAccel * deltaTime);
+        player->speed = horizontalSpeed + Vec3::up * player->speed.y;
+    }
     
-    if(dot(targetVel, targetVel) > moveSpeed * moveSpeed)
-        targetVel = normalize(targetVel) * moveSpeed;
+    player->base->pos += player->speed * deltaTime;
     
-    targetVel.y += (input.gamepad.rightTrigger - input.gamepad.leftTrigger) * moveSpeed;
-    targetVel.y += (input.virtualKeys[Keycode_E] - input.virtualKeys[Keycode_Q]) * moveSpeed;
-    
-    curVel = ApproachLinear(curVel, targetVel, moveAccel * deltaTime);
-    player->base->pos += curVel * deltaTime;
+    // "Simulating" collision and ground detection
+    if(player->base->pos.y <= 0.0f)
+    {
+        player->grounded = true;
+        player->base->pos.y = 0.0f;
+    }
+}
+
+R_UniformBuffer GetPerObjUniformBuffer()
+{
+    return entities.perObjBuffer;
 }
