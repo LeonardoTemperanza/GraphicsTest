@@ -157,6 +157,8 @@ Editor InitEditor()
     state.paintTruePipeline = R_CreatePipeline(ArrToSlice(paintTrueShaders));
     R_Shader outlineShaders[] = {screenVert, outlineFrag};
     state.outlinePipeline = R_CreatePipeline(ArrToSlice(outlineShaders));
+    R_Shader paintIdShaders[] = {model2Proj, paintInt};
+    state.paintIdPipeline = R_CreatePipeline(ArrToSlice(paintIdShaders));
     return state;
 }
 
@@ -234,16 +236,21 @@ void UpdateEditor(Editor* ui, float deltaTime)
     {
         if(!isInteractingWithGizmos && PressedKey(input, Keycode_LMouse))
         {
-            // TODO: @tmp Uncomment this
-#if 0
-            int picked = R_ReadMousePickId((int)input.mouseX, (int)input.mouseY);
+            int width, height;
+            OS_GetClientAreaSize(&width, &height);
+            
+            R_SetFramebuffer(ui->entityIdFramebuffer);
+            int picked = R_ReadIntPixelFromFramebuffer(input.mouseX, height - input.mouseY);
+            R_SetFramebuffer(R_DefaultFramebuffer());
             if(picked != -1)
             {
                 SelectEntity(ui, GetEntity(picked));
             }
             else
+            {
+                Log("-1!");
                 Free(&ui->selected);
-#endif
+            }
         }
     }
     
@@ -338,7 +345,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
     }
 }
 
-void RenderEditor(Editor* editor)
+void RenderEditor(Editor* editor, float deltaTime)
 {
     int width, height;
     OS_GetClientAreaSize(&width, &height);
@@ -368,17 +375,13 @@ void RenderEditor(Editor* editor)
     }
     
     // Render pass for entity ids (clicking on entities to select them)
-#if 0
     {
-        R_SetFramebuffer(editor->selectedFramebuffer);
+        R_SetFramebuffer(editor->entityIdFramebuffer);
         R_SetPipeline(editor->paintIdPipeline);
         R_ClearFrameInt(-1, -1, -1, -1);
         
-        for(int i = 0; i < editor->selected.len; ++i)
+        for_live_entities(ent)
         {
-            Entity* ent = editor->selected[i];
-            if(ent->flags & EntityFlags_Destroyed) continue;
-            
             R_UniformValue perObjValues[] =
             {
                 MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
@@ -386,22 +389,40 @@ void RenderEditor(Editor* editor)
             R_UploadUniformBuffer(GetPerObjUniformBuffer(), ArrToSlice(perObjValues));
             
             // Upload the int uniform here
+            R_UniformValue uniforms[] = { MakeUniformInt(GetId(ent)) };
+            R_SetUniforms(ArrToSlice(uniforms));
             
             R_DrawModel(ent->model);
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
     }
-#endif
     
     // Draw outline of selected objects
     {
-        R_EnableDepthTest(false);
-        R_EnableAlphaBlending(true);
+        // Choose color of outline
+        Vec4 outlineColor = {0};
+        {
+            static float t = 0.0f;
+            t += deltaTime;
+            while(t > 2*Pi) t -= 2*Pi;
+            
+            const float frequency = 4.0f;
+            
+            Vec4 color1 = {1, 1, 0, 1};
+            Vec4 color2 = {1, 0, 1, 1};
+            outlineColor = lerp(color1, color2, (sin(t * frequency) * 0.5f + 0.5f));
+        }
+        
+        R_DepthTest(false);
+        R_AlphaBlending(true);
         R_SetTexture(R_GetFramebufferColorTexture(editor->selectedFramebuffer), 0);
         R_SetPipeline(editor->outlinePipeline);
+        
+        R_UniformValue uniforms[] = { MakeUniformVec4(outlineColor) };
+        R_SetUniforms(ArrToSlice(uniforms));
         R_DrawFullscreenQuad();
-        R_EnableDepthTest(true);
+        R_DepthTest(true);
     }
 }
 
@@ -994,57 +1015,6 @@ void ShowConsole(Editor* ui)
     ImGui::End();
 }
 
-// From: https://github.com/ocornut/imgui/issues/1831 by volcoma
-static void PushMultiItemsWidthsAndLabels(const char* labels[], int components, float w_full)
-{
-    using namespace ImGui;
-    
-    ImGuiWindow* window = GetCurrentWindow();
-    const ImGuiStyle& style = GImGui->Style;
-    if(w_full <= 0.0f)
-        w_full = GetContentRegionAvail().x;
-    
-    const float w_item_one =
-        ImMax(1.0f, (w_full - (style.ItemInnerSpacing.x * 2.0f) * (components - 1)) / (float)components) -
-        style.ItemInnerSpacing.x;
-    for(int i = 0; i < components; i++)
-        window->DC.ItemWidthStack.push_back(w_item_one - CalcTextSize(labels[i]).x);
-    window->DC.ItemWidth = window->DC.ItemWidthStack.back();
-}
-
-// From: https://github.com/ocornut/imgui/issues/1831 by volcoma
-bool DragFloatNEx(const char* labels[], float* v, int components, float v_speed, float v_min, float v_max,
-                  const char* display_format)
-{
-    using namespace ImGui;
-    
-    ImGuiWindow* window = GetCurrentWindow();
-    if(window->SkipItems)
-        return false;
-    
-    ImGuiContext& g = *GImGui;
-    bool value_changed = false;
-    BeginGroup();
-    
-    PushMultiItemsWidthsAndLabels(labels, components, 0.0f);
-    for(int i = 0; i < components; i++)
-    {
-        PushID(labels[i]);
-        PushID(i);
-        TextUnformatted(labels[i], FindRenderedTextEnd(labels[i]));
-        SameLine();
-        value_changed |= DragFloat("", &v[i], v_speed, v_min, v_max, display_format);
-        SameLine(0, g.Style.ItemInnerSpacing.x);
-        PopID();
-        PopID();
-        PopItemWidth();
-    }
-    
-    EndGroup();
-    
-    return value_changed;
-}
-
 void ShowEntityControl(Editor* editor, Entity* entity)
 {
     ImGui::PushID(GetId(entity));
@@ -1060,7 +1030,7 @@ void ShowEntityControl(Editor* editor, Entity* entity)
         {
             case Entity_None: break;
             case Entity_Count: break;
-            case Entity_Player: metaStruct = metaPointLight; break;
+            case Entity_Player: metaStruct = metaPlayer; break;
             case Entity_Camera: metaStruct = metaCamera; break;
             case Entity_PointLight: metaStruct = metaPointLight; break;
         }
@@ -1076,11 +1046,14 @@ void ShowStructControl(MetaStruct metaStruct, void* address)
     ImGui::SeparatorText(metaStruct.cName);
     Slice<MemberDefinition> members = metaStruct.members;
     
+    ImGui::PushID(metaStruct.cName);
+    
     for(int i = 0; i < members.len; ++i)
     {
         MemberDefinition member = members[i];
         MetaType metaType = member.typeInfo.metaType;
         if(metaType == Meta_Unknown) continue;
+        if(!member.showEditor)       continue;
         
         ImGui::PushID(member.cName);
         ImGui::PushID(i);
@@ -1091,6 +1064,11 @@ void ShowStructControl(MetaStruct metaStruct, void* address)
             case Meta_Int:
             {
                 ImGui::DragInt(member.cNiceName, (int*)((char*)address + member.offset), 0.05f);
+                break;
+            }
+            case Meta_Bool:
+            {
+                ImGui::Checkbox(member.cNiceName, (bool*)((char*)address + member.offset));
                 break;
             }
             case Meta_Float:
@@ -1114,6 +1092,8 @@ void ShowStructControl(MetaStruct metaStruct, void* address)
         ImGui::PopID();
         ImGui::PopID();
     }
+    
+    ImGui::PopID();
 }
 
 void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float sensitivity)
@@ -1173,10 +1153,9 @@ void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float se
     ImGui::PopStyleColor(3);
     ImGui::PopItemFlag();
     
+    ImGui::PopStyleVar();
     ImGui::DragFloat("##Z", &value->z, sensitivity);
     ImGui::PopItemWidth();
-    
-    ImGui::PopStyleVar();
     
     ImGui::Columns(1);
 }
@@ -1190,6 +1169,16 @@ void ShowQuatControl(const char* strId, Quat* value, float columnWidth, float se
     ImGuiID id = ImGui::GetID("");
     Widget widget = {0};
     widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*value));
+    
+    // Change -0.0f to 0.0f
+    // TODO: Apply other transformations to make
+    // the angles look nicer
+    for(int i = 0; i < 3; ++i)
+    {
+        float* v = (float*)&widget.eulerAngles + i;
+        if(*v == -0.0f) *v = 0.0f;
+    }
+    
     AddWidgetIfNotPresent(id, widget);
     if(!widgetTable.contains(id))
     {

@@ -32,9 +32,8 @@ float4 main(float4 position: SV_POSITION) : SV_TARGET
         }
     }
     
-    float4 curColor = float4(1.0, 1.0, 0.0, 1.0);
     float amount = min(numFalse, numTrue) / (float)iterCount;
     // TODO: Not sure why the regular value is way to dim,
     // so i multiplied it by 2.5
-    return curColor * amount * 2.5f;
+    return color * amount * 2.5f;
 }

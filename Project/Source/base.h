@@ -256,6 +256,9 @@ float magnitude(Vec3 v);
 float dot(Vec3 v1, Vec3 v2);
 Vec3 cross(Vec3 v1, Vec3 v2);
 Vec3 ApproachLinear(Vec3 current, Vec3 target, float delta);
+Vec3 lerp(Vec3 v1, Vec3 v2);
+
+Vec4 lerp(Vec4 v1, Vec4 v2);
 
 // Column major
 struct Mat4

@@ -8,4 +8,5 @@
 
 #define introspect(...)
 #define nice_name(name)  // For redefining the name to be shown in properties panel etc.
+#define editor_hide      // If present the member will not get shown in the editor
 

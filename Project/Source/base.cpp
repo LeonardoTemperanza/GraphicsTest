@@ -264,6 +264,16 @@ Vec3 ApproachLinear(Vec3 current, Vec3 target, float delta)
     return current + diff / dist * delta;
 }
 
+Vec3 lerp(Vec3 v1, Vec3 v2, float t)
+{
+    return v1 + (v2 - v1) * t;
+}
+
+Vec4 lerp(Vec4 v1, Vec4 v2, float t)
+{
+    return v1 + (v2 - v1) * t;
+}
+
 Vec2 operator +(Vec2 a, Vec2 b)
 {
     return {.x = a.x+b.x, .y = a.y+b.y};

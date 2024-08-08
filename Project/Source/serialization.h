@@ -1,6 +1,9 @@
 
 #pragma once
 
+// In a serialization.cpp file I could convert between versions
+// of certain structs
+
 // Shaders
 
 // NOTE: Shaders are serialized using these enum

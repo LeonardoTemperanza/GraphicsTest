@@ -2,8 +2,14 @@
 #pragma once
 
 // GPU Resources
-typedef u32 R_Texture;
+//typedef u32 R_Texture;
 typedef u32 R_Buffer;
+
+struct R_Texture
+{
+    GLuint handle;
+    R_TextureFormat format;
+};
 
 #define gl_FramebufferMaxTextures 8
 struct R_Framebuffer
@@ -53,12 +59,9 @@ struct R_Pipeline
 {
     Slice<R_Shader> shaders;
     GLuint handle;
-    // NOTE: Since we're translating from
-    // hlsl, all global variables are put inside
-    // a "_Globals" uniform block
-    Slice<u32> uniformOffsets;
     
-    u32 globalsBinding;
+    u32 globalsUniformBlockIndex;
+    bool hasGlobals;
     
     Slice<gl_UniformBlock> blocks;
 };
@@ -66,7 +69,17 @@ struct R_Pipeline
 struct Renderer
 {
     R_Pipeline boundPipeline;
+    R_Framebuffer boundFramebuffer;
+    
+    // Buffer for regular uniforms
+    // NOTE: Since we're doing hlsl->glsl
+    // conversion, all uniforms get put inside
+    // a "_Globals" uniform buffer. Does this
+    // have performance implications? @performance
+    R_UniformBuffer globalsUniformBuffer;
     
     // Objects for simple rendering
     GLuint fullscreenQuad;
+    GLuint unitCylinder;
+    u32 unitCylinderCount;
 };

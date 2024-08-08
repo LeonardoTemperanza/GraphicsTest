@@ -67,7 +67,7 @@ struct Console
 
 Editor InitEditor();
 void UpdateEditor(Editor* editor, float deltaTime);
-void RenderEditor(Editor* editor);
+void RenderEditor(Editor* editor, float deltaTime);
 void ShowMainMenuBar(Editor* editor);
 void ShowEntityList(Editor* editor);
 void ShowEntityAndChildren(Editor* editor, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity);

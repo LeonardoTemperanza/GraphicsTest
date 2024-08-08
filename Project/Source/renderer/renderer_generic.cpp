@@ -3,33 +3,123 @@
 
 static Renderer renderer;
 
-struct BasicMesh
+bool IsTextureFormatSigned(R_TextureFormat format)
 {
-    Slice<Vec3> verts;
-    Slice<u32>  indices;
-};
+    switch(format)
+    {
+        case R_TexNone:  return false;
+        case R_TexRGB8:  return true;
+        case R_TexRGBA8: return true;
+        case R_TexR8I:   return true;
+        case R_TexR8UI:  return false;
+        case R_TexR32I:  return true;
+    }
+    
+    return false;
+}
+
+bool IsTextureFormatInteger(R_TextureFormat format)
+{
+    switch(format)
+    {
+        case R_TexNone:  return false;
+        case R_TexRGB8:  return false;
+        case R_TexRGBA8: return false;
+        case R_TexR8I:   return true;
+        case R_TexR8UI:  return true;
+        case R_TexR32I:  return true;
+    }
+    
+    return false;
+}
 
 // Generate some basic meshes
 
-// Generate unit cylinder with radius=0.5 and height=1.0
+// Generate unit cylinder with radius=1.0 and height=1.0
 BasicMesh GenerateUnitCylinder()
 {
-    BasicMesh res = {0};
     constexpr int numPointsBase = 25;
     constexpr int numIndices = (numPointsBase - 2) * 2 + numPointsBase * 2;
     static Vec3 verts[numPointsBase * 2];
     static u32 indices[numIndices];
-    for(int i = 0; i < numPointsBase; ++i)
-    {
-        
-    }
+    static bool cached = false;
     
+    const float height = 1.0f;
+    const float radius = 1.0f;
+    
+    BasicMesh res = {0};
     res.verts   = {.ptr=verts,   .len=numPointsBase * 2};
     res.indices = {.ptr=indices, .len=numIndices};
+    if(cached) return res;
+    
+    // Vertices
+    
+    // Bottom base
+    for(int i = 0; i < numPointsBase; ++i)
+    {
+        float angle = (float)i / numPointsBase * 2.0f * Pi;
+        Vec3 p = {cos(angle) * radius, 0.0f, sin(angle) * radius};
+        verts[i] = p;
+    }
+    
+    // Top base
+    for(int i = 0; i < numPointsBase; ++i)
+    {
+        float angle = (float)i / numPointsBase * 2.0f * Pi;
+        Vec3 p = {cos(angle) * radius, height, sin(angle) * radius};
+        verts[i + numPointsBase] = p;
+    }
+    
+    // Indices
+    int curIdx = 0;
+    
+    // Bottom tris
+    for(int i = 1; i < numPointsBase; ++i)
+    {
+        indices[curIdx++] = 0;
+        indices[curIdx++] = i+0;
+        indices[curIdx++] = i+1;
+    }
+    
+    // Top tris
+    for(int i = numPointsBase + 1; i < numPointsBase * 2; ++i)
+    {
+        indices[curIdx++] = numPointsBase;
+        indices[curIdx++] = i+0;
+        indices[curIdx++] = i+1;
+    }
+    
+    // Lateral tris
+    for(int i = 0; i < numPointsBase; ++i)
+    {
+        // Tri 1 (edge on bottom)
+        {
+            int idx1 = i+0;
+            int idx2 = i+1;
+            int idx3 = (i+numPointsBase)+1;
+            
+            indices[curIdx++] = idx1;
+            indices[curIdx++] = idx2;
+            indices[curIdx++] = idx3;
+        }
+        
+        // Tri 2 (edge on top)
+        {
+            int idx1 = (i+numPointsBase)+1;
+            int idx2 = (i+numPointsBase)+0;
+            int idx3 = i+0;
+            
+            indices[curIdx++] = idx1;
+            indices[curIdx++] = idx2;
+            indices[curIdx++] = idx3;
+        }
+    }
+    
+    cached = true;
     return res;
 }
 
-// Generate unit cone with radius=0.5 and height=1.0
+// Generate unit cone with radius=1.0f and height=1.0
 // (it points up)
 BasicMesh GenerateUnitCone()
 {

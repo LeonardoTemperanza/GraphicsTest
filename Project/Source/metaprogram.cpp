@@ -82,7 +82,7 @@ void ParseError(Parser* p, Token* token, const char* message);
 void EatRequiredToken(Parser* p, TokenKind kind);
 
 void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString,
-                           String name, String niceName);
+                           String name, String niceName, bool showEditor);
 // Converts camel case to regular sentence, like this:
 // From: "thisIsAnExampleTest"
 // To:   "This Is An Example Test"
@@ -117,6 +117,7 @@ int main()
     printf("{\n");
     printf("    Meta_Unknown = 0,\n");
     printf("    Meta_Int,\n");
+    printf("    Meta_Bool,\n");
     printf("    Meta_Float,\n");
     printf("    Meta_Vec3,\n");
     printf("    Meta_Quat,\n");
@@ -142,6 +143,7 @@ int main()
     printf("    const char* cName;\n");
     printf("    String niceName;\n");
     printf("    const char* cNiceName;\n");
+    printf("    bool showEditor;\n");
     printf("};\n");
     
     printf("\n");
@@ -444,24 +446,36 @@ void ParseMemberList(Parser* p, String structName)
     {
         bool niceNameDefined = false;
         String niceName = {0};
+        bool showEditor = true;
         
-        // Optional nice_name keyword
-        if(p->at->text == "nice_name")
+        // Optional keywords
         {
-            ++p->at;
-            EatRequiredToken(p, Tok_OpenParen);
-            
-            if(p->at->kind == Tok_String)
+            // nice_name keyword
+            if(p->at->text == "nice_name")
             {
-                niceName = p->at->text;
-                niceNameDefined = true;
                 ++p->at;
+                EatRequiredToken(p, Tok_OpenParen);
+                
+                if(p->at->kind == Tok_String)
+                {
+                    niceName = p->at->text;
+                    niceNameDefined = true;
+                    ++p->at;
+                }
+                else
+                    ParseError(p, p->at, "Expecting string literal after nice_name keyword");
+                
+                EatRequiredToken(p, Tok_CloseParen);
+                EatRequiredToken(p, Tok_Semicolon);
             }
-            else
-                ParseError(p, p->at, "Expecting string literal after nice_name keyword");
             
-            EatRequiredToken(p, Tok_CloseParen);
-            EatRequiredToken(p, Tok_Semicolon);
+            // editor_hide keyword
+            if(p->at->text == "editor_hide")
+            {
+                ++p->at;
+                EatRequiredToken(p, Tok_Semicolon);
+                showEditor = false;
+            }
         }
         
         // Ignore const keyword
@@ -490,6 +504,10 @@ void ParseMemberList(Parser* p, String structName)
         if(typeName == "int")
         {
             metaType = "Meta_Int";
+        }
+        else if(typeName == "bool")
+        {
+            metaType = "Meta_Bool";
         }
         else if(typeName == "float")
         {
@@ -523,7 +541,7 @@ void ParseMemberList(Parser* p, String structName)
             }
             
             EatRequiredToken(p, Tok_Semicolon);
-            PrintMemberDefinition(structName, metaType, numPtrs, false, false, memberName, niceName);
+            PrintMemberDefinition(structName, metaType, numPtrs, false, false, memberName, niceName, showEditor);
         }
         else
         {
@@ -562,11 +580,11 @@ const char* BoolString(bool b)
     return b ? "true" : "false";
 }
 
-void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString, String name, String niceName)
+void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString, String name, String niceName, bool showEditor)
 {
-    printf("{ { %s, %d, %s, %s }, offsetof(%.*s, %.*s), StrLit(\"%.*s\"), \"%.*s\", StrLit(\"%.*s\"), \"%.*s\" },\n",
+    printf("{ { %s, %d, %s, %s }, offsetof(%.*s, %.*s), StrLit(\"%.*s\"), \"%.*s\", StrLit(\"%.*s\"), \"%.*s\", %s },\n",
            metaType, numPointers, BoolString(isSlice), BoolString(isString), StrPrintf(structName), StrPrintf(name),
-           StrPrintf(name), StrPrintf(name), StrPrintf(niceName), StrPrintf(niceName));
+           StrPrintf(name), StrPrintf(name), StrPrintf(niceName), StrPrintf(niceName), BoolString(showEditor));
 }
 
 // TODO: put this is the base layer

@@ -8,9 +8,10 @@ struct Model;
 
 enum EntityFlags
 {
-    EntityFlags_Static      = 1 << 0,
-    EntityFlags_Destroyed   = 1 << 1,
-    EntityFlags_Transparent = 1 << 2
+    EntityFlags_Static    = 1 << 0,
+    EntityFlags_Destroyed = 1 << 1,
+    EntityFlags_Visible   = 1 << 2,
+    EntityFlags_Active    = 1 << 3,
 };
 
 enum EntityKind: u8
@@ -75,7 +76,9 @@ struct Player
 {
     Entity* base;
     
+    editor_hide;
     Vec3 speed;
+    editor_hide;
     bool grounded;
     
     // Movement constants
@@ -99,7 +102,8 @@ struct Entities
     EntityKey mainCamera;  // Used by the renderer
     
     // NOTE: Arenas are used for all entity arrays here, which
-    // ensures pointer stability
+    // ensures pointer stability. Maybe to better convey this
+    // I should add a "StableArray" type?
     
     // Info all entities have in common
     Array<Entity> bases;
@@ -115,6 +119,8 @@ struct Entities
     Array<PointLight> pointLights;
     
     // Rendering fields
+    // These should probably be part of
+    // the renderer now that i think about it
     R_UniformBuffer perObjBuffer;
     R_UniformBuffer perFrameBuffer;
     R_UniformBuffer perSceneBuffer;

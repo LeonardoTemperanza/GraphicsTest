@@ -91,9 +91,9 @@ Entities* InitEntities()
     res.perObjBuffer   = R_CreateUniformBuffer(2);
     
     // Renderer settings that should really just be enabled by default
-    R_EnableDepthTest(true);
-    R_EnableCullFace(true);
-    R_EnableAlphaBlending(true);
+    R_DepthTest(true);
+    R_CullFace(true);
+    R_AlphaBlending(true);
     
     return &res;
 }
@@ -181,10 +181,24 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
         }
     }
     
+    // TODO: asset system should be better, we shouldn't have to do this kind of stuff
+    // An idea for a really good asset system for the prototyping stage is this:
+    // just load all assets always. Then we'll add stuff on top of it.
+#if 0
+    static R_Shader solidColorShader = LoadShader("CompiledShaders/paint_color.shader");
+    R_Shader shaders[] = { editor->paintTruePipeline.shaders[0], solidColorShader };
+    static R_Pipeline pipeline = R_CreatePipeline(ArrToSlice(shaders));
+    R_SetPipeline(pipeline);
+    R_UniformValue uniforms[] = { MakeUniformVec4({0, 0, 0, 1}) };
+    R_SetUniforms(ArrToSlice(uniforms));
+    // This is not rendering for some reason...
+    R_DrawCylinder({0}, {0}, {0});
+#endif
+    
     // Render and finalize editor
     if(inEditor)
     {
-        RenderEditor(editor);
+        RenderEditor(editor, deltaTime);
     }
     else
     {
