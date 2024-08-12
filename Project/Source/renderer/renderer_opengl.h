@@ -5,6 +5,8 @@
 //typedef u32 R_Texture;
 typedef u32 R_Buffer;
 
+typedef u32 R_Cubemap;
+
 struct R_Texture
 {
     GLuint handle;
@@ -71,15 +73,25 @@ struct Renderer
     R_Pipeline boundPipeline;
     R_Framebuffer boundFramebuffer;
     
-    // Buffer for regular uniforms
-    // NOTE: Since we're doing hlsl->glsl
-    // conversion, all uniforms get put inside
-    // a "_Globals" uniform buffer. Does this
-    // have performance implications? @performance
+    // Uniform buffers
+    GLuint globalsBuffer;
+    GLuint perSceneBuffer;
+    GLuint perFrameBuffer;
+    GLuint perObjBuffer;
+    
+    /*
     R_UniformBuffer globalsUniformBuffer;
+R_UniformBuffer perSceneUniformBuffer;
+R_UniformBuffer perFrameUniformBuffer;
+R_UniformBuffer perObjUniformBuffer;
+*/
     
     // Objects for simple rendering
     GLuint fullscreenQuad;
+    GLuint quadVao;
+    GLuint quadVbo;
     GLuint unitCylinder;
     u32 unitCylinderCount;
+    GLuint unitCone;
+    u32 unitConeCount;
 };

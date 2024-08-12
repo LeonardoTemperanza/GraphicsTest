@@ -31,8 +31,10 @@ GLuint Opengl_InternalFormat(R_TextureFormat format)
     switch(format)
     {
         case R_TexNone:  return GL_RGBA8;
-        case R_TexRGB8:  return GL_RGB;
-        case R_TexRGBA8: return GL_RGBA;
+        case R_TexR8:    return GL_R8;
+        case R_TexRG8:   return GL_RG8;
+        case R_TexRGB8:  return GL_RGB8;
+        case R_TexRGBA8: return GL_RGBA8;
         case R_TexR8I:   return GL_R8I;
         case R_TexR8UI:  return GL_R8UI;
         case R_TexR32I:  return GL_R32I;
@@ -46,6 +48,8 @@ GLuint Opengl_PixelDataFormat(R_TextureFormat format)
     switch(format)
     {
         case R_TexNone:  return GL_RGBA;
+        case R_TexR8:    return GL_RED;
+        case R_TexRG8:   return GL_RG;
         case R_TexRGB8:  return GL_RGB;
         case R_TexRGBA8: return GL_RGBA;
         case R_TexR8I:   return GL_RED_INTEGER;
@@ -61,6 +65,8 @@ GLuint Opengl_PixelDataType(R_TextureFormat format)
     switch(format)
     {
         case R_TexNone:  return GL_FLOAT;
+        case R_TexR8:    return GL_UNSIGNED_BYTE;
+        case R_TexRG8:   return GL_UNSIGNED_BYTE;
         case R_TexRGB8:  return GL_UNSIGNED_BYTE;
         case R_TexRGBA8: return GL_UNSIGNED_BYTE;
         case R_TexR8I:   return GL_BYTE;
@@ -185,11 +191,13 @@ void R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height)
     }
 }
 
-// TODO: Should probably figure out a better API for this,
-// so that we don't have to do this. But for now it's fine,
-// and it lets us proceed with the game and find out what
-// the API should even look like
-#define Opengl_ReservedUniformBufferBinding 10
+// NOTE: These have to be defined correctly in the shader too!
+// there should be a "cpp_hlsl_bridge" where i can put in stuff like this
+// that is shared between the shader code and the cpp code
+#define Opengl_PerSceneBinding 0
+#define Opengl_PerFrameBinding 1
+#define Opengl_PerObjBinding   2
+#define Opengl_GlobalsBinding  3
 
 void R_Init()
 {
@@ -201,15 +209,36 @@ void R_Init()
     // but i think it would be best if we handled it here,
     // using some #ifdefs with platform specific code in there
     
-    // "_Globals" uniform buffer
+    // Uniform buffers
+    
+    // Per frame uniform buffer
     {
         GLuint buffer;
-        GLuint binding = Opengl_ReservedUniformBufferBinding;
+        GLuint binding = Opengl_PerFrameBinding;
         glCreateBuffers(1, &buffer);
         glBindBufferBase(GL_UNIFORM_BUFFER, binding, buffer);
         
-        r->globalsUniformBuffer.buffer  = buffer;
-        r->globalsUniformBuffer.binding = binding;
+        r->perFrameBuffer = buffer;
+    }
+    
+    // Per Obj uniform buffer
+    {
+        GLuint buffer;
+        GLuint binding = Opengl_PerObjBinding;
+        glCreateBuffers(1, &buffer);
+        glBindBufferBase(GL_UNIFORM_BUFFER, binding, buffer);
+        
+        r->perObjBuffer = buffer;
+    }
+    
+    // "_Globals" uniform buffer
+    {
+        GLuint buffer;
+        GLuint binding = Opengl_GlobalsBinding;
+        glCreateBuffers(1, &buffer);
+        glBindBufferBase(GL_UNIFORM_BUFFER, binding, buffer);
+        
+        r->globalsBuffer = buffer;
     }
     
     // Create objects used for simple rendering
@@ -237,6 +266,17 @@ void R_Init()
         glVertexArrayAttribFormat(r->fullscreenQuad, 0, 3, GL_FLOAT, GL_FALSE, 0);
     }
     
+    // Non-fullscreen quad
+    {
+        glCreateVertexArrays(1, &r->quadVao);
+        glCreateBuffers(1, &r->quadVbo);
+        
+        glVertexArrayVertexBuffer(r->quadVao, 0, r->quadVbo, 0, 3 * sizeof(float));
+        glEnableVertexArrayAttrib(r->quadVao, 0);
+        glVertexArrayAttribBinding(r->quadVao, 0, 0);
+        glVertexArrayAttribFormat(r->quadVao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    }
+    
     // Unit cylinder
     {
         BasicMesh cylinder = GenerateUnitCylinder();
@@ -257,6 +297,32 @@ void R_Init()
         glVertexArrayAttribBinding(r->unitCylinder, 0, 0);
         glVertexArrayAttribFormat(r->unitCylinder, 0, 3, GL_FLOAT, GL_FALSE, 0);
     }
+    
+    // Unit cone
+    {
+        BasicMesh cone = GenerateUnitCone();
+        r->unitConeCount = (u32)cone.indices.len;
+        
+        glCreateVertexArrays(1, &r->unitCone);
+        GLuint vbo;
+        GLuint ebo;
+        glCreateBuffers(1, &vbo);
+        glCreateBuffers(1, &ebo);
+        glNamedBufferData(vbo, cone.verts.len * sizeof(Vec3), cone.verts.ptr, GL_STATIC_DRAW);
+        glNamedBufferData(ebo, cone.indices.len * sizeof(cone.indices[0]), cone.indices.ptr, GL_STATIC_DRAW);
+        
+        glVertexArrayVertexBuffer(r->unitCone, 0, vbo, 0, 3 * sizeof(float));
+        glVertexArrayElementBuffer(r->unitCone, ebo);
+        
+        glEnableVertexArrayAttrib(r->unitCone, 0);
+        glVertexArrayAttribBinding(r->unitCone, 0, 0);
+        glVertexArrayAttribFormat(r->unitCone, 0, 3, GL_FLOAT, GL_FALSE, 0);
+    }
+    
+    // Specify default rendering settings
+    R_DepthTest(true);
+    R_CullFace(true);
+    R_AlphaBlending(true);
 }
 
 void R_DrawModelNoReload(Model* model)
@@ -276,7 +342,9 @@ void R_DrawModelNoReload(Model* model)
 
 Mat4 R_ConvertView2ProjMatrix(Mat4 mat)
 {
-    mat.c3 *= -1;
+    mat.m13 *= -1;
+    mat.m23 *= -1;
+    mat.m33 *= -1;
     mat.m43 = 1;
     return mat;
 }
@@ -321,6 +389,8 @@ R_Buffer R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
     return vao;
 }
 
+// I don't think this should be used... But keeping it in the code just in case
+#if 0
 R_UniformBuffer R_CreateUniformBuffer(u32 binding)
 {
     assert(binding != Opengl_ReservedUniformBufferBinding && "Trying to use a binding that's taken by the _Globals Uniform Buffer");
@@ -342,10 +412,11 @@ void R_UploadUniformBuffer(R_UniformBuffer uniformBuffer, Slice<R_UniformValue> 
     
     glNamedBufferData(uniformBuffer.buffer, buffer.len, buffer.ptr, GL_DYNAMIC_DRAW);
 }
+#endif
 
 R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
 {
-    assert(numChannels >= 2 && numChannels <= 4);
+    assert(numChannels >= 1 && numChannels <= 4);
     
     R_Texture res = {0};
     glGenTextures(1, &res.handle);
@@ -362,7 +433,8 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
         switch(numChannels)
         {
             default: TODO; break;
-            case 2:  format = GL_RG;   TODO; break; // TODO
+            case 1:  format = GL_RED;  res.format = R_TexR8;    break;
+            case 2:  format = GL_RG;   res.format = R_TexRG8;   break;
             case 3:  format = GL_RGB;  res.format = R_TexRGB8;  break;
             case 4:  format = GL_RGBA; res.format = R_TexRGBA8; break;
         }
@@ -371,6 +443,43 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
         glGenerateMipmap(GL_TEXTURE_2D);
     }
     glBindTexture(GL_TEXTURE_2D, 0);
+    
+    return res;
+}
+
+R_Cubemap R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width, u32 height, u8 numChannels)
+{
+    R_Cubemap res;
+    glGenTextures(1, &res);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, res);
+    
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    
+    // NOTE: The order is chosen so that we can loop through the maps
+    // given the order in which the enum is defined in opengl
+    String cubemapTextureBlobs[6] = { right, left, top, bottom, front, back };
+    for(int i = 0; i < 6; ++i)
+    {
+        GLint format = GL_RGB;
+        switch(numChannels)
+        {
+            default: TODO; break;
+            case 1:  format = GL_RED;  break;
+            case 2:  format = GL_RG;   break;
+            case 3:  format = GL_RGB;  break;
+            case 4:  format = GL_RGBA; break;
+        }
+        
+        void* data = (void*)cubemapTextureBlobs[i].ptr;
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                     0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    }
     
     return res;
 }
@@ -414,13 +523,12 @@ R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
         Log("%s", info);
     }
     
-    int count;
-    glGetProgramiv(res.handle, GL_ACTIVE_UNIFORMS, &count);
-    Log("Active Uniforms: %d\n", count);
-    
     res.globalsUniformBlockIndex = glGetUniformBlockIndex(res.handle, "type_Globals");
     if(res.globalsUniformBlockIndex != -1)
+    {
+        glUniformBlockBinding(res.handle, res.globalsUniformBlockIndex, Opengl_GlobalsBinding);
         res.hasGlobals = true;
+    }
     
     return res;
 }
@@ -438,6 +546,8 @@ void R_SetPipeline(R_Pipeline pipeline)
 
 void R_SetUniforms(Slice<R_UniformValue> desc)
 {
+    Renderer* r = &renderer;
+    
     if(desc.len == 0) return;
     
     if(!renderer.boundPipeline.hasGlobals)
@@ -451,14 +561,13 @@ void R_SetUniforms(Slice<R_UniformValue> desc)
         
     }
     
-    R_UploadUniformBuffer(renderer.globalsUniformBuffer, desc);
+    // NOTE: Assuming the uniform buffers are padded with
+    // std140!! Changing the standard used (by modifying the
+    // shader importer) will make the renderer suddenly incorrect
+    ScratchArena scratch;
+    Slice<uchar> buffer = MakeUniformBufferStd140(desc, scratch);
     
-    // Bind this buffer to the shader
-    // NOTE TODO This should probably not be here but in the
-    // shader loading code
-    GLuint globalsIndex = renderer.boundPipeline.globalsUniformBlockIndex;
-    GLuint globalsBinding = renderer.globalsUniformBuffer.binding;
-    glUniformBlockBinding(renderer.boundPipeline.handle, globalsIndex, globalsBinding);
+    glNamedBufferData(r->globalsBuffer, buffer.len, buffer.ptr, GL_DYNAMIC_DRAW);
 }
 
 void R_SetFramebuffer(R_Framebuffer framebuffer)
@@ -528,6 +637,55 @@ void R_SetTexture(R_Texture texture, u32 slot)
     glBindTexture(GL_TEXTURE_2D, texture.handle);
 }
 
+void R_SetCubemap(R_Cubemap cubemap, u32 slot)
+{
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
+}
+
+void R_SetPerSceneData(R_PerSceneData perScene)
+{
+    TODO;
+}
+
+void R_SetPerFrameData(R_PerFrameData perFrame)
+{
+    Renderer* r = &renderer;
+    
+    struct alignas(16) PerFrameDataStd140
+    {
+        Mat4 world2View;
+        Mat4 view2Proj;
+        Vec3 viewPos;
+        float padding;
+    } perFrameStd140;
+    
+    // Fill in the struct with the correct layout
+    perFrameStd140.world2View = perFrame.world2View;
+    perFrameStd140.view2Proj  = perFrame.view2Proj;
+    perFrameStd140.viewPos    = perFrame.viewPos;
+    perFrameStd140.padding    = 0.0f;
+    static_assert(sizeof(perFrame) == 140, "Remember to change this code!");
+    
+    glNamedBufferData(r->perFrameBuffer, sizeof(perFrameStd140), &perFrameStd140, GL_DYNAMIC_DRAW);
+}
+
+void R_SetPerObjData(R_PerObjData perObj)
+{
+    Renderer* r = &renderer;
+    
+    struct alignas(16) PerObjDataStd140
+    {
+        Mat4 model2World;
+    } perObjStd140;
+    
+    // Fill in the struct with the correct layout
+    perObjStd140.model2World = perObj.model2World;
+    static_assert(sizeof(perObj) == 64, "Remember to change this code!");
+    
+    glNamedBufferData(r->perObjBuffer, sizeof(perObjStd140), &perObjStd140, GL_DYNAMIC_DRAW);
+}
+
 void R_ClearFrame(Vec4 color)
 {
     glClearColor(color.x, color.y, color.z, color.w);
@@ -541,6 +699,11 @@ void R_ClearFrameInt(int r, int g, int b, int a)
     int values[] = {r, g, b, a};
     glClearBufferiv(GL_COLOR, 0, values);
     glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+}
+
+void R_ClearDepth()
+{
+    glClear(GL_DEPTH_BUFFER_BIT);
 }
 
 void R_DepthTest(bool enable)
@@ -575,18 +738,25 @@ void R_Cleanup()
     
 }
 
-void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneLength, float coneRadius)
+void R_DrawCone(Vec3 baseCenter, Vec3 dir, float radius, float length)
 {
-    TODO;
+    Quat rot = FromToRotation(Vec3::up, dir);
+    Vec3 scale = {radius, length, radius};
+    Mat4 model2World = Mat4FromPosRotScale(baseCenter, rot, scale);
+    R_SetPerObjData({model2World});
+    
+    glBindVertexArray(renderer.unitCone);
+    glDrawElements(GL_TRIANGLES, (GLsizei)renderer.unitConeCount, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }
 
-void R_DrawCone(Vec3 baseCenter, Vec3 dir, float length, float radius)
+void R_DrawCylinder(Vec3 center, Vec3 dir, float radius, float height)
 {
-    TODO;
-}
-
-void R_DrawCylinder(Vec3 center, float radius, float height)
-{
+    Quat rot = FromToRotation(Vec3::up, dir);
+    Vec3 scale = {radius, height, radius};
+    Mat4 model2World = Mat4FromPosRotScale(center, rot, {radius, height, radius});
+    R_SetPerObjData({model2World});
+    
     glBindVertexArray(renderer.unitCylinder);
     glDrawElements(GL_TRIANGLES, (GLsizei)renderer.unitCylinderCount, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
@@ -594,7 +764,19 @@ void R_DrawCylinder(Vec3 center, float radius, float height)
 
 void R_DrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4)
 {
-    TODO;
+    Renderer* r = &renderer;
+    
+    Vec3 verts[] =
+    {
+        v1, v2, v3,
+        v1, v3, v4
+    };
+    
+    glNamedBufferData(r->quadVbo, sizeof(verts), verts, GL_DYNAMIC_DRAW);
+    
+    glBindVertexArray(r->quadVao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
 }
 
 void R_DrawFullscreenQuad()

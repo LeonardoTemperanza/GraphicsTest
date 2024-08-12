@@ -62,6 +62,7 @@ int main()
         
         MainUpdate(entities, &editor, deltaTime, &permArena, &frameArena);
         
+        ArenaFreeAll(&frameArena);
         firstIter = false;
     }
     

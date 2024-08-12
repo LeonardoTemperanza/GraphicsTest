@@ -157,33 +157,13 @@ int main()
     
     printf("\n");
     
+    // TODO: Two passes, first pass to get all introspectables
+    // and second pass to do actual parsing
     for(int i = 0; i < ArrayCount(paths); ++i)
     {
         Slice<Token> tokens = LexFile(paths[i], &permArena);
         ParseFile(paths[i], tokens, &permArena);
     }
-    
-    // Generate templated membersOf function
-    printf("template<typename t>\n");
-    printf("MetaStruct GetMetaStruct()\n");
-    printf("{\n");
-    for(int i = 0; i < introspectables.len; ++i)
-    {
-        if(i == 0)
-            printf("    if ");
-        else
-            printf("    else if ");
-        printf("constexpr (std::is_same_v<%.*s, t>)\n", StrPrintf(introspectables[i]));
-        
-        printf("    {\n");
-        printf("        return meta%.*s;\n", StrPrintf(introspectables[i]));
-        printf("    }\n");
-    }
-    
-    printf("    else\n");
-    printf("        static_assert(false, \"Given type is not being introspected (add introspect keyword)\");\n");
-    
-    printf("};\n");
 }
 
 Slice<Token> LexFile(const char* path, Arena* dst)

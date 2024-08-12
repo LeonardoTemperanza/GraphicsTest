@@ -6,9 +6,6 @@
 // Need it for gizmo intersection
 #include "collision.h"
 
-// TODO: @tmp Use something else later
-#include <unordered_map>
-std::unordered_map<ImGuiID, Widget> widgetTable;
 u64 Widget::frameCounter = 0;
 
 Console InitConsole()
@@ -38,6 +35,7 @@ Editor InitEditor()
     // Setup behavior flags
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    //io.MouseDrawCursor = true;
     
     float dpi = OS_GetDPIScale();
     
@@ -93,7 +91,7 @@ Editor InitEditor()
         colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
         colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
         colors[ImGuiCol_DragDropTarget]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
-        colors[ImGuiCol_NavHighlight]           = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+        colors[ImGuiCol_NavHighlight]           = ImVec4(0.80f, 0.30f, 0.20f, 1.00f);
         colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 0.00f, 0.00f, 0.70f);
         colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(1.00f, 0.00f, 0.00f, 0.20f);
         colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(1.00f, 0.00f, 0.00f, 0.35f);
@@ -148,27 +146,18 @@ Editor InitEditor()
     // Rendering
     state.selectedFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR8UI, true, false);
     state.entityIdFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR32I, true, false);
-    R_Shader screenVert = LoadShader("CompiledShaders/screenspace_vertex.shader");
-    R_Shader paintTrue = LoadShader("CompiledShaders/paint_bool_true.shader");
-    R_Shader paintInt = LoadShader("CompiledShaders/paint_int.shader");
-    R_Shader model2Proj = LoadShader("CompiledShaders/model2proj.shader");
-    R_Shader outlineFrag = LoadShader("CompiledShaders/outline_from_int_texture.shader");
-    R_Shader paintTrueShaders[] = {model2Proj, paintTrue};
-    state.paintTruePipeline = R_CreatePipeline(ArrToSlice(paintTrueShaders));
-    R_Shader outlineShaders[] = {screenVert, outlineFrag};
-    state.outlinePipeline = R_CreatePipeline(ArrToSlice(outlineShaders));
-    R_Shader paintIdShaders[] = {model2Proj, paintInt};
-    state.paintIdPipeline = R_CreatePipeline(ArrToSlice(paintIdShaders));
     return state;
 }
 
-void UpdateEditor(Editor* ui, float deltaTime)
+void UpdateEditor(Editor* editor, float deltaTime)
 {
+    Editor* e = editor;
+    
     Input input = GetInput();
     ImGuiIO& imguiIo = ImGui::GetIO();
     
     // Prune widgets which weren't used last frame
-    RemoveUnusedWidgets();
+    RemoveUnusedWidgets(e);
     
     // Hide mouse cursor if right clicking on main window
     if(input.virtualKeys[Keycode_RMouse])
@@ -192,7 +181,7 @@ void UpdateEditor(Editor* ui, float deltaTime)
     ImGuiDockNodeFlags flags = ImGuiDockNodeFlags_PassthruCentralNode;
     ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, 0, flags);
     
-    ShowMainMenuBar(ui);
+    ShowMainMenuBar(e);
     
     // Shortcuts
     {
@@ -200,14 +189,14 @@ void UpdateEditor(Editor* ui, float deltaTime)
         {
             if(PressedUnfilteredKey(input, Keycode_P))
             {
-                ui->inEditor = false;
+                e->inEditor = false;
             }
         }
     }
     
     // Editor Camera
     {
-        UpdateEditorCamera(ui, deltaTime);
+        UpdateEditorCamera(e, deltaTime);
     }
     
     // Gizmos handling
@@ -216,15 +205,15 @@ void UpdateEditor(Editor* ui, float deltaTime)
     // precedence over this
     bool isInteractingWithGizmos = false;
     {
-        if(ui->selected.len == 1)
+        if(e->selected.len == 1)
         {
-            Entity* selected = ui->selected[0];
+            Entity* selected = e->selected[0];
             
             Mat4 world = ComputeWorldTransform(selected);
             Vec3 pos, scale;
             Quat rot;
             PosRotScaleFromMat4(world, &pos, &rot, &scale);
-            isInteractingWithGizmos = TranslationGizmo("EntityTranslate", ui, &selected->pos);
+            isInteractingWithGizmos = TranslationGizmo("EntityTranslate", e, &selected->pos);
             Mat4 newWorld = Mat4FromPosRotScale(pos, rot, scale);
             ConvertToLocalTransform(selected, newWorld);
             PosRotScaleFromMat4(newWorld, &pos, &rot, &scale);
@@ -232,45 +221,60 @@ void UpdateEditor(Editor* ui, float deltaTime)
         }
     }
     
-    // Main editor stuff
+    // Clicking on entities
     {
         if(!isInteractingWithGizmos && PressedKey(input, Keycode_LMouse))
         {
             int width, height;
             OS_GetClientAreaSize(&width, &height);
             
-            R_SetFramebuffer(ui->entityIdFramebuffer);
+            R_SetFramebuffer(e->entityIdFramebuffer);
             int picked = R_ReadIntPixelFromFramebuffer(input.mouseX, height - input.mouseY);
+            assert(picked >= -1 && picked < GetNumEntities());
+            
             R_SetFramebuffer(R_DefaultFramebuffer());
             if(picked != -1)
             {
-                SelectEntity(ui, GetEntity(picked));
+                SelectEntity(e, GetEntity(picked));
             }
-            else
+            else if(!input.unfilteredKeys[Keycode_Ctrl])
             {
-                Log("-1!");
-                Free(&ui->selected);
+                Free(&e->selected);
             }
         }
     }
     
     // Entity list window
-    if(ui->entityListWindowOpen)
+    if(e->entityListWindowOpen)
     {
-        ShowEntityList(ui);
+        ShowEntityList(e);
+    }
+    
+    // Deleting entities
+    {
+        if(e->selected.len > 0 && PressedUnfilteredKey(input, Keycode_Del))
+        {
+            for(int i = 0; i < e->selected.len; ++i)
+            {
+                Entity* ent = e->selected[i];
+                DestroyEntity(ent);
+            }
+            
+            Free(&e->selected);
+        }
     }
     
     // Property window
-    if(ui->propertyWindowOpen)
+    if(e->propertyWindowOpen)
     {
         ImGui::Begin("Properties");
         
-        if(ui->selected.len == 1)
+        if(e->selected.len == 1)
         {
-            Entity* selected = ui->selected[0];
-            ShowEntityControl(ui, selected);
+            Entity* selected = e->selected[0];
+            ShowEntityControl(e, selected);
         }
-        else if(ui->selected.len == 0)
+        else if(e->selected.len == 0)
         {
             ImGui::Text("No entity selected.\n");
         }
@@ -283,9 +287,9 @@ void UpdateEditor(Editor* ui, float deltaTime)
     }
     
     // Metrics window
-    if(ui->metricsWindowOpen)
+    if(e->metricsWindowOpen)
     {
-        ImGui::ShowMetricsWindow(&ui->metricsWindowOpen);
+        ImGui::ShowMetricsWindow(&e->metricsWindowOpen);
     }
     
     // Console window
@@ -293,54 +297,54 @@ void UpdateEditor(Editor* ui, float deltaTime)
         Input input = GetInput();
         if(input.unfilteredKeys[Keycode_Insert] && !input.prev.unfilteredKeys[Keycode_Insert])
         {
-            ui->consoleOpen ^= true;
+            e->consoleOpen ^= true;
             // Set window focus
-            if(ui->consoleOpen)
+            if(e->consoleOpen)
             {
                 ImGui::SetWindowFocus("Console");
-                ui->focusOnConsole = true;
+                e->focusOnConsole = true;
             }
             else
                 ImGui::SetWindowFocus(nullptr);
         }
         
-        defer { ui->focusOnConsole = false; };
+        defer { e->focusOnConsole = false; };
         
         const float smoothing = 0.000000001f;
-        ui->consoleAnimation = ApproachExponential(ui->consoleAnimation, ui->consoleOpen, smoothing, deltaTime); 
+        e->consoleAnimation = ApproachExponential(e->consoleAnimation, e->consoleOpen, smoothing, deltaTime); 
         
         const float consoleHeight = 1000.0f;
         const float consoleWidth  = 1000.0f;
         
         ImGuiIO& io = ImGui::GetIO(); (void)io;
-        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, lerp(-1000.0f, 0.0f, ui->consoleAnimation)), ImGuiCond_Always, ImVec2(0.5f,0.0f));
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, lerp(-1000.0f, 0.0f, e->consoleAnimation)), ImGuiCond_Always, ImVec2(0.5f,0.0f));
         ImGui::SetNextWindowSize(ImVec2(consoleWidth, consoleHeight));
-        ShowConsole(ui);
+        ShowConsole(e);
     }
     
     // Debug window
-    if(ui->debugWindowOpen)
+    if(e->debugWindowOpen)
     {
-        ImGui::Begin("Debugging", &ui->debugWindowOpen);
+        ImGui::Begin("Debugging", &e->debugWindowOpen);
         ImGui::End();
     }
     
     // Camera settings window
-    if(ui->cameraSettingsWindowOpen)
+    if(e->cameraSettingsWindowOpen)
     {
-        ImGui::Begin("Editor Camera", &ui->cameraSettingsWindowOpen);
-        ImGui::DragFloat("Horizontal FOV", &ui->camParams.fov, 0.05f);
+        ImGui::Begin("Editor Camera", &e->cameraSettingsWindowOpen);
+        ImGui::DragFloat("Horizontal FOV", &e->camParams.fov, 0.05f);
         ImGui::End();
     }
     
     // ImGui Demo window
-    if(ui->demoWindowOpen)
-        ImGui::ShowDemoWindow(&ui->demoWindowOpen);
+    if(e->demoWindowOpen)
+        ImGui::ShowDemoWindow(&e->demoWindowOpen);
     
     // Stats window
-    if(ui->statsWindowOpen)
+    if(e->statsWindowOpen)
     {
-        ImGui::Begin("Stats", &ui->statsWindowOpen);
+        ImGui::Begin("Stats", &e->statsWindowOpen);
         ImGui::End();
     }
 }
@@ -355,7 +359,8 @@ void RenderEditor(Editor* editor, float deltaTime)
     // Render pass for selected entities
     {
         R_SetFramebuffer(editor->selectedFramebuffer);
-        R_SetPipeline(editor->paintTruePipeline);
+        R_Pipeline paintTrue = GetPipeline("CompiledShaders/model2proj.shader", "CompiledShaders/paint_bool_true.shader");
+        R_SetPipeline(paintTrue);
         R_ClearFrame({0});
         
         for(int i = 0; i < editor->selected.len; ++i)
@@ -363,11 +368,7 @@ void RenderEditor(Editor* editor, float deltaTime)
             Entity* ent = editor->selected[i];
             if(ent->flags & EntityFlags_Destroyed) continue;
             
-            R_UniformValue perObjValues[] =
-            {
-                MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
-            };
-            R_UploadUniformBuffer(GetPerObjUniformBuffer(), ArrToSlice(perObjValues));
+            R_SetPerObjData({ ComputeWorldTransform(ent) });
             R_DrawModel(ent->model);
         }
         
@@ -377,16 +378,13 @@ void RenderEditor(Editor* editor, float deltaTime)
     // Render pass for entity ids (clicking on entities to select them)
     {
         R_SetFramebuffer(editor->entityIdFramebuffer);
-        R_SetPipeline(editor->paintIdPipeline);
+        R_Pipeline paintId = GetPipeline("CompiledShaders/model2proj.shader", "CompiledShaders/paint_int.shader");
+        R_SetPipeline(paintId);
         R_ClearFrameInt(-1, -1, -1, -1);
         
         for_live_entities(ent)
         {
-            R_UniformValue perObjValues[] =
-            {
-                MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
-            };
-            R_UploadUniformBuffer(GetPerObjUniformBuffer(), ArrToSlice(perObjValues));
+            R_SetPerObjData({ ComputeWorldTransform(ent) });
             
             // Upload the int uniform here
             R_UniformValue uniforms[] = { MakeUniformInt(GetId(ent)) };
@@ -417,12 +415,83 @@ void RenderEditor(Editor* editor, float deltaTime)
         R_DepthTest(false);
         R_AlphaBlending(true);
         R_SetTexture(R_GetFramebufferColorTexture(editor->selectedFramebuffer), 0);
-        R_SetPipeline(editor->outlinePipeline);
+        R_Pipeline outline = GetPipeline("CompiledShaders/screenspace_vertex.shader", "CompiledShaders/outline_from_int_texture.shader");
+        R_SetPipeline(outline);
         
         R_UniformValue uniforms[] = { MakeUniformVec4(outlineColor) };
         R_SetUniforms(ArrToSlice(uniforms));
         R_DrawFullscreenQuad();
         R_DepthTest(true);
+    }
+    
+    // Draw 3D gizmos
+    {
+        // NOTE: This assumes that the 3D gizmos will be the very last thing rendered
+        // (which is a fair assumption to make, but if any draw calls are added later
+        // it will be confusing. Later we should probably just use a separate depth buffer
+        // specifically for the overlay stuff, but right now it's probably fine
+        R_ClearDepth();
+        
+        auto& widgetTable = editor->widgetTable;
+        for(auto it = widgetTable.begin(); it != widgetTable.end(); ++it)
+        {
+            Widget* w = &it->second;
+            
+            // TODO: Instead of doing this weird screen to world transformation
+            // we should just stick to screen coordinates and do the hit detection
+            // in that system. Figure out later how to do that
+            float scale = GetScreenspaceToWorldDistance(editor, w->widgetPos);
+            const float screenspaceWidth = 2.0f;
+            float width = scale * screenspaceWidth;
+            const float screenspaceLength = 100.0f;
+            float length = scale * screenspaceLength;
+            
+            Vec4 red     = {1, 0, 0, 1};
+            Vec4 green   = {0, 1, 0, 1};
+            Vec4 blue    = {0, 0, 1, 1};
+            Vec4 yellow  = {1, 1, 0, 1};
+            switch(it->second.renderMode)
+            {
+                case WidgetRender_None: break;
+                case WidgetRender_Translate:
+                {
+                    Vec4 xColor = w->clickedX ? yellow : red;
+                    Vec4 yColor = w->clickedY ? yellow : green;
+                    Vec4 zColor = w->clickedZ ? yellow : blue;
+                    
+                    // X
+                    {
+                        R_Pipeline simpleColor = GetPipeline("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
+                        R_SetPipeline(simpleColor);
+                        R_UniformValue uniforms[] = { MakeUniformVec4(xColor) };
+                        R_SetUniforms(ArrToSlice(uniforms));
+                        R_DrawArrow(w->widgetPos, w->widgetPos + Vec3::right * length, width, width * 2.5f, length * 0.15f);
+                    }
+                    
+                    // Y
+                    {
+                        R_Pipeline simpleColor = GetPipeline("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
+                        R_SetPipeline(simpleColor);
+                        R_UniformValue uniforms[] = { MakeUniformVec4(yColor) };
+                        R_SetUniforms(ArrToSlice(uniforms));
+                        R_DrawArrow(w->widgetPos, w->widgetPos + Vec3::up * length, width, width * 2.5f, length * 0.15f);
+                    }
+                    
+                    // Z
+                    {
+                        R_Pipeline simpleColor = GetPipeline("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
+                        R_SetPipeline(simpleColor);
+                        R_UniformValue uniforms[] = { MakeUniformVec4(zColor) };
+                        R_SetUniforms(ArrToSlice(uniforms));
+                        R_DrawArrow(w->widgetPos, w->widgetPos + Vec3::forward * length, width, width * 2.5f, length * 0.15f);
+                    }
+                    
+                    break;
+                }
+                case WidgetRender_Rotate: break;
+                case WidgetRender_Scale:  break;
+            }
+        }
     }
 }
 
@@ -474,8 +543,7 @@ void ShowMainMenuBar(Editor* ui)
 
 void ShowEntityList(Editor* ui)
 {
-    ScratchArena scratch;
-    Slice<Slice<Entity*>> childrenPerEntity = ComputeAllChildrenForEachEntity(scratch);
+    Slice<Slice<Entity*>> childrenPerEntity = GetLiveChildrenPerEntity();
     
     ImGui::Begin("Entities");
     defer { ImGui::End(); };
@@ -536,6 +604,8 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
         flags |= ImGuiTreeNodeFlags_Selected;
     
     ImGui::PushID(id);
+    ImGui::Text("%d", id);
+    ImGui::SameLine();
     bool nodeOpen = ImGui::TreeNodeEx(kindStr, flags);
     ImGui::PopID();
     
@@ -582,8 +652,8 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
         for(int i = 0; i < children.len; ++i)
         {
             Entity* e = children[i];
-            
-            ShowEntityAndChildren(ui, e, childrenPerEntity);
+            if(!(e->flags & EntityFlags_Destroyed))
+                ShowEntityAndChildren(ui, e, childrenPerEntity);
         }
         
         ImGui::TreePop();
@@ -1020,7 +1090,7 @@ void ShowEntityControl(Editor* editor, Entity* entity)
     ImGui::PushID(GetId(entity));
     
     // Show base entity
-    ShowStructControl(metaEntity, entity);
+    ShowStructControl(metaEntity, editor, entity);
     
     if(entity->derivedKind != Entity_None)
     {
@@ -1035,13 +1105,13 @@ void ShowEntityControl(Editor* editor, Entity* entity)
             case Entity_PointLight: metaStruct = metaPointLight; break;
         }
         
-        ShowStructControl(metaStruct, GetDerivedAddr(entity));
+        ShowStructControl(metaStruct, editor, GetDerivedAddr(entity));
     }
     
     ImGui::PopID();
 }
 
-void ShowStructControl(MetaStruct metaStruct, void* address)
+void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address)
 {
     ImGui::SeparatorText(metaStruct.cName);
     Slice<MemberDefinition> members = metaStruct.members;
@@ -1083,7 +1153,7 @@ void ShowStructControl(MetaStruct metaStruct, void* address)
             }
             case Meta_Quat:
             {
-                ShowQuatControl(member.cNiceName, (Quat*)((char*)address + member.offset), 150.0f, 0.5f);
+                ShowQuatControl(member.cNiceName, editor, (Quat*)((char*)address + member.offset), 150.0f, 0.5f);
                 break;
             }
             //Meta_RecursiveCases
@@ -1160,7 +1230,7 @@ void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float se
     ImGui::Columns(1);
 }
 
-void ShowQuatControl(const char* strId, Quat* value, float columnWidth, float sensitivity)
+void ShowQuatControl(const char* strId, Editor* editor, Quat* value, float columnWidth, float sensitivity)
 {
     // NOTE: As far as i know there's no way to convert to quaternion
     // and then back in a consistent way, so the euler representation
@@ -1179,7 +1249,8 @@ void ShowQuatControl(const char* strId, Quat* value, float columnWidth, float se
         if(*v == -0.0f) *v = 0.0f;
     }
     
-    AddWidgetIfNotPresent(id, widget);
+    AddWidgetIfNotPresent(editor, id, widget);
+    auto& widgetTable = editor->widgetTable;
     if(!widgetTable.contains(id))
     {
         Widget widget = {0};
@@ -1196,8 +1267,9 @@ void ShowQuatControl(const char* strId, Quat* value, float columnWidth, float se
     *value = EulerRadToQuat(eulerRad);
 }
 
-void RemoveUnusedWidgets()
+void RemoveUnusedWidgets(Editor* editor)
 {
+    auto& widgetTable = editor->widgetTable;
     for(auto it = widgetTable.begin(); it != widgetTable.end();)
     {
         bool removeThis = false;
@@ -1214,9 +1286,10 @@ void RemoveUnusedWidgets()
     ++Widget::frameCounter;
 }
 
-bool AddWidgetIfNotPresent(ImGuiID id, Widget initialState)
+bool AddWidgetIfNotPresent(Editor* editor, ImGuiID id, Widget initialState)
 {
     bool res = true;
+    auto& widgetTable = editor->widgetTable;
     if(!widgetTable.contains(id))
     {
         res = false;
@@ -1247,16 +1320,27 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     Vec3 q2 = v1 - perp * scale;
     Vec3 q3 = v2 - perp * scale;
     Vec3 q4 = v2 + perp * scale;
-    //R_ImDrawQuad(q1, q2, q3, q4, color);
-    //R_ImDrawQuad(q4, q3, q2, q1, color);
+    
+    R_Pipeline simpleColor = GetPipeline("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
+    R_SetPipeline(simpleColor);
+    
+    R_UniformValue uniforms[] = { MakeUniformVec4(color) };
+    R_SetUniforms(ArrToSlice(uniforms));
+    
+    R_SetPerObjData({ Mat4::identity });
+    
+    R_DrawQuad(q1, q2, q3, q4);
+    R_DrawQuad(q4, q3, q2, q1);
 }
 
 bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
 {
     ImGuiID id = ImGui::GetID(strId);
     Widget initial = {0};
-    AddWidgetIfNotPresent(id, initial);
-    Widget& widget = widgetTable[id];
+    AddWidgetIfNotPresent(editor, id, initial);
+    Widget& widget = editor->widgetTable[id];
+    widget.renderMode = WidgetRender_Translate;
+    widget.widgetPos  = *pos;
     
     Input input = GetInput();
     bool interacting = false;
@@ -1306,10 +1390,7 @@ bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
         interacting |= interactingZ;
     }
     
-    // Rendering
-    DrawQuickLine(*pos, *pos + Vec3::right * scale, 0.05f * scale, interactingX ? yellow : red);
-    DrawQuickLine(*pos, *pos + Vec3::up * scale, 0.05f * scale, interactingY ? yellow : green);
-    DrawQuickLine(*pos, *pos + Vec3::forward * scale, 0.05f * scale, interactingZ ? yellow : blue);
+    widget.widgetPos = *pos;
     
     return interacting;
 }
@@ -1393,15 +1474,15 @@ bool AxisHandle(Ray cameraRay, Vec3* pos, Vec3 dir, Vec4 color, float scale, boo
 
 Vec3 ProjectToLine(Ray cameraRay, Vec3 pos, Vec3 dir, bool* outSuccess)
 {
-    Vec3 planeNormal = Vec3::up;
-    if(std::abs(dot(dir, planeNormal)) > 0.8f)
-        planeNormal = Vec3::right;
-    if(std::abs(dot(dir, planeNormal)) > 0.8f)
-        planeNormal = Vec3::forward;
-    planeNormal = cross(dir, planeNormal);
+    if(dot(cameraRay.dir, dir) > 0.999f)
+    {
+        *outSuccess = false;
+        return pos;
+    }
     
-    if(dot(planeNormal, cameraRay.dir) >= 0.0f)
-        planeNormal = -planeNormal;
+    // Orthogonalize the opposite of the camera ray direction
+    // with respect to the "dir" direction of the line
+    Vec3 planeNormal = normalize(-cameraRay.dir - dir * dot(-cameraRay.dir, dir));
     
     float planeDst = RayPlaneDst(cameraRay, pos, planeNormal);
     if(planeDst != FLT_MAX)
@@ -1413,4 +1494,19 @@ Vec3 ProjectToLine(Ray cameraRay, Vec3 pos, Vec3 dir, bool* outSuccess)
     
     *outSuccess = false;
     return pos;
+}
+
+float GetScreenspaceToWorldDistance(Editor* editor, Vec3 pos)
+{
+    int width, height;
+    OS_GetClientAreaSize(&width, &height);
+    
+    float fov = Deg2Rad(editor->camParams.fov);
+    Vec3 diff = pos - editor->camPos;
+    // Get forward distance only
+    float dist = dot(diff, editor->camRot * Vec3::forward);
+    float screenHeightAtDistance = 2.0f * dist * tan(fov / 2.0f);
+    
+    float pixelsPerUnit = height / screenHeightAtDistance;
+    return 1.0f / pixelsPerUnit;
 }

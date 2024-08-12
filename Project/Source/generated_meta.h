@@ -94,25 +94,3 @@ MemberDefinition _membersOfPointLight[] =
 MetaStruct metaPointLight =
 { {.ptr=_membersOfPointLight, .len=ArrayCount(_membersOfPointLight)}, StrLit("PointLight"), "PointLight" };
 
-template<typename t>
-MetaStruct GetMetaStruct()
-{
-    if constexpr (std::is_same_v<Entity, t>)
-    {
-        return metaEntity;
-    }
-    else if constexpr (std::is_same_v<Camera, t>)
-    {
-        return metaCamera;
-    }
-    else if constexpr (std::is_same_v<Player, t>)
-    {
-        return metaPlayer;
-    }
-    else if constexpr (std::is_same_v<PointLight, t>)
-    {
-        return metaPointLight;
-    }
-    else
-        static_assert(false, "Given type is not being introspected (add introspect keyword)");
-};

@@ -1,11 +1,8 @@
 
 #pragma vs main
 
-// Should this stuff automatically
-// be inserted into the shader with a
-// pragma perhaps (which tells the renderer
-// what configuration to use)? Except
-// for the material stuff.
+// TODO: These should just be in a file that is included in
+// every shader
 
 struct VertexInfo
 {

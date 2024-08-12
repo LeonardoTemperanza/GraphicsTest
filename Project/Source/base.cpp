@@ -396,10 +396,10 @@ Mat4 operator *(Mat4 m1, Mat4 m2)
     {
         for(int j = 0; j < 4; ++j)
         {
-            res.m[j][i] = 0.0f;
+            res.m[i][j] = 0.0f;
             
             for(int k = 0; k < 4; ++k)
-                res.m[j][i] += m1.m[k][i] * m2.m[j][k];
+                res.m[i][j] += m1.m[i][k] * m2.m[k][j];
         }
     }
     
@@ -408,12 +408,13 @@ Mat4 operator *(Mat4 m1, Mat4 m2)
 
 Mat4 transpose(Mat4 m)
 {
-    Mat4 res;
-    res.set
-    (m.m11, m.m21, m.m31, m.m41,
-     m.m12, m.m22, m.m32, m.m42,
-     m.m13, m.m23, m.m33, m.m43,
-     m.m14, m.m24, m.m34, m.m44);
+    Mat4 res
+    {
+        m.m11, m.m21, m.m31, m.m41,
+        m.m12, m.m22, m.m32, m.m42,
+        m.m13, m.m23, m.m33, m.m43,
+        m.m14, m.m24, m.m34, m.m44
+    };
     return res;
 }
 
@@ -620,6 +621,18 @@ Quat RotateTowards(Quat current, Quat target, float delta)
     return slerp(current, target, t);
 }
 
+Quat FromToRotation(Vec3 from, Vec3 to)
+{
+    if(std::abs(dot(from, to)) > 0.999f)
+        return Quat::identity;
+    
+    Quat q;
+    Vec3 a = cross(from, to);
+    q.xyz = a;
+    q.w = std::sqrt(dot(from, from) * dot(to, to)) + dot(from, to);
+    return q;
+}
+
 Mat4 RotationMatrix(Quat q)
 {
     float x = q.x * 2.0f; float y = q.y * 2.0f; float z = q.z * 2.0f;
@@ -628,34 +641,37 @@ Mat4 RotationMatrix(Quat q)
     float wx = q.w * x;   float wy = q.w * y;   float wz = q.w * z;
     
     // Calculate 3x3 matrix from orthonormal basis
-    Mat4 res;
-    res.set
-    (1.0f - (yy + zz), xy - wz,          xz + wy,          0.0f,
-     xy + wz,          1.0f - (xx + zz), yz - wx,          0.0f,
-     xz - wy,          yz + wx,          1.0f - (xx + yy), 0.0f,
-     0.0f,             0.0f,             0.0f,             1.0f);
+    Mat4 res
+    {
+        1.0f - (yy + zz), xy - wz,          xz + wy,          0.0f,
+        xy + wz,          1.0f - (xx + zz), yz - wx,          0.0f,
+        xz - wy,          yz + wx,          1.0f - (xx + yy), 0.0f,
+        0.0f,             0.0f,             0.0f,             1.0f
+    };
     return res;
 }
 
 Mat4 ScaleMatrix(Vec3 scale)
 {
-    Mat4 res;
-    res.set
-    (scale.x, 0.0f,    0.0f,    0.0f,
-     0.0f,    scale.y, 0.0f,    0.0f,
-     0.0f,    0.0f,    scale.z, 0.0f,
-     0.0f,    0.0f,    0.0f,    1.0f);
+    Mat4 res
+    {
+        scale.x, 0.0f,    0.0f,    0.0f,
+        0.0f,    scale.y, 0.0f,    0.0f,
+        0.0f,    0.0f,    scale.z, 0.0f,
+        0.0f,    0.0f,    0.0f,    1.0f
+    };
     return res;
 }
 
 Mat4 PositionMatrix(Vec3 pos)
 {
-    Mat4 res;
-    res.set
-    (1.0f, 0.0f, 0.0f, pos.x,
-     0.0f, 1.0f, 0.0f, pos.y,
-     0.0f, 0.0f, 1.0f, pos.z,
-     0.0f, 0.0f, 0.0f, 1.0f);
+    Mat4 res
+    {
+        1.0f, 0.0f, 0.0f, pos.x,
+        0.0f, 1.0f, 0.0f, pos.y,
+        0.0f, 0.0f, 1.0f, pos.z,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
     return res;
 }
 
@@ -845,12 +861,13 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float horizontalDegFov, floa
     const float t = r / aspectRatio;
     const float b = -t;
     
-    Mat4 res;
-    res.set
-    (2*n/(r-l), 0,         +(r+l)/(r-l),  0,
-     0,         2*n/(t-b), +(t+b)/(t-b),  0,
-     0,         0,         -(f+n)/(f-n), -2*f*n/(f-n),
-     0,         0,         +1,           0);
+    Mat4 res
+    {
+        2*n/(r-l), 0,         +(r+l)/(r-l),  0,
+        0,         2*n/(t-b), +(t+b)/(t-b),  0,
+        0,         0,         -(f+n)/(f-n), -2*f*n/(f-n),
+        0,         0,         +1,           0
+    };
     
     return res;
 }

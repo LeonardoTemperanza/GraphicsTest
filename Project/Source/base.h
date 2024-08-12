@@ -260,40 +260,20 @@ Vec3 lerp(Vec3 v1, Vec3 v2);
 
 Vec4 lerp(Vec4 v1, Vec4 v2);
 
-// Column major
+// Row major
 struct Mat4
 {
     union
     {
         struct
         {
-            float m11, m21, m31, m41;
-            float m12, m22, m32, m42;
-            float m13, m23, m33, m43;
-            float m14, m24, m34, m44;
+            float m11, m12, m13, m14;
+            float m21, m22, m23, m24;
+            float m31, m32, m33, m34;
+            float m41, m42, m43, m44;
         };
-        struct
-        {
-            Vec4 c1, c2, c3, c4;
-        };
-        float m[4][4];  // Since it's in column major order, first index is the column and the second one is the row
+        float m[4][4];  // Since it's in row major order, first index is the row and the second one is the column
     };
-    
-    // This "constructor" allows to specify the elements in the
-    // normal math notation (which would be in row major order
-    // with C's struct initializer). It's not an actual constructor
-    // because if it were it wouldn't let me initialize with an
-    // aggregate initialization list (for some reason).
-    inline void set(float a11, float a12, float a13, float a14,
-                    float a21, float a22, float a23, float a24,
-                    float a31, float a32, float a33, float a34,
-                    float a41, float a42, float a43, float a44)
-    {
-        m11 = a11; m12 = a12; m13 = a13; m14 = a14;
-        m21 = a21, m22 = a22, m23 = a23, m24 = a24;
-        m31 = a31, m32 = a32, m33 = a33, m34 = a34;
-        m41 = a41, m42 = a42, m43 = a43, m44 = a44;
-    }
     
     static const Mat4 identity;
 };
@@ -326,6 +306,7 @@ float magnitude(Quat q);
 Quat inverse(Quat q);
 Quat AngleAxis(Vec3 axis, float angle);
 Quat RotateTowards(Quat current, Quat target, float delta);
+Quat FromToRotation(Vec3 from, Vec3 to);
 
 struct Transform
 {
@@ -673,7 +654,7 @@ String GetFullPath(const char* path, Arena* dst);
 // Defer statement (similar to that of Go, Jai and Odin)
 // Usage:
 #if 0
-int test()
+int _test()
 {
     int* array = (int*)malloc(sizeof(int)*4);
     defer { free(array) };  // This will be executed at the end of the scope

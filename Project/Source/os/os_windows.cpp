@@ -1043,6 +1043,7 @@ VirtualKeycode Win32_ConvertToCustomKeyCodes(WPARAM code)
         case VK_CONTROL: res = Keycode_Ctrl;   break;
         case VK_SPACE:   res = Keycode_Space;  break;
         case VK_ESCAPE:  res = Keycode_Esc;    break;
+        case VK_DELETE:  res = Keycode_Del;    break;
         default:         res = Keycode_Null;   break;
     }
     

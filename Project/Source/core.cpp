@@ -11,21 +11,17 @@ Entities* InitEntities()
     entities = {0};
     auto& res = entities;
     
-    Model* raptoidModel = LoadModel("Raptoid/Raptoid.model");
-    Model* cubeModel = LoadModel("Common/Cube.model");
+    Model* raptoidModel = GetModel("Raptoid/Raptoid.model");
+    Model* cubeModel = GetModel("Common/Cube.model");
     
-    R_Shader simpleVertex = LoadShader("CompiledShaders/simple_vertex.shader");
-    R_Shader simplePixel  = LoadShader("CompiledShaders/simple_pixel.shader");
-    R_Shader shaders[] = {simpleVertex, simplePixel};
-    raptoidModel->pipeline = R_CreatePipeline(ArrToSlice(shaders));
+    raptoidModel->pipeline = GetPipeline("CompiledShaders/simple_vertex.shader", "CompiledShaders/simple_pixel.shader");
     cubeModel->pipeline = raptoidModel->pipeline;
     
-    //SetMaterial(raptoidModel, raptoidMaterial, 0);
-    //SetMaterial(raptoidModel, raptoidMaterial, 1);
-    
-    //Model* sphereModel = LoadModelAsset("Common/sphere.model");
-    Model* sphereModel = raptoidModel;
+    Model* sphereModel = GetModel("Common/sphere.model");
     sphereModel->pipeline = raptoidModel->pipeline;
+    
+    Model* cylinderModel = GetModel("Common/cylinder.model");
+    cylinderModel->pipeline = raptoidModel->pipeline;
     
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
     static Arena cameraArena = ArenaVirtualMemInit(MB(64), MB(2));
@@ -51,10 +47,11 @@ Entities* InitEntities()
     res.mainCamera = GetKey(camera->base);
     
     auto player = NewEntity<Player>();
-    player->base->model = raptoidModel;
-    player->gravity = 9.8f;
-    player->jumpVel = 5.0f;
-    player->moveSpeed = 3.5f;
+    player->base->model = cylinderModel;
+    player->base->scale = {0.5f, 1.0f, 0.5f};
+    player->gravity = 20.0f;
+    player->jumpVel = 10.0f;
+    player->moveSpeed = 4.0f;
     player->groundAccel = 40.0f;
     
     auto pointLight = NewEntity<PointLight>();
@@ -62,8 +59,22 @@ Entities* InitEntities()
     float pos = 0.0f;
     
     {
+        Entity* e = NewEntity();
+        e->model = cubeModel;
+        e->pos.x = pos;
+        pos += 3.0f;
+    }
+    
+    {
+        Entity* e = NewEntity();
+        e->model = sphereModel;
+        e->pos.x = pos;
+        pos += 3.0f;
+    }
+    
+    {
         Entity* e[1000];
-        for(int i = 0; i < 10; ++i)
+        for(int i = 0; i < 7; ++i)
         {
             e[i] = NewEntity();
             e[i]->model = raptoidModel;
@@ -76,24 +87,13 @@ Entities* InitEntities()
         MountEntity(e[6], e[5]);
     }
     
-    {
-        Entity* e = NewEntity();
-        e->model = cubeModel;
-        e->pos.x = pos;
-        e->scale = {0, 0, 0};
-        pos += 3.0f;
-    }
-    
-    // Init rendering fields
-    // NOTE: These are defined in the shaders!!
-    res.perSceneBuffer = R_CreateUniformBuffer(0);
-    res.perFrameBuffer = R_CreateUniformBuffer(1);
-    res.perObjBuffer   = R_CreateUniformBuffer(2);
-    
-    // Renderer settings that should really just be enabled by default
-    R_DepthTest(true);
-    R_CullFace(true);
-    R_AlphaBlending(true);
+    // Scene params
+    res.sceneParams.skyboxTop    = "Skybox/top.jpg";
+    res.sceneParams.skyboxBottom = "Skybox/bottom.jpg";
+    res.sceneParams.skyboxLeft   = "Skybox/left.jpg";
+    res.sceneParams.skyboxRight  = "Skybox/right.jpg";
+    res.sceneParams.skyboxFront  = "Skybox/front.jpg";
+    res.sceneParams.skyboxBack   = "Skybox/back.jpg";
     
     return &res;
 }
@@ -118,82 +118,99 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     
     PollAndProcessInput(inEditor);
     
-    Camera* cam = GetMainCamera();
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     float aspectRatio = (float)width / (float)height;
     
-    if(!inEditor)
-        UpdateEntities(entities, deltaTime);
-    
-    Vec3 camPos = {0};
-    Quat camRot = Quat::identity;
-    CameraParams camParams = {.nearClip=0.1f, .farClip=1000.0f};
-    if(cam)
+    // Per frame computations
     {
-        camPos    = cam->base->pos;
-        camRot    = cam->base->rot;
-        camParams = cam->params;
+        entities->liveChildrenPerEntity = ComputeAllLiveChildrenForEachEntity(frameArena);
     }
-    
-    if(inEditor)
-    {
-        UpdateEditor(editor, deltaTime);
-        camPos = editor->camPos;
-        camRot = editor->camRot;
-        camParams = editor->camParams;
-    }
+    defer { entities->liveChildrenPerEntity = {0}; };
     
     // Renderer beginning of frame stuff
     {
         R_SetViewport(width, height);
+        R_ClearFrame({0.12f, 0.3f, 0.25f, 1.0f});
+        
+        Camera* cam = GetMainCamera();
+        Vec3 camPos = {0};
+        Quat camRot = Quat::identity;
+        CameraParams camParams = {.nearClip=0.1f, .farClip=1000.0f};
+        
+        if(inEditor)
+        {
+            camPos    = editor->camPos;
+            camRot    = editor->camRot;
+            camParams = editor->camParams;
+        }
+        else if(cam)
+        {
+            camPos    = cam->base->pos;
+            camRot    = cam->base->rot;
+            camParams = cam->params;
+        }
+        else
+        {
+            Log("There is currently no active camera!");
+        }
+        
+        Mat4 view2Proj = View2ProjMatrix(camParams.nearClip, camParams.farClip, camParams.fov, aspectRatio);
+        R_PerFrameData perFrame =
+        {
+            World2ViewMatrix(camPos, camRot),
+            R_ConvertView2ProjMatrix(view2Proj),
+            camPos
+        };
+        R_SetPerFrameData(perFrame);
+    }
+    
+    // Update
+    if(inEditor)
+    {
+        UpdateEditor(editor, deltaTime);
+    }
+    else
+    {
+        UpdateEntities(entities, deltaTime);
+    }
+    
+    // End of frame activities
+    {
+        CommitDestroy(entities);
+    }
+    
+    // Render skybox
+    {
+        R_Pipeline pipeline = GetPipeline("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
+        R_SetPipeline(pipeline);
+        R_Cubemap cubemap = GetCubemap("Skybox/top.jpg", "Skybox/bottom.jpg",
+                                       "Skybox/left.jpg", "Skybox/right.jpg",
+                                       "Skybox/front.jpg", "Skybox/back.jpg");
+        R_SetCubemap(cubemap, 0);
+        
+        Model* cube = GetModel("Common/cube.model");
+        R_CullFace(false);
+        R_DepthTest(false);
+        R_DrawModel(cube);
+        R_DepthTest(true);
+        R_CullFace(true);
     }
     
     // Render entities in the scene
     {
-        R_ClearFrame({0.12f, 0.3f, 0.25f, 1.0f});
-        
-        // TODO: per scene shouldn't be here but it's empty at the moment so it's fine
-        R_UploadUniformBuffer(entities->perSceneBuffer, {0});
-        Mat4 view2Proj = View2ProjMatrix(camParams.nearClip, camParams.farClip, camParams.fov, aspectRatio);
-        view2Proj = transpose(R_ConvertView2ProjMatrix(view2Proj));
-        R_UniformValue perFrameValues[] =
-        {
-            MakeUniformMat4(transpose(World2ViewMatrix(camPos, camRot))),
-            MakeUniformMat4(view2Proj),
-            MakeUniformVec3(camPos),
-        };
-        R_UploadUniformBuffer(entities->perFrameBuffer, ArrToSlice(perFrameValues));
-        
         for_live_entities(ent)
         {
             if(ent->model)
             {
-                R_UniformValue perObjValues[] =
-                {
-                    MakeUniformMat4(transpose(ComputeWorldTransform(ent)))
-                };
-                R_UploadUniformBuffer(entities->perObjBuffer, ArrToSlice(perObjValues));
+                R_PerObjData perObj = { ComputeWorldTransform(ent) };
+                R_SetPerObjData(perObj);
                 
                 R_SetPipeline(ent->model->pipeline);
                 R_DrawModel(ent->model);
             }
         }
     }
-    
-    // TODO: asset system should be better, we shouldn't have to do this kind of stuff
-    // An idea for a really good asset system for the prototyping stage is this:
-    // just load all assets always. Then we'll add stuff on top of it.
-#if 0
-    static R_Shader solidColorShader = LoadShader("CompiledShaders/paint_color.shader");
-    R_Shader shaders[] = { editor->paintTruePipeline.shaders[0], solidColorShader };
-    static R_Pipeline pipeline = R_CreatePipeline(ArrToSlice(shaders));
-    R_SetPipeline(pipeline);
-    R_UniformValue uniforms[] = { MakeUniformVec4({0, 0, 0, 1}) };
-    R_SetUniforms(ArrToSlice(uniforms));
-    // This is not rendering for some reason...
-    R_DrawCylinder({0}, {0}, {0});
-#endif
     
     // Render and finalize editor
     if(inEditor)
@@ -214,8 +231,6 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     
     ImGui::Render();  // Render UI on top of scene
     R_RenderDearImgui();
-    
-    //CommitDestroy(entities);
 }
 
 void UpdateEntities(Entities* entities, float deltaTime)
@@ -269,6 +284,16 @@ Array<t>* GetArrayFromType()
         static_assert(false, "This type is not derived from entity");
     
     static_assert(4 == Entity_Count, "Every derived type must have a corresponding if");
+}
+
+bool operator ==(EntityKey k1, EntityKey k2)
+{
+    return k1.id == k2.id && k1.gen == k2.gen;
+}
+
+bool operator !=(EntityKey k1, EntityKey k2)
+{
+    return k1.id != k2.id || k1.gen != k2.gen;
 }
 
 EntityKey NullKey()
@@ -359,6 +384,7 @@ u32 GetId(Entity* entity)
 
 Entity* GetMount(Entity* entity)
 {
+    if(!entity) return nullptr;
     return GetEntity(entity->mount);
 }
 
@@ -456,23 +482,58 @@ t* NewEntity()
     }
 }
 
+int GetNumEntities()
+{
+    return entities.bases.len;
+}
+
+Slice<Slice<Entity*>> GetLiveChildrenPerEntity()
+{
+    return entities.liveChildrenPerEntity;
+}
+
 void DestroyEntity(Entity* entity)
 {
     if(!entity) return;
-    
     entity->flags |= EntityFlags_Destroyed;
-    
-    // We increase the generation so that all
-    // references to this are now invalid
-    ++entity->gen;
-    
-    Append(&entities.freeBases, GetKey(entity).id);
 }
 
 void CommitDestroy(Entities* entities)
 {
-    // TODO: stuff missing here
-    TODO;
+    for(u32 i = 0; i < (u32)entities->bases.len; ++i)
+    {
+        Entity* ent = &entities->bases[i];
+        u32 entId = i;
+        
+        bool toBeDestroyed = ent->flags & EntityFlags_Destroyed;
+        if(!toBeDestroyed) // Check mounts as well
+        {
+            Entity* mount = ent;
+            while(mount)
+            {
+                if(mount->flags & EntityFlags_Destroyed)
+                {
+                    toBeDestroyed = true;
+                    break;
+                }
+                
+                mount = GetMount(mount);
+            }
+        }
+        
+        if(toBeDestroyed)
+        {
+            // Destroy this entity completely (add it to the freeBases array)
+            Append(&entities->freeBases, entId);
+            ent->flags |= EntityFlags_Destroyed;
+            
+            // This nullifies all references to this entity
+            ++ent->gen;
+            
+            // TODO: @leak Remove entity from derived type array as well
+        }
+    }
+    
 }
 
 // Entity iteration
@@ -531,7 +592,7 @@ Camera* GetMainCamera()
     return GetDerived<Camera>(entities.mainCamera);
 }
 
-Slice<Slice<Entity*>> ComputeAllChildrenForEachEntity(Arena* dst)
+Slice<Slice<Entity*>> ComputeAllLiveChildrenForEachEntity(Arena* dst)
 {
     auto resPtr = ArenaZAllocArray(Slice<Entity*>, entities.bases.len, dst);
     Slice<Slice<Entity*>> res = {.ptr = resPtr, .len = entities.bases.len };
@@ -545,14 +606,13 @@ Slice<Slice<Entity*>> ComputeAllChildrenForEachEntity(Arena* dst)
             Free(&childrenPerEntity[i]);
     };
     
-    for(int i = 0; i < entities.bases.len; ++i)
+    for_live_entities(ent)
     {
-        Entity* e = &entities.bases[i];
-        Entity* mount = GetMount(e);
-        if(mount)
+        Entity* mount = GetMount(ent);
+        if(mount && !(mount->flags & EntityFlags_Destroyed))
         {
             u32 id = GetId(mount);
-            Append(&childrenPerEntity[id], e);
+            Append(&childrenPerEntity[id], ent);
         }
     }
     
@@ -624,9 +684,4 @@ void UpdatePlayer(Player* player, float deltaTime)
         player->grounded = true;
         player->base->pos.y = 0.0f;
     }
-}
-
-R_UniformBuffer GetPerObjUniformBuffer()
-{
-    return entities.perObjBuffer;
 }

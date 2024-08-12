@@ -8,6 +8,8 @@ bool IsTextureFormatSigned(R_TextureFormat format)
     switch(format)
     {
         case R_TexNone:  return false;
+        case R_TexR8:    return true;
+        case R_TexRG8:   return true;
         case R_TexRGB8:  return true;
         case R_TexRGBA8: return true;
         case R_TexR8I:   return true;
@@ -23,6 +25,8 @@ bool IsTextureFormatInteger(R_TextureFormat format)
     switch(format)
     {
         case R_TexNone:  return false;
+        case R_TexR8:    return false;
+        case R_TexRG8:   return false;
         case R_TexRGB8:  return false;
         case R_TexRGBA8: return false;
         case R_TexR8I:   return true;
@@ -39,8 +43,10 @@ bool IsTextureFormatInteger(R_TextureFormat format)
 BasicMesh GenerateUnitCylinder()
 {
     constexpr int numPointsBase = 25;
-    constexpr int numIndices = (numPointsBase - 2) * 2 + numPointsBase * 2;
-    static Vec3 verts[numPointsBase * 2];
+    constexpr int numVerts = numPointsBase * 2;
+    constexpr int numTris = (numPointsBase - 2) * 2 + numPointsBase * 2;
+    constexpr int numIndices = numTris * 3;
+    static Vec3 verts[numVerts];
     static u32 indices[numIndices];
     static bool cached = false;
     
@@ -74,15 +80,15 @@ BasicMesh GenerateUnitCylinder()
     int curIdx = 0;
     
     // Bottom tris
-    for(int i = 1; i < numPointsBase; ++i)
+    for(int i = 1; i < numPointsBase - 1; ++i)
     {
         indices[curIdx++] = 0;
-        indices[curIdx++] = i+0;
         indices[curIdx++] = i+1;
+        indices[curIdx++] = i+0;
     }
     
     // Top tris
-    for(int i = numPointsBase + 1; i < numPointsBase * 2; ++i)
+    for(int i = numPointsBase + 1; i < numPointsBase * 2 - 1; ++i)
     {
         indices[curIdx++] = numPointsBase;
         indices[curIdx++] = i+0;
@@ -90,13 +96,14 @@ BasicMesh GenerateUnitCylinder()
     }
     
     // Lateral tris
+    
     for(int i = 0; i < numPointsBase; ++i)
     {
         // Tri 1 (edge on bottom)
         {
-            int idx1 = i+0;
-            int idx2 = i+1;
-            int idx3 = (i+numPointsBase)+1;
+            int idx1 = (i+1)%numPointsBase;
+            int idx2 = (i+1)%numPointsBase+numPointsBase;
+            int idx3 = i;
             
             indices[curIdx++] = idx1;
             indices[curIdx++] = idx2;
@@ -105,9 +112,9 @@ BasicMesh GenerateUnitCylinder()
         
         // Tri 2 (edge on top)
         {
-            int idx1 = (i+numPointsBase)+1;
-            int idx2 = (i+numPointsBase)+0;
-            int idx3 = i+0;
+            int idx1 = (i+1)%numPointsBase + numPointsBase;
+            int idx2 = i+numPointsBase;
+            int idx3 = i;
             
             indices[curIdx++] = idx1;
             indices[curIdx++] = idx2;
@@ -115,6 +122,7 @@ BasicMesh GenerateUnitCylinder()
         }
     }
     
+    assert(curIdx == numIndices);
     cached = true;
     return res;
 }
@@ -123,11 +131,63 @@ BasicMesh GenerateUnitCylinder()
 // (it points up)
 BasicMesh GenerateUnitCone()
 {
-    return {0};
+    constexpr int numPointsBase = 25;
+    constexpr int numVerts = numPointsBase + 1;
+    constexpr int numTris = numPointsBase - 2 + numPointsBase;
+    constexpr int numIndices = numTris * 3;
+    static Vec3 verts[numVerts];
+    static u32 indices[numIndices];
+    static bool cached = false;
+    
+    const float height = 1.0f;
+    const float radius = 1.0f;
+    
+    BasicMesh res = {0};
+    res.verts   = {.ptr=verts,   .len=numPointsBase * 2};
+    res.indices = {.ptr=indices, .len=numIndices};
+    if(cached) return res;
+    
+    // Vertices
+    
+    // Bottom base
+    for(int i = 0; i < numPointsBase; ++i)
+    {
+        float angle = (float)i / numPointsBase * 2.0f * Pi;
+        Vec3 p = {cos(angle) * radius, 0.0f, sin(angle) * radius};
+        verts[i] = p;
+    }
+    
+    // Top vertex
+    verts[numPointsBase] = {0.0f, height, 0.0f};
+    
+    // Indices
+    int curIdx = 0;
+    
+    // Bottom tris
+    for(int i = 1; i < numPointsBase - 1; ++i)
+    {
+        indices[curIdx++] = 0;
+        indices[curIdx++] = i+1;
+        indices[curIdx++] = i+0;
+    }
+    
+    // Lateral tris
+    
+    for(int i = 0; i < numPointsBase; ++i)
+    {
+        int idx1 = (i+1)%numPointsBase;
+        int idx2 = numPointsBase;
+        int idx3 = i;
+        
+        indices[curIdx++] = idx1;
+        indices[curIdx++] = idx2;
+        indices[curIdx++] = idx3;
+    }
+    
+    assert(curIdx == numIndices);
+    cached = true;
+    return res;
 }
-
-static const BasicMesh cylinder = GenerateUnitCylinder();
-static const BasicMesh cone = GenerateUnitCone();
 
 R_UniformValue MakeUniformFloat(float value)
 {
@@ -220,6 +280,9 @@ Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst)
 #include "renderer/renderer_d3d11.cpp"
 #endif
 
+// @tmp This should probably go into the asset system actually
+// instead of having this weird thing where the renderer calls
+// the asset system which calls back the renderer
 void R_DrawModel(Model* model)
 {
 #ifdef Development
@@ -227,4 +290,13 @@ void R_DrawModel(Model* model)
 #endif
     
     R_DrawModelNoReload(model);
+}
+
+void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength)
+{
+    Vec3 diff = dst - ori;
+    float length = magnitude(diff);
+    Vec3 dir = normalize(diff);
+    R_DrawCylinder(ori, dir, baseRadius, length);
+    R_DrawCone(dst, dir, coneRadius, coneLength);
 }

@@ -8,10 +8,10 @@ struct Model;
 
 enum EntityFlags
 {
-    EntityFlags_Static    = 1 << 0,
-    EntityFlags_Destroyed = 1 << 1,
-    EntityFlags_Visible   = 1 << 2,
-    EntityFlags_Active    = 1 << 3,
+    EntityFlags_Static           = 1 << 0,
+    EntityFlags_Destroyed        = 1 << 1,
+    EntityFlags_Visible          = 1 << 3,
+    EntityFlags_Active           = 1 << 4,
 };
 
 enum EntityKind: u8
@@ -29,6 +29,8 @@ struct EntityKey
     u32 id;
     u32 gen;
 };
+
+
 
 template<typename t>
 struct DerivedKey
@@ -97,6 +99,17 @@ struct PointLight
     Vec3 offset;
 };
 
+struct SceneParams
+{
+    // @tmp Paths for skybox images
+    const char* skyboxTop;
+    const char* skyboxBottom;
+    const char* skyboxLeft;
+    const char* skyboxRight;
+    const char* skyboxFront;
+    const char* skyboxBack;
+};
+
 struct Entities
 {
     EntityKey mainCamera;  // Used by the renderer
@@ -118,12 +131,12 @@ struct Entities
     Array<Player> players;
     Array<PointLight> pointLights;
     
-    // Rendering fields
-    // These should probably be part of
-    // the renderer now that i think about it
-    R_UniformBuffer perObjBuffer;
-    R_UniformBuffer perFrameBuffer;
-    R_UniformBuffer perSceneBuffer;
+    // Components here maybe?
+    
+    // Per frame data (maybe editor only)
+    Slice<Slice<Entity*>> liveChildrenPerEntity;
+    
+    SceneParams sceneParams;
 };
 
 struct Editor;
@@ -141,6 +154,8 @@ EntityKind GetEntityKindFromType();
 template<typename t>
 Array<t>* GetArrayFromType();
 
+bool operator ==(EntityKey k1, EntityKey k2);
+bool operator !=(EntityKey k1, EntityKey k2);
 EntityKey NullKey();
 bool IsKeyNull(EntityKey key);
 
@@ -167,6 +182,9 @@ Entity* NewEntity();
 template<typename t>
 t* NewEntity();
 
+int GetNumEntities();
+Slice<Slice<Entity*>> GetLiveChildrenPerEntity();
+
 void DestroyEntity(Entity* entity);
 void CommitDestroy(Entities* entities);
 
@@ -184,12 +202,9 @@ t* NextDerivedLive(t* current);
 // Utilities
 Camera* GetMainCamera();
 // Slices only contain direct children
-Slice<Slice<Entity*>> ComputeAllChildrenForEachEntity(Arena* dst);
+Slice<Slice<Entity*>> ComputeAllLiveChildrenForEachEntity(Arena* dst);
 // Checks if an entity is a direct or indirect child of another
 bool IsChild(Entity* suspectedChild, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity);
 
 // Gameplay code
 void UpdatePlayer(Player* player, float deltaTime);
-
-// Some rendering stuff (do we really want this here?)
-R_UniformBuffer GetPerObjUniformBuffer();
