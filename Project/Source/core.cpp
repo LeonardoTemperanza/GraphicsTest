@@ -11,16 +11,16 @@ Entities* InitEntities()
     entities = {0};
     auto& res = entities;
     
-    Model* raptoidModel = GetModel("Raptoid/Raptoid.model");
-    Model* cubeModel = GetModel("Common/Cube.model");
+    Model* raptoidModel = GetModelByPath("Raptoid/Raptoid.model");
+    Model* cubeModel = GetModelByPath("Common/Cube.model");
     
-    raptoidModel->pipeline = GetPipeline("CompiledShaders/simple_vertex.shader", "CompiledShaders/simple_pixel.shader");
+    raptoidModel->pipeline = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/pbr.shader");
     cubeModel->pipeline = raptoidModel->pipeline;
     
-    Model* sphereModel = GetModel("Common/sphere.model");
+    Model* sphereModel = GetModelByPath("Common/sphere.model");
     sphereModel->pipeline = raptoidModel->pipeline;
     
-    Model* cylinderModel = GetModel("Common/cylinder.model");
+    Model* cylinderModel = GetModelByPath("Common/cylinder.model");
     cylinderModel->pipeline = raptoidModel->pipeline;
     
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
@@ -182,14 +182,14 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     
     // Render skybox
     {
-        R_Pipeline pipeline = GetPipeline("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
+        R_Pipeline pipeline = GetPipelineByPath("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
         R_SetPipeline(pipeline);
-        R_Cubemap cubemap = GetCubemap("Skybox/top.jpg", "Skybox/bottom.jpg",
-                                       "Skybox/left.jpg", "Skybox/right.jpg",
-                                       "Skybox/front.jpg", "Skybox/back.jpg");
+        R_Cubemap cubemap = GetCubemapByPath("Skybox/top.png", "Skybox/bottom.png",
+                                             "Skybox/left.png", "Skybox/right.png",
+                                             "Skybox/front.png", "Skybox/back.png");
         R_SetCubemap(cubemap, 0);
         
-        Model* cube = GetModel("Common/cube.model");
+        Model* cube = GetModelByPath("Common/cube.model");
         R_CullFace(false);
         R_DepthTest(false);
         R_DrawModel(cube);
@@ -249,6 +249,41 @@ void RenderEntities(Entities* entities, Editor* editor, bool inEditor, float del
     {
         if(ent->model)
             R_DrawModel(ent->model);
+    }
+}
+
+void RenderScene()
+{
+    // Render skybox
+    {
+        R_Pipeline pipeline = GetPipelineByPath("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
+        R_SetPipeline(pipeline);
+        R_Cubemap cubemap = GetCubemapByPath("Skybox/colorful/top.jpg", "Skybox/colorful/bottom.jpg",
+                                             "Skybox/colorful/left.jpg", "Skybox/colorful/right.jpg",
+                                             "Skybox/colorful/front.jpg", "Skybox/colorful/back.jpg");
+        R_SetCubemap(cubemap, 0);
+        
+        Model* cube = GetModelByPath("Common/cube.model");
+        R_CullFace(false);
+        R_DepthTest(false);
+        R_DrawModel(cube);
+        R_DepthTest(true);
+        R_CullFace(true);
+    }
+    
+    // Render entities in the scene
+    {
+        for_live_entities(ent)
+        {
+            if(ent->model)
+            {
+                R_PerObjData perObj = { ComputeWorldTransform(ent) };
+                R_SetPerObjData(perObj);
+                
+                R_SetPipeline(ent->model->pipeline);
+                R_DrawModel(ent->model);
+            }
+        }
     }
 }
 

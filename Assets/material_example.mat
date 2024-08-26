@@ -1,22 +1,16 @@
 
-// Comments work
-/*
-Multi-line
-comments
-also
-work
-*/
+# The '#' symbol is used for comments (which are ignored by the engine)
+# This is pretty much the structure:
 
-material_name: pbr_base
+:/material
+# The first one is a keyword, the second one is the asset string id / asset purpose
+vertex_shader: model2projection
+pixel_shader:  simple_pixel
 
-fragment_shader: frag_shader_string_id
-pixel_shader: vert_shader_string_id
+:/textures
+0: 
 
-values
-{
-    roughness: 2.0
-    metalness: 1.5
-    is_bird: true
-    base_texture: texture_string_id
-    base_color: texture_string_id
-}
+:/uniforms
+roughness: 2.0
+metalness: 1.5
+is_bird: true

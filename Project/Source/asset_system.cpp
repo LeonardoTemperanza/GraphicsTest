@@ -162,7 +162,7 @@ void UnloadScene()
     ArenaFreeAll(&sceneArena);
 }
 
-Model* GetModel(const char* path)
+Model* GetModelByPath(const char* path)
 {
     int foundIdx = -1;
     for(int i = 0; i < assetSystem.modelPaths.len; ++i)
@@ -182,7 +182,7 @@ Model* GetModel(const char* path)
     return res;
 }
 
-R_Texture GetTexture(const char* path)
+R_Texture GetTextureByPath(const char* path)
 {
     int foundIdx = -1;
     for(int i = 0; i < assetSystem.texturePaths.len; ++i)
@@ -202,7 +202,7 @@ R_Texture GetTexture(const char* path)
     return res;
 }
 
-R_Shader GetShader(const char* path)
+R_Shader GetShaderByPath(const char* path)
 {
     int foundIdx = -1;
     for(int i = 0; i < assetSystem.shaderPaths.len; ++i)
@@ -222,7 +222,7 @@ R_Shader GetShader(const char* path)
     return res;
 }
 
-R_Cubemap GetCubemap(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath)
+R_Cubemap GetCubemapByPath(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath)
 {
     int foundIdx = -1;
     for(int i = 0; i < assetSystem.cubemapPaths.len; ++i)
@@ -346,7 +346,7 @@ R_Cubemap GetCubemap(const char* topPath, const char* bottomPath, const char* le
     return res;
 }
 
-R_Pipeline GetPipeline(const char* vertShaderPath, const char* pixelShaderPath)
+R_Pipeline GetPipelineByPath(const char* vertShaderPath, const char* pixelShaderPath)
 {
     int foundIdx = -1;
     for(int i = 0; i < assetSystem.pipelinePaths.len; ++i)
@@ -363,8 +363,8 @@ R_Pipeline GetPipeline(const char* vertShaderPath, const char* pixelShaderPath)
     
     R_Shader shaders[] =
     {
-        GetShader(vertShaderPath),
-        GetShader(pixelShaderPath)
+        GetShaderByPath(vertShaderPath),
+        GetShaderByPath(pixelShaderPath)
     };
     
     R_Pipeline res = R_CreatePipeline(ArrToSlice(shaders));

@@ -52,9 +52,7 @@ struct AssetSystem
     Array<R_Cubemap>    cubemaps;
 };
 
-//////////////// end of c++ nightmare
-
-
+typedef u64 AssetId;
 
 struct Mesh
 {
@@ -93,10 +91,21 @@ void UnloadScene(const char* path);
 // TODO: everything is lazily loaded for now,
 // will change later
 
-Model* GetModel(const char* path);
-R_Texture GetTexture(const char* path);
-R_Shader GetShader(const char* path);
-R_Cubemap GetCubemap(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath);
-R_Pipeline GetPipeline(const char* vertShaderPath, const char* pixelShaderPath);
+Model* GetModelByPath(const char* path);
+R_Texture GetTextureByPath(const char* path);
+R_Shader GetShaderByPath(const char* path);
+R_Cubemap GetCubemapByPath(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath);
 
-// Some utility functions that lets us use the assets (stuff like DrawModel, PlaySound, etc.)
+R_Pipeline GetPipelineByPath(const char* vert, const char* pixel);
+
+Model* GetModelById(AssetId id);
+R_Texture GetTextureById(AssetId id);
+R_Shader GetShaderById(AssetId id);
+R_Pipeline GetPipelineById(AssetId vert, AssetId pixel);
+
+Model* GetModelByTag(const char* tag);
+R_Texture GetTextureByTag(const char* tag);
+R_Shader GetShaderByTag(const char* tag);
+R_Shader GetPipelineByTag(const char* vert, const char* pixel);
+
+// TODO: Some utility functions that lets us use the assets (stuff like DrawModel, PlaySound, etc.)

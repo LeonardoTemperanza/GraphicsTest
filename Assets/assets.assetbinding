@@ -1,0 +1,27 @@
+
+:/permanent
+
+# Shaders
+basic_vertex:             "CompiledShaders/basic_vertex.shader"
+model2projection:         "CompiledShaders/model2proj.shader"
+outline_from_int_texture: "CompiledShaders/outline_from_int_texture.shader"
+paint_bool_true:          "CompiledShaders/paint_bool_true.shader"
+paint_color:              "CompiledShaders/paint_color.shader"
+paint_int:                "CompiledShaders/paint_int.shader"
+screenspace_vertex:       "CompiledShaders/screenspace_vertex.shader"
+simple_pixel:             "CompiledShaders/simple_pixel.shader"
+simple_vertex:            "CompiledShaders/simple_vertex.shader"
+skybox_pixel:             "CompiledShaders/skybox_pixel.shader"
+skybox_vertex:            "CompiledShaders/skybox_vertex.shader"
+
+# Common models
+cube:     "Common/Cube.model"
+cylinder: "Common/cylinder.model"
+sphere:   "Common/sphere.model"
+player_model: "Common/cylinder.model"
+
+:/scene
+
+# Skyboxes
+blue_sky0: cubemap: front "Skybox/front.jpg" back "Skybox/back.jpg" left "Skybox/left.jpg" right "Skybox/right.jpg" front "Skybox/front.jpg" back "Skybox/back.jpg"
+
