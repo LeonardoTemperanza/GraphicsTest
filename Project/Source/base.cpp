@@ -1517,7 +1517,6 @@ ScratchArena::ScratchArena(int idx)
 ////
 // Miscellaneous
 
-// TODO: Maybe a more descriptive error state would be useful
 String LoadEntireFile(const char* path, bool* outSuccess)
 {
     *outSuccess = true;

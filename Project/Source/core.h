@@ -30,15 +30,12 @@ struct EntityKey
     u32 gen;
 };
 
-
-
 template<typename t>
 struct DerivedKey
 {
     u16 id;
     u32 gen;
 };
-
 
 introspect()
 struct Entity
@@ -99,17 +96,6 @@ struct PointLight
     Vec3 offset;
 };
 
-struct SceneParams
-{
-    // @tmp Paths for skybox images
-    const char* skyboxTop;
-    const char* skyboxBottom;
-    const char* skyboxLeft;
-    const char* skyboxRight;
-    const char* skyboxFront;
-    const char* skyboxBack;
-};
-
 struct Entities
 {
     EntityKey mainCamera;  // Used by the renderer
@@ -133,10 +119,10 @@ struct Entities
     
     // Components here maybe?
     
-    // Per frame data (maybe editor only)
+    // Per frame data
+    // NOTE: This is editor only for now. It's pretty
+    // expensive so it shouldn't be done every frame in release
     Slice<Slice<Entity*>> liveChildrenPerEntity;
-    
-    SceneParams sceneParams;
 };
 
 struct Editor;

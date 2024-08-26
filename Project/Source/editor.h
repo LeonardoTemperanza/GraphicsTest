@@ -55,8 +55,6 @@ struct Editor
     
     // @tmp Use something else later, like stb map or simply an array
     std::unordered_map<ImGuiID, Widget> widgetTable;
-    
-    SceneParams* sceneParams;
 };
 
 // TODO: @tmp This is mostly taken from the dear imgui example

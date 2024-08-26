@@ -103,8 +103,10 @@ R_Texture LoadTexture(const char* path)
 
 R_Shader LoadShader(const char* path)
 {
+    ScratchArena scratch;
+    
     bool success = true;
-    String contents = LoadEntireFile(path, &success);
+    String contents = LoadEntireFile(path, scratch, &success);
     if(!success)
     {
         Log("Failed to load file '%s'\n", path);
@@ -114,8 +116,6 @@ R_Shader LoadShader(const char* path)
         TODO;
         return {0};
     }
-    
-    defer { free((void*)contents.ptr); };
     
     char** cursor;
     char* c = (char*)contents.ptr;
@@ -149,12 +149,12 @@ R_Shader LoadShader(const char* path)
 
 void LoadAssetBinding(const char* path)
 {
-    ScratchArena scratch;
-    Parser parser = InitParser(path, scratch);
-    
-    //BindingParseResult result = ParseBinding();
-    
-    // Do some stuff with the result
+    TODO;
+}
+
+void LoadMaterial(const char* path)
+{
+    TODO;
 }
 
 void UnloadScene()
@@ -371,4 +371,171 @@ R_Pipeline GetPipelineByPath(const char* vertShaderPath, const char* pixelShader
     Append(&assetSystem.pipelinePaths, {vertShaderPath, pixelShaderPath});
     Append(&assetSystem.pipelines, res);
     return res;
+}
+
+// Dealing with text files
+inline bool IsStartIdent(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+inline bool IsNumeric(char c)
+{
+    return c >= '0' && c <= '9';
+}
+
+inline bool IsMiddleIdent(char c)
+{
+    return IsStartIdent(c) || IsNumeric(c);
+}
+
+inline bool IsWhitespace(char c)
+{
+    return c == ' ' || c == '\t' || c == '\n';
+}
+
+int EatAllWhitespace(char** at)
+{
+    int newlines = 0;
+    int commentNestLevel = 0;
+    bool inSingleLineComment = false;
+    while(true)
+    {
+        if(**at == '\n')
+        {
+            inSingleLineComment = false;
+            ++newlines;
+            ++*at;
+        }
+        else if((*at)[0] == '/' && (*at)[1] == '/')
+        {
+            if(commentNestLevel == 0) inSingleLineComment = true;
+            *at += 2;
+        }
+        else if((*at)[0] == '/' && (*at)[1] == '*')  // Multiline comment start
+        {
+            *at += 2;
+            ++commentNestLevel;
+        }
+        else if((*at)[0] == '*' && (*at)[1] == '/')  // Multiline comment end
+        {
+            *at += 2;
+            --commentNestLevel;
+        }
+        else if(IsWhitespace(**at) || commentNestLevel > 0 || inSingleLineComment)
+        {
+            ++*at;
+        }
+        else
+            break;
+    }
+    
+    return newlines;
+}
+
+Token NextToken(Tokenizer* tokenizer)
+{
+    Tokenizer* t = tokenizer;
+    
+    if(t->error)
+    {
+        Token errorToken = {0};
+        errorToken.lineNum = 0;
+        errorToken.kind = TokKind_Error;
+        return errorToken;
+    }
+    
+    int newlines = EatAllWhitespace(&t->at);
+    t->numLines += newlines;
+    
+    if(!t->at || *t->at == '\0')
+    {
+        Token endToken = {0};
+        endToken.lineNum = t->numLines;
+        endToken.kind = TokKind_EOF;
+        return endToken;
+    }
+    
+    Token token = {0};
+    token.lineNum = t->numLines;
+    
+    if(IsStartIdent(*t->at))
+    {
+        char* startIdent = t->at;
+        ++t->at;
+        while(IsMiddleIdent(*t->at)) ++t->at;
+        
+        String text = {.ptr=startIdent, .len=t->at-startIdent};
+        token.text = text;
+        
+        // Check if it's a keyword
+        bool isKeyword = true;
+        if(text == "true")
+        {
+            token.kind = TokKind_True;
+        }
+        else if(text == "false")
+        {
+            token.kind = TokKind_False;
+        }
+        else if(text == "material_name")
+        {
+            token.kind = TokKind_MaterialName;
+        }
+        else if(text == "vertex_shader")
+        {
+            token.kind = TokKind_VertexShader;
+        }
+        else if(text == "pixel_shader")
+        {
+            token.kind = TokKind_PixelShader;
+        }
+        else if(text == "values")
+        {
+            token.kind = TokKind_Values;
+        }
+        else
+            isKeyword = false;
+        
+        if(!isKeyword)
+        {
+            token.kind = TokKind_Ident;
+        }
+    }
+    else if(IsNumeric(*t->at))
+    {
+        TODO;
+        // Find out if float value or int value
+    }
+    else  // Operators and other miscellaneous things
+    {
+        char* start = t->at;
+        int textLen = 0;
+        
+        if(*t->at == ':')
+        {
+            token.kind = TokKind_Colon;
+            textLen = 1;
+        }
+        else if(*t->at == ',')
+        {
+            token.kind = TokKind_Comma;
+            textLen = 1;
+        }
+        else if(*t->at == '.')
+        {
+            token.kind = TokKind_Dot;
+            textLen = 1;
+        }
+        else
+        {
+            token.kind = TokKind_Error;
+            textLen = 1;
+        }
+        
+        token.text = {.ptr=t->at, .len=textLen};
+        t->at += token.text.len;
+    }
+    
+    return token;
 }

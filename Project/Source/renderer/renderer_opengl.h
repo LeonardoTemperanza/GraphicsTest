@@ -27,30 +27,6 @@ struct R_Framebuffer
     GLuint textures[gl_FramebufferMaxTextures];
 };
 
-struct gl_MeshInfo
-{
-    GLuint vao;
-    GLuint vbo;
-    GLuint ebo;
-};
-
-struct gl_TextureInfo
-{
-    GLuint objId;
-};
-
-struct gl_UniformBlock
-{
-    Slice<u32> offsets;
-    Slice<UniformType> types;
-};
-
-struct R_UniformBuffer
-{
-    u32 buffer;
-    u32 binding;
-};
-
 struct R_Shader
 {
     ShaderKind kind;
@@ -65,7 +41,8 @@ struct R_Pipeline
     u32 globalsUniformBlockIndex;
     bool hasGlobals;
     
-    Slice<gl_UniformBlock> blocks;
+    Slice<String> uniformNames;
+    Slice<UniformType> uniformTypes;
 };
 
 struct Renderer

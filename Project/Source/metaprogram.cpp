@@ -14,8 +14,6 @@ static const char* const paths[] =
     "input.h",
     "input.cpp",
     "main.cpp",
-    "parser.h",
-    "parser.cpp",
     "unity_build.cpp"
 };
 

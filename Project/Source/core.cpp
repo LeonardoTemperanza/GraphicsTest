@@ -87,14 +87,6 @@ Entities* InitEntities()
         MountEntity(e[6], e[5]);
     }
     
-    // Scene params
-    res.sceneParams.skyboxTop    = "Skybox/top.jpg";
-    res.sceneParams.skyboxBottom = "Skybox/bottom.jpg";
-    res.sceneParams.skyboxLeft   = "Skybox/left.jpg";
-    res.sceneParams.skyboxRight  = "Skybox/right.jpg";
-    res.sceneParams.skyboxFront  = "Skybox/front.jpg";
-    res.sceneParams.skyboxBack   = "Skybox/back.jpg";
-    
     return &res;
 }
 

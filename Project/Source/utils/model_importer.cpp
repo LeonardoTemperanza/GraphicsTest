@@ -54,20 +54,6 @@ struct Model
     Mesh meshes[numMeshes];
 };
 
-struct Material
-{
-    s32 numTextures;
-    PathName textures[numTextures];
-    //PathName shader;
-};
-
-struct Shader
-{
-    // Some info on the shader here...
-    s32 numTextures;
-    
-};
-
 // Version 1...
 
 #endif

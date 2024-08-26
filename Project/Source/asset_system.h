@@ -54,6 +54,16 @@ struct AssetSystem
 
 typedef u64 AssetId;
 
+// Depending on development or release, this can 
+struct AssetKey
+{
+#ifdef Development
+    const char* path;
+#else
+    u32 idx;
+#endif
+};
+
 struct Mesh
 {
     bool hasTextureCoords;
@@ -72,12 +82,11 @@ struct Model
     R_Pipeline pipeline;
 };
 
-// Based on development/release, this could
-// have a string in it or an int and stuff
-struct AssetKey
+struct Material
 {
-    int handle;
-    const char* path;  // Will later be a string id
+    R_Pipeline* pipeline;
+    Slice<R_UniformValue> uniforms;
+    Slice<AssetKey> textures;
 };
 
 void LoadScene(const char* path);
@@ -94,6 +103,8 @@ void UnloadScene(const char* path);
 Model* GetModelByPath(const char* path);
 R_Texture GetTextureByPath(const char* path);
 R_Shader GetShaderByPath(const char* path);
+// Make it so the user only supplies one path, and then the rest is derived
+// (by adding _top, _bottom, _left, _right to the path
 R_Cubemap GetCubemapByPath(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath);
 
 R_Pipeline GetPipelineByPath(const char* vert, const char* pixel);
@@ -107,5 +118,65 @@ Model* GetModelByTag(const char* tag);
 R_Texture GetTextureByTag(const char* tag);
 R_Shader GetShaderByTag(const char* tag);
 R_Shader GetPipelineByTag(const char* vert, const char* pixel);
+
+// Utility functions
+void UseMaterial(AssetKey material)
+{
+    
+}
+
+// Text file handling
+enum TokenKind
+{
+    TokKind_None = 0,
+    TokKind_Error,
+    TokKind_Ident,
+    TokKind_Colon,
+    TokKind_Comma,
+    TokKind_Dot,
+    TokKind_OpenCurly,
+    TokKind_CloseCurly,
+    TokKind_FloatConst,
+    TokKind_IntConst,
+    TokKind_EOF,
+    
+    // Keywords
+    TokKind_True,
+    TokKind_False,
+    TokKind_MaterialName,
+    TokKind_VertexShader,
+    TokKind_PixelShader,
+    TokKind_Values
+};
+
+struct Token
+{
+    TokenKind kind;
+    String text;
+    
+    int lineNum;
+    
+    union
+    {
+        double doubleVal;
+        s64    intVal;
+    };
+};
+
+struct Tokenizer
+{
+    char* start;
+    char* at;
+    int numLines;
+    char* lineStart;
+    
+    bool error;
+};
+
+inline bool IsStartIdent(char c);
+inline bool IsNumeric(char c);
+inline bool IsMiddleIdent(char c);
+int EatAllWhitespace(char** at);
+Token NextToken(Tokenizer* tokenizer);
 
 // TODO: Some utility functions that lets us use the assets (stuff like DrawModel, PlaySound, etc.)

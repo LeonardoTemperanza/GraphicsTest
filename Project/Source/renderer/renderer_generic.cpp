@@ -300,3 +300,8 @@ void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float c
     R_DrawCylinder(ori, dir, baseRadius, length);
     R_DrawCone(dst, dir, coneRadius, coneLength);
 }
+
+void R_SetMaterial(Material* material)
+{
+    
+}
