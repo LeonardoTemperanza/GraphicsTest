@@ -36,6 +36,8 @@ struct CubemapPath
     const char* backPath;
 };
 
+struct Material;
+
 struct AssetSystem
 {
     // @tmp TODO: This will soon get restructured anyway, but this will let
@@ -50,11 +52,13 @@ struct AssetSystem
     Array<R_Pipeline>   pipelines;
     Array<CubemapPath>  cubemapPaths;
     Array<R_Cubemap>    cubemaps;
+    Array<const char*>  materialPaths;
+    Array<Material*>    materials;
 };
 
 typedef u64 AssetId;
 
-// Depending on development or release, this can 
+// NOTE: a "" path or a uint_max idx means a null asset
 struct AssetKey
 {
 #ifdef Development
@@ -77,76 +81,63 @@ struct Mesh
 
 struct Model
 {
-    String id;
     Slice<Mesh> meshes;
-    R_Pipeline pipeline;
 };
 
 struct Material
 {
-    R_Pipeline* pipeline;
+    AssetKey pipeline;
     Slice<R_UniformValue> uniforms;
     Slice<AssetKey> textures;
 };
 
-void LoadScene(const char* path);
+AssetKey MakeAssetKey(const char* path);
+
 Model* LoadModel(const char* path);
 R_Texture LoadTexture(const char* path);
-R_Shader LoadShader(const char* path);
-void LoadAssetBinding(const char* path);
-
-void UnloadScene(const char* path);
+R_Shader LoadShader(const char* path, ShaderKind kind);
+Material* LoadMaterial(const char* path);
 
 // TODO: everything is lazily loaded for now,
 // will change later
 
 Model* GetModelByPath(const char* path);
 R_Texture GetTextureByPath(const char* path);
-R_Shader GetShaderByPath(const char* path);
+R_Shader GetShaderByPath(const char* path, ShaderKind kind);
 // Make it so the user only supplies one path, and then the rest is derived
 // (by adding _top, _bottom, _left, _right to the path
 R_Cubemap GetCubemapByPath(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath);
 
 R_Pipeline GetPipelineByPath(const char* vert, const char* pixel);
+Material* GetMaterialByPath(const char* path);
 
-Model* GetModelById(AssetId id);
-R_Texture GetTextureById(AssetId id);
-R_Shader GetShaderById(AssetId id);
-R_Pipeline GetPipelineById(AssetId vert, AssetId pixel);
-
-Model* GetModelByTag(const char* tag);
-R_Texture GetTextureByTag(const char* tag);
-R_Shader GetShaderByTag(const char* tag);
-R_Shader GetPipelineByTag(const char* vert, const char* pixel);
+Model* GetModel(AssetKey key);
+R_Texture GetTexture(AssetKey key);
+Material* GetMaterial(AssetKey key);
 
 // Utility functions
-void UseMaterial(AssetKey material)
-{
-    
-}
+void UseMaterial(AssetKey material);
 
 // Text file handling
+
+// NOTE: @cleanup Duplicated code from metaprogram. Unify later
+
 enum TokenKind
 {
-    TokKind_None = 0,
-    TokKind_Error,
-    TokKind_Ident,
-    TokKind_Colon,
-    TokKind_Comma,
-    TokKind_Dot,
-    TokKind_OpenCurly,
-    TokKind_CloseCurly,
-    TokKind_FloatConst,
-    TokKind_IntConst,
-    TokKind_EOF,
+    Tok_OpenParen,
+    Tok_CloseParen,
+    Tok_OpenBracket,
+    Tok_CloseBracket,
+    Tok_OpenBrace,
+    Tok_CloseBrace,
+    Tok_Colon,
+    Tok_Semicolon,
+    Tok_Asterisk,
+    Tok_String,
+    Tok_Ident,
+    Tok_Unknown,
     
-    // Keywords
-    TokKind_True,
-    TokKind_False,
-    TokKind_MaterialName,
-    TokKind_VertexShader,
-    TokKind_PixelShader,
-    TokKind_Values
+    Tok_EndOfStream
 };
 
 struct Token
@@ -156,27 +147,22 @@ struct Token
     
     int lineNum;
     
-    union
-    {
-        double doubleVal;
-        s64    intVal;
-    };
+    // Relative to the start of the line
+    int startPos;
+    
+    static const Token null;
 };
 
 struct Tokenizer
 {
     char* start;
     char* at;
-    int numLines;
+    int lineNum;
     char* lineStart;
-    
-    bool error;
 };
 
-inline bool IsStartIdent(char c);
-inline bool IsNumeric(char c);
-inline bool IsMiddleIdent(char c);
-int EatAllWhitespace(char** at);
-Token NextToken(Tokenizer* tokenizer);
-
-// TODO: Some utility functions that lets us use the assets (stuff like DrawModel, PlaySound, etc.)
+Token GetNextToken(Tokenizer* t);
+void EatAllWhitespace(Tokenizer* t);
+bool IsWhitespace(char c);
+bool IsAlpha(char c);
+bool IsNumber(char c);

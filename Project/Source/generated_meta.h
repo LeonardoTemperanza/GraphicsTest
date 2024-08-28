@@ -53,7 +53,7 @@ MemberDefinition _membersOfEntity[] =
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, gen), StrLit("gen"), "gen", StrLit("Gen"), "Gen", true },
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedKind), StrLit("derivedKind"), "derivedKind", StrLit("Derived Kind"), "Derived Kind", true },
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedId), StrLit("derivedId"), "derivedId", StrLit("Derived Id"), "Derived Id", true },
-{ { Meta_Unknown, 1, false, false }, offsetof(Entity, model), StrLit("model"), "model", StrLit("Model"), "Model", true },
+{ { Meta_Unknown, 0, false, false }, offsetof(Entity, model), StrLit("model"), "model", StrLit("Model"), "Model", true },
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, mount), StrLit("mount"), "mount", StrLit("Mount"), "Mount", true },
 { { Meta_Unknown, 0, false, false }, offsetof(Entity, mountBone), StrLit("mountBone"), "mountBone", StrLit("Mount Bone"), "Mount Bone", true },
 };

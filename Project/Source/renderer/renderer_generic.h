@@ -97,11 +97,7 @@ R_Buffer        R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
 R_Texture       R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
 R_Cubemap       R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
                                 u32 height, u8 numChannels);
-// I don't think this should be used... But keeping it in the code just in case
-#if 0
-R_UniformBuffer R_CreateUniformBuffer(u32 binding);
-void            R_UploadUniformBuffer(R_UniformBuffer buffer, Slice<R_UniformValue> desc);
-#endif
+R_Shader        R_DefaultShader(ShaderKind kind);
 R_Shader        R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
 R_Pipeline      R_CreatePipeline(Slice<R_Shader> shaders);
 R_Framebuffer   R_DefaultFramebuffer();
@@ -109,8 +105,8 @@ R_Framebuffer   R_CreateFramebuffer(int width, int height, bool color, R_Texture
 void            R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height);  // Only resizes if necessary
 
 // Drawing
-void R_DrawModel(Model* model);
-void R_DrawModelNoReload(Model* model);
+struct Mesh;
+void R_DrawMesh(Mesh mesh);
 void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength);
 void R_DrawSphere(Vec3 center, float radius);
 void R_DrawInvertedSphere(Vec3 center, float radius);

@@ -1520,8 +1520,15 @@ ScratchArena::ScratchArena(int idx)
 String LoadEntireFile(const char* path, bool* outSuccess)
 {
     *outSuccess = true;
-    
     String res = {0};
+    
+    // This would make fopen fail
+    if(!path || *path == '\0')
+    {
+        *outSuccess = false;
+        return res;
+    }
+    
     FILE* file = fopen(path, "rb");
     if(!file)
     {
@@ -1546,8 +1553,17 @@ String LoadEntireFile(const char* path, bool* outSuccess)
 char* LoadEntireFileAndNullTerminate(const char* path, bool* outSuccess)
 {
     *outSuccess = true;
-    
     char* res;
+    
+    // This would make fopen fail
+    if(!path || *path == '\0')
+    {
+        *outSuccess = false;
+        res = (char*)malloc(1);
+        res[0] = '\0';
+        return res;
+    }
+    
     FILE* file = fopen(path, "rb");
     if(!file)
     {
@@ -1574,11 +1590,21 @@ String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess)
     *outSuccess = true;
     
     String res = {0};
+    
+    // This would make fopen fail
+    if(!path || *path == '\0')
+    {
+        *outSuccess = false;
+        res.ptr = nullptr;
+        res.len = 0;
+        return res;
+    }
+    
     FILE* file = fopen(path, "rb");
     if(!file)
     {
         *outSuccess = false;
-        res.ptr = nullptr;  // This can be freed with no repercussions
+        res.ptr = nullptr;  // This can be 'freed' with no repercussions
         res.len = 0;
         return res;
     }

@@ -50,8 +50,6 @@ struct Token
 
 struct Tokenizer
 {
-    const char* path;
-    
     char* start;
     char* at;
     int lineNum;
@@ -173,7 +171,6 @@ Slice<Token> LexFile(const char* path, Arena* dst)
     Tokenizer tokenizer = {0};
     tokenizer.at = content;
     tokenizer.start = content;
-    tokenizer.path = path;
     
     Array<Token> res = {0};
     UseArena(&res, dst);

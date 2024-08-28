@@ -6,48 +6,35 @@ static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
 
 static AssetSystem assetSystem;
 
-Model* LoadModelAssetByName(const char* name)
+AssetKey MakeAssetKey(const char* path)
 {
-    // This will do the name->path mapping
-    TODO;
-    return nullptr;
-}
-
-void MaybeReloadModelAsset(Model* model)
-{
-    
-}
-
-void LoadScene(const char* path)
-{
-    
+    AssetKey key = {0};
+    key.path = path;
+    return key;
 }
 
 Model* LoadModel(const char* path)
 {
     ScratchArena scratch;
     
-    auto res = ArenaZAllocTyped(Model, &sceneArena);
+    Model* res = ArenaZAllocTyped(Model, &sceneArena);
     
     bool success = true;
-    String contents = LoadEntireFile(path, &success);
+    String contents = LoadEntireFile(path, scratch, &success);
     if(!success)
     {
-        Log("Failed to log file '%s'", path);
+        Log("Failed to load file '%s'", path);
         
         // res->meshes.len is already 0, so it's
         // already sufficient for a fallback model
         return res;
     }
     
-    defer { free((void*)contents.ptr); };
-    
     char** cursor;
     char* c = (char*)contents.ptr;
     cursor = &c;
     
     String magicBytes = Next(cursor, sizeof("model")-1);  // Excluding null terminator
-    // TODO: Error reporting
     if(magicBytes != "model")
     {
         Log("Attempted to load file '%s' as a model, which it is not.", path);
@@ -57,11 +44,11 @@ Model* LoadModel(const char* path)
         return res;
     }
     
-    s32 version        = Next<s32>(cursor);
-    s32 numMeshes      = Next<s32>(cursor);
-    s32 numMaterials   = Next<s32>(cursor);
-    res->meshes.ptr    = ArenaZAllocArray(Mesh, numMeshes, &sceneArena);
-    res->meshes.len    = numMeshes;
+    s32 version      = Next<s32>(cursor);
+    s32 numMeshes    = Next<s32>(cursor);
+    s32 numMaterials = Next<s32>(cursor);
+    res->meshes.ptr   = ArenaZAllocArray(Mesh, numMeshes, &sceneArena);
+    res->meshes.len   = numMeshes;
     
     for(int i = 0; i < numMeshes; ++i)
     {
@@ -101,7 +88,7 @@ R_Texture LoadTexture(const char* path)
     return res;
 }
 
-R_Shader LoadShader(const char* path)
+R_Shader LoadShader(const char* path, ShaderKind kind)
 {
     ScratchArena scratch;
     
@@ -110,11 +97,7 @@ R_Shader LoadShader(const char* path)
     if(!success)
     {
         Log("Failed to load file '%s'\n", path);
-        
-        // Fallback
-        // TODO: Fallback shader
-        TODO;
-        return {0};
+        return R_DefaultShader(kind);
     }
     
     char** cursor;
@@ -125,21 +108,23 @@ R_Shader LoadShader(const char* path)
     if(magicBytes != "shader")
     {
         Log("Attempted to load file '%s' as a shader, which it is not.", path);
-        
-        TODO;
-        return {0};
+        return R_DefaultShader(kind);
     }
     
     u32 version = Next<u32>(cursor);
     if(version != 0)
     {
         Log("Attempted to load file '%s' as a shader, but its version is unsupported.", path);
-        TODO;
-        return {0};
+        return R_DefaultShader(kind);
     }
     
     char* headerPtr = *cursor;
     ShaderBinaryHeader_v0 header = Next<ShaderBinaryHeader_v0>(cursor);
+    if(header.shaderKind != kind)
+    {
+        Log("Attempted to load wrong type of shader '%s'", path);
+        return R_DefaultShader(kind);
+    }
     
     String dxil        = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
     String vulkanSpirv = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
@@ -147,14 +132,23 @@ R_Shader LoadShader(const char* path)
     return R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
 }
 
-void LoadAssetBinding(const char* path)
+Material* LoadMaterial(const char* path)
 {
-    TODO;
-}
-
-void LoadMaterial(const char* path)
-{
-    TODO;
+    static Material tmp;  // @tmp instead of returning nullptr which will crash
+    return &tmp;
+    
+    Material mat = {0};
+    ScratchArena scratch;
+    
+    bool success = true;
+    String contents = LoadEntireFile(path, scratch, &success);
+    if(!success)
+    {
+        Log("Failed to load file '%s'\n", path);
+        //return mat;
+    }
+    
+    return nullptr;
 }
 
 void UnloadScene()
@@ -202,7 +196,7 @@ R_Texture GetTextureByPath(const char* path)
     return res;
 }
 
-R_Shader GetShaderByPath(const char* path)
+R_Shader GetShaderByPath(const char* path, ShaderKind kind)
 {
     int foundIdx = -1;
     for(int i = 0; i < assetSystem.shaderPaths.len; ++i)
@@ -216,7 +210,7 @@ R_Shader GetShaderByPath(const char* path)
     
     if(foundIdx != -1) return assetSystem.shaders[foundIdx];
     
-    R_Shader res = LoadShader(path);
+    R_Shader res = LoadShader(path, kind);
     Append(&assetSystem.shaderPaths, path);
     Append(&assetSystem.shaders, res);
     return res;
@@ -363,8 +357,8 @@ R_Pipeline GetPipelineByPath(const char* vertShaderPath, const char* pixelShader
     
     R_Shader shaders[] =
     {
-        GetShaderByPath(vertShaderPath),
-        GetShaderByPath(pixelShaderPath)
+        GetShaderByPath(vertShaderPath,  ShaderKind_Vertex),
+        GetShaderByPath(pixelShaderPath, ShaderKind_Pixel)
     };
     
     R_Pipeline res = R_CreatePipeline(ArrToSlice(shaders));
@@ -373,169 +367,168 @@ R_Pipeline GetPipelineByPath(const char* vertShaderPath, const char* pixelShader
     return res;
 }
 
-// Dealing with text files
-inline bool IsStartIdent(char c)
+Material* GetMaterialByPath(const char* path)
 {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
-}
-
-inline bool IsNumeric(char c)
-{
-    return c >= '0' && c <= '9';
-}
-
-inline bool IsMiddleIdent(char c)
-{
-    return IsStartIdent(c) || IsNumeric(c);
-}
-
-inline bool IsWhitespace(char c)
-{
-    return c == ' ' || c == '\t' || c == '\n';
-}
-
-int EatAllWhitespace(char** at)
-{
-    int newlines = 0;
-    int commentNestLevel = 0;
-    bool inSingleLineComment = false;
-    while(true)
+    int foundIdx = -1;
+    for(int i = 0; i < assetSystem.materialPaths.len; ++i)
     {
-        if(**at == '\n')
+        if(assetSystem.materialPaths[i] == path)
         {
-            inSingleLineComment = false;
-            ++newlines;
-            ++*at;
-        }
-        else if((*at)[0] == '/' && (*at)[1] == '/')
-        {
-            if(commentNestLevel == 0) inSingleLineComment = true;
-            *at += 2;
-        }
-        else if((*at)[0] == '/' && (*at)[1] == '*')  // Multiline comment start
-        {
-            *at += 2;
-            ++commentNestLevel;
-        }
-        else if((*at)[0] == '*' && (*at)[1] == '/')  // Multiline comment end
-        {
-            *at += 2;
-            --commentNestLevel;
-        }
-        else if(IsWhitespace(**at) || commentNestLevel > 0 || inSingleLineComment)
-        {
-            ++*at;
-        }
-        else
+            foundIdx = i;
             break;
+        }
     }
     
-    return newlines;
+    if(foundIdx != -1) return assetSystem.materials[foundIdx];
+    
+    Material* res = LoadMaterial(path);
+    Append(&assetSystem.materialPaths, path);
+    Append(&assetSystem.materials, res);
+    return res;
 }
 
-Token NextToken(Tokenizer* tokenizer)
+Model* GetModel(AssetKey key)
 {
-    Tokenizer* t = tokenizer;
-    
-    if(t->error)
-    {
-        Token errorToken = {0};
-        errorToken.lineNum = 0;
-        errorToken.kind = TokKind_Error;
-        return errorToken;
-    }
-    
-    int newlines = EatAllWhitespace(&t->at);
-    t->numLines += newlines;
-    
-    if(!t->at || *t->at == '\0')
-    {
-        Token endToken = {0};
-        endToken.lineNum = t->numLines;
-        endToken.kind = TokKind_EOF;
-        return endToken;
-    }
+    return GetModelByPath(key.path);
+}
+
+R_Texture GetTexture(AssetKey key)
+{
+    return GetTextureByPath(key.path);
+}
+
+Material* GetMaterial(AssetKey key)
+{
+    return GetMaterialByPath(key.path);
+}
+
+// Dealing with text files
+Token GetNextToken(Tokenizer* t)
+{
+    EatAllWhitespace(t);
     
     Token token = {0};
-    token.lineNum = t->numLines;
+    token.kind = Tok_EndOfStream;
+    token.lineNum = t->lineNum;
+    token.startPos = (int)(t->at - t->lineStart);
+    token.text = {.ptr=t->at, .len=1};
     
-    if(IsStartIdent(*t->at))
+    switch(*t->at)
     {
-        char* startIdent = t->at;
-        ++t->at;
-        while(IsMiddleIdent(*t->at)) ++t->at;
+        case '\0': token.kind = Tok_EndOfStream;  ++t->at; break;
+        case '(':  token.kind = Tok_OpenParen;    ++t->at; break;
+        case ')':  token.kind = Tok_CloseParen;   ++t->at; break;
+        case '[':  token.kind = Tok_OpenBracket;  ++t->at; break;
+        case ']':  token.kind = Tok_CloseBracket; ++t->at; break;
+        case '{':  token.kind = Tok_OpenBrace;    ++t->at; break;
+        case '}':  token.kind = Tok_CloseBrace;   ++t->at; break;
+        case ':':  token.kind = Tok_Colon;        ++t->at; break;
+        case ';':  token.kind = Tok_Semicolon;    ++t->at; break;
+        case '*':  token.kind = Tok_Asterisk;     ++t->at; break;
         
-        String text = {.ptr=startIdent, .len=t->at-startIdent};
-        token.text = text;
-        
-        // Check if it's a keyword
-        bool isKeyword = true;
-        if(text == "true")
+        case '"':
         {
-            token.kind = TokKind_True;
-        }
-        else if(text == "false")
-        {
-            token.kind = TokKind_False;
-        }
-        else if(text == "material_name")
-        {
-            token.kind = TokKind_MaterialName;
-        }
-        else if(text == "vertex_shader")
-        {
-            token.kind = TokKind_VertexShader;
-        }
-        else if(text == "pixel_shader")
-        {
-            token.kind = TokKind_PixelShader;
-        }
-        else if(text == "values")
-        {
-            token.kind = TokKind_Values;
-        }
-        else
-            isKeyword = false;
-        
-        if(!isKeyword)
-        {
-            token.kind = TokKind_Ident;
-        }
-    }
-    else if(IsNumeric(*t->at))
-    {
-        TODO;
-        // Find out if float value or int value
-    }
-    else  // Operators and other miscellaneous things
-    {
-        char* start = t->at;
-        int textLen = 0;
-        
-        if(*t->at == ':')
-        {
-            token.kind = TokKind_Colon;
-            textLen = 1;
-        }
-        else if(*t->at == ',')
-        {
-            token.kind = TokKind_Comma;
-            textLen = 1;
-        }
-        else if(*t->at == '.')
-        {
-            token.kind = TokKind_Dot;
-            textLen = 1;
-        }
-        else
-        {
-            token.kind = TokKind_Error;
-            textLen = 1;
+            token.kind = Tok_String;
+            
+            ++t->at;
+            token.text.ptr = t->at;
+            while(t->at[0] != '\0' && t->at[0] != '"')
+            {
+                if(t->at[0] == '\\' && t->at[1] != '\0')
+                    ++t->at;
+                
+                ++t->at;
+            }
+            
+            token.text.len = t->at - token.text.ptr;
+            
+            if(t->at[0] == '"')
+                ++t->at;
+            break;
         }
         
-        token.text = {.ptr=t->at, .len=textLen};
-        t->at += token.text.len;
+        default:
+        {
+            if(IsAlpha(t->at[0]))
+            {
+                token.kind = Tok_Ident;
+                
+                while(IsAlpha(t->at[0]) || IsNumber(t->at[0]) || t->at[0] == '_')
+                    ++t->at;
+                
+                token.text.len = t->at - token.text.ptr;
+            }
+#if 0
+            else if(IsNumber(t->at[0]))
+            {
+                
+            }
+#endif
+            else
+            {
+                token.kind = Tok_Unknown;
+                ++t->at;
+            }
+            
+            break;
+        }
     }
     
     return token;
+}
+
+void EatAllWhitespace(Tokenizer* t)
+{
+    while(true)
+    {
+        if(*t->at == '\n')
+        {
+            ++t->lineNum;
+            t->lineStart = t->at;
+            ++t->at;
+        }
+        else if(*t->at == '/' && *t->at == '/')  // Single line comment
+        {
+            while(*t->at != '\n' && *t->at != 0) ++t->at;
+            
+            if(*t->at == '\n')
+            {
+                ++t->lineNum;
+                t->lineStart = t->at;
+                ++t->at;
+            }
+        }
+        else if(t->at[0] == '/' && t->at[1] == '*')  // Multiline comment
+        {
+            while((t->at[0] != '*' || t->at[1] != '/') && *t->at != 0)
+            {
+                if(*t->at == '\n')
+                {
+                    ++t->lineNum;
+                    t->lineStart = t->at;
+                }
+                
+                ++t->at;
+            }
+        }
+        else if(IsWhitespace(*t->at))
+            ++t->at;
+        else
+            break;
+    }
+}
+
+bool IsWhitespace(char c)
+{
+    return c == '\t' || c == ' ' || c == '\n' || c == '\r';
+}
+
+bool IsAlpha(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+bool IsNumber(char c)
+{
+    return c >= '0' && c <= '9';
 }

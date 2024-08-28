@@ -56,12 +56,10 @@ struct Renderer
     GLuint perFrameBuffer;
     GLuint perObjBuffer;
     
-    /*
-    R_UniformBuffer globalsUniformBuffer;
-R_UniformBuffer perSceneUniformBuffer;
-R_UniformBuffer perFrameUniformBuffer;
-R_UniformBuffer perObjUniformBuffer;
-*/
+    // Default objects
+    R_Shader defaultVertShader;
+    R_Shader defaultPixelShader;
+    R_Shader defaultComputeShader;
     
     // Objects for simple rendering
     GLuint fullscreenQuad;

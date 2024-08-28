@@ -3,8 +3,7 @@
 
 #include "os/os_generic.h"
 #include "renderer/renderer_generic.h"
-
-struct Model;
+#include "asset_system.h"
 
 enum EntityFlags
 {
@@ -56,7 +55,7 @@ struct Entity
     EntityKind derivedKind;
     u16 derivedId;  // Index in the corresponding array
     
-    Model* model;  // Can be nullptr for entities with no model
+    AssetKey model;  // Can be null
     
     EntityKey mount;
     u16 mountBone;

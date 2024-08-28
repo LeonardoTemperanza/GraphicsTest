@@ -12,16 +12,13 @@ Entities* InitEntities()
     auto& res = entities;
     
     Model* raptoidModel = GetModelByPath("Raptoid/Raptoid.model");
-    Model* cubeModel = GetModelByPath("Common/Cube.model");
+    Model* cubeModel    = GetModelByPath("Common/Cube.model");
     
-    raptoidModel->pipeline = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/pbr.shader");
-    cubeModel->pipeline = raptoidModel->pipeline;
-    
-    Model* sphereModel = GetModelByPath("Common/sphere.model");
-    sphereModel->pipeline = raptoidModel->pipeline;
+    //raptoidModel->material = MakeAssetKey("Materials/Robot.mat");
+    //sphereModel->material = raptoidModel->material;
     
     Model* cylinderModel = GetModelByPath("Common/cylinder.model");
-    cylinderModel->pipeline = raptoidModel->pipeline;
+    //cylinderModel->pipeline = raptoidModel->pipeline;
     
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
     static Arena cameraArena = ArenaVirtualMemInit(MB(64), MB(2));
@@ -34,7 +31,7 @@ Entities* InitEntities()
     static_assert(4 == Entity_Count, "Every array for each type should be based on an arena for pointer stability");
     
     auto raptoid = NewEntity();
-    raptoid->model = raptoidModel;
+    //raptoid->model = raptoidModel;
     
     auto camera = NewEntity<Camera>();
     camera->base->pos.z = -8.0f;
@@ -47,7 +44,7 @@ Entities* InitEntities()
     res.mainCamera = GetKey(camera->base);
     
     auto player = NewEntity<Player>();
-    player->base->model = cylinderModel;
+    //player->base->model = cylinderModel;
     player->base->scale = {0.5f, 1.0f, 0.5f};
     player->gravity = 20.0f;
     player->jumpVel = 10.0f;
@@ -60,14 +57,14 @@ Entities* InitEntities()
     
     {
         Entity* e = NewEntity();
-        e->model = cubeModel;
+        //e->model = cubeModel;
         e->pos.x = pos;
         pos += 3.0f;
     }
     
     {
         Entity* e = NewEntity();
-        e->model = sphereModel;
+        //e->model = sphereModel;
         e->pos.x = pos;
         pos += 3.0f;
     }
@@ -77,7 +74,7 @@ Entities* InitEntities()
         for(int i = 0; i < 7; ++i)
         {
             e[i] = NewEntity();
-            e[i]->model = raptoidModel;
+            //e[i]->model = raptoidModel;
             e[i]->pos.x = pos;
             pos += 3.0f;
         }
@@ -184,7 +181,8 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
         Model* cube = GetModelByPath("Common/cube.model");
         R_CullFace(false);
         R_DepthTest(false);
-        R_DrawModel(cube);
+        for(int i = 0; i < cube->meshes.len; ++i)
+            R_DrawMesh(cube->meshes[i]);
         R_DepthTest(true);
         R_CullFace(true);
     }
@@ -193,13 +191,14 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     {
         for_live_entities(ent)
         {
-            if(ent->model)
+            Model* model = GetModel(ent->model);
+            if(model)
             {
                 R_PerObjData perObj = { ComputeWorldTransform(ent) };
                 R_SetPerObjData(perObj);
                 
-                R_SetPipeline(ent->model->pipeline);
-                R_DrawModel(ent->model);
+                for(int i = 0; i < model->meshes.len; ++i)
+                    R_DrawMesh(model->meshes[i]);
             }
         }
     }
@@ -239,8 +238,12 @@ void RenderEntities(Entities* entities, Editor* editor, bool inEditor, float del
 {
     for_live_entities(ent)
     {
-        if(ent->model)
-            R_DrawModel(ent->model);
+        Model* model = GetModel(ent->model);
+        if(model)
+        {
+            for(int i = 0; i < model->meshes.len; ++i)
+                R_DrawMesh(model->meshes[i]);
+        }
     }
 }
 
@@ -258,7 +261,8 @@ void RenderScene()
         Model* cube = GetModelByPath("Common/cube.model");
         R_CullFace(false);
         R_DepthTest(false);
-        R_DrawModel(cube);
+        for(int i = 0; i < cube->meshes.len; ++i)
+            R_DrawMesh(cube->meshes[i]);
         R_DepthTest(true);
         R_CullFace(true);
     }
@@ -267,13 +271,15 @@ void RenderScene()
     {
         for_live_entities(ent)
         {
-            if(ent->model)
+            Model* model = GetModel(ent->model);
+            if(model)
             {
                 R_PerObjData perObj = { ComputeWorldTransform(ent) };
                 R_SetPerObjData(perObj);
                 
-                R_SetPipeline(ent->model->pipeline);
-                R_DrawModel(ent->model);
+                //R_SetPipeline(ent->model->pipeline);
+                for(int i = 0; i < model->meshes.len; ++i)
+                    R_DrawMesh(model->meshes[i]);
             }
         }
     }

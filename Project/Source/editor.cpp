@@ -369,7 +369,12 @@ void RenderEditor(Editor* editor, float deltaTime)
             if(ent->flags & EntityFlags_Destroyed) continue;
             
             R_SetPerObjData({ ComputeWorldTransform(ent) });
-            R_DrawModel(ent->model);
+            Model* model = GetModel(ent->model);
+            if(model)
+            {
+                for(int i = 0; i < model->meshes.len; ++i)
+                    R_DrawMesh(model->meshes[i]);
+            }
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
@@ -390,7 +395,12 @@ void RenderEditor(Editor* editor, float deltaTime)
             R_UniformValue uniforms[] = { MakeUniformInt(GetId(ent)) };
             R_SetUniforms(ArrToSlice(uniforms));
             
-            R_DrawModel(ent->model);
+            Model* model = GetModel(ent->model);
+            if(model)
+            {
+                for(int i = 0; i < model->meshes.len; ++i)
+                    R_DrawMesh(model->meshes[i]);
+            }
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());

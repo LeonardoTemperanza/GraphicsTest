@@ -280,18 +280,6 @@ Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst)
 #include "renderer/renderer_d3d11.cpp"
 #endif
 
-// @tmp This should probably go into the asset system actually
-// instead of having this weird thing where the renderer calls
-// the asset system which calls back the renderer
-void R_DrawModel(Model* model)
-{
-#ifdef Development
-    
-#endif
-    
-    R_DrawModelNoReload(model);
-}
-
 void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength)
 {
     Vec3 diff = dst - ori;
@@ -299,9 +287,4 @@ void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float c
     Vec3 dir = normalize(diff);
     R_DrawCylinder(ori, dir, baseRadius, length);
     R_DrawCone(dst, dir, coneRadius, coneLength);
-}
-
-void R_SetMaterial(Material* material)
-{
-    
 }

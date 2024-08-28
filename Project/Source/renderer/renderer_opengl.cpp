@@ -319,25 +319,49 @@ void R_Init()
         glVertexArrayAttribFormat(r->unitCone, 0, 3, GL_FLOAT, GL_FALSE, 0);
     }
     
+    // Default resources
+    {
+        String vertShader = StrLit(R""""(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 void main()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         )"""");
+        
+        String pixelShader = StrLit(R""""(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    #version 460 core
+                                                                                                                                                                                                                                                                                                                                                out vec4 fragColor;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            void main()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        )"""");
+        
+        String computeShader = StrLit(R""""(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        void main() { }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                )"""");
+        
+        r->defaultVertShader    = R_CompileShader(ShaderKind_Vertex,  StrLit(""), StrLit(""), vertShader);
+        r->defaultPixelShader   = R_CompileShader(ShaderKind_Pixel,   StrLit(""), StrLit(""), pixelShader);
+        r->defaultComputeShader = R_CompileShader(ShaderKind_Compute, StrLit(""), StrLit(""), computeShader);
+    }
+    
     // Specify default rendering settings
     R_DepthTest(true);
     R_CullFace(true);
     R_AlphaBlending(true);
 }
 
-void R_DrawModelNoReload(Model* model)
+void R_DrawMesh(Mesh mesh)
 {
-    if(!model) return;
     Renderer* r = &renderer;
     
-    for(int i = 0; i < model->meshes.len; ++i)
-    {
-        auto& mesh = model->meshes[i];
-        
-        glBindVertexArray(mesh.handle);
-        glDrawElements(GL_TRIANGLES, (GLsizei)mesh.indices.len, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-    }
+    glBindVertexArray(mesh.handle);
+    glDrawElements(GL_TRIANGLES, (GLsizei)mesh.indices.len, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }
 
 Mat4 R_ConvertView2ProjMatrix(Mat4 mat)
@@ -388,31 +412,6 @@ R_Buffer R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
     glVertexArrayElementBuffer(vao, ebo);
     return vao;
 }
-
-// I don't think this should be used... But keeping it in the code just in case
-#if 0
-R_UniformBuffer R_CreateUniformBuffer(u32 binding)
-{
-    assert(binding != Opengl_ReservedUniformBufferBinding && "Trying to use a binding that's taken by the _Globals Uniform Buffer");
-    
-    R_UniformBuffer res = {0};
-    glCreateBuffers(1, &res.buffer);
-    res.binding = binding;
-    glBindBufferBase(GL_UNIFORM_BUFFER, res.binding, res.buffer);
-    return res;
-}
-
-void R_UploadUniformBuffer(R_UniformBuffer uniformBuffer, Slice<R_UniformValue> desc)
-{
-    // NOTE: Assuming the uniform buffers are padded with
-    // std140!! Changing the standard used (by modifying the
-    // shader importer) will make the renderer suddenly incorrect
-    ScratchArena scratch;
-    Slice<uchar> buffer = MakeUniformBufferStd140(desc, scratch);
-    
-    glNamedBufferData(uniformBuffer.buffer, buffer.len, buffer.ptr, GL_DYNAMIC_DRAW);
-}
-#endif
 
 R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
 {
@@ -484,7 +483,21 @@ R_Cubemap R_UploadCubemap(String top, String bottom, String left, String right, 
     return res;
 }
 
-R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl)
+R_Shader R_DefaultShader(ShaderKind kind)
+{
+    switch(kind)
+    {
+        case ShaderKind_None:    return renderer.defaultPixelShader;
+        case ShaderKind_Count:   return renderer.defaultPixelShader;
+        case ShaderKind_Vertex:  return renderer.defaultVertShader;
+        case ShaderKind_Pixel:   return renderer.defaultPixelShader;
+        case ShaderKind_Compute: return renderer.defaultComputeShader;
+    }
+    
+    return renderer.defaultVertShader;
+}
+
+R_Shader Opengl_CompileShader(ShaderKind kind, String glsl)
 {
     GLuint shader = glCreateShader(Opengl_ShaderKind(kind));
     GLint glslLen = (GLint)glsl.len;
@@ -495,12 +508,17 @@ R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, Strin
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
     if(!status)
     {
-        char info[512];
-        glGetShaderInfoLog(shader, 512, NULL, info);
+        char info[1024];
+        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
         Log("%s", info);
     }
     
     return {.kind = kind, .handle = shader};
+}
+
+R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl)
+{
+    return Opengl_CompileShader(kind, glsl);
 }
 
 R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
