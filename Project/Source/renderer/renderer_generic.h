@@ -4,7 +4,6 @@
 #include "base.h"
 #include "serialization.h"
 
-struct Model;
 struct Texture;
 struct Entities;
 enum ShaderKind;
@@ -88,25 +87,25 @@ void R_Cleanup();
 
 // Utils
 // Convert the view to projection matrix based on the API's
-// Clip space coordinate system
+// clip space coordinate system
 Mat4 R_ConvertView2ProjMatrix(Mat4 mat);
 
 // CPU <-> GPU transfers
-R_Buffer        R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
-R_Buffer        R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
-R_Texture       R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
-R_Cubemap       R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
-                                u32 height, u8 numChannels);
-R_Shader        R_DefaultShader(ShaderKind kind);
-R_Shader        R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
-R_Pipeline      R_CreatePipeline(Slice<R_Shader> shaders);
-R_Framebuffer   R_DefaultFramebuffer();
-R_Framebuffer   R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depth, bool stencil);
-void            R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height);  // Only resizes if necessary
+R_Mesh        R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
+R_Mesh        R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
+R_Texture     R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
+R_Cubemap     R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
+                              u32 height, u8 numChannels);
+R_Shader      R_MakeDefaultShader(ShaderKind kind);
+R_Mesh        R_MakeDefaultMesh();
+R_Shader      R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl);
+R_Pipeline    R_CreatePipeline(Slice<R_Shader> shaders);
+R_Framebuffer R_DefaultFramebuffer();
+R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depth, bool stencil);
+void          R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height);  // Only resizes if necessary
 
 // Drawing
-struct Mesh;
-void R_DrawMesh(Mesh mesh);
+void R_DrawMesh(R_Mesh mesh);
 void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength);
 void R_DrawSphere(Vec3 center, float radius);
 void R_DrawInvertedSphere(Vec3 center, float radius);
@@ -139,9 +138,7 @@ void R_AlphaBlending(bool enable);
 R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
 // Read to CPU, (0, 0) is bottom left and (width, height) top right
 int R_ReadIntPixelFromFramebuffer(int x, int y);
-int R_ReadIntPixelFromFramebufferAndGetItNextFrame(int x, int y);
 Vec4 R_ReadPixelFromFramebuffer(int x, int y);
-Vec4 R_ReadPixelFromFramebufferAndGetItNextFrame(int x, int y);
 
 // Libraries
 void R_RenderDearImgui();

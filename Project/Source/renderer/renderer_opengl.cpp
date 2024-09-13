@@ -115,6 +115,25 @@ void Opengl_SetupStencilTextureForFramebuffer(int width, int height, GLuint text
     glTexImage2D(GL_TEXTURE_2D, 0, GL_STENCIL_INDEX8, width, height, 0, GL_STENCIL_INDEX8, GL_UNSIGNED_INT, nullptr);
 }
 
+R_Shader Opengl_CompileShader(ShaderKind kind, String glsl)
+{
+    GLuint shader = glCreateShader(Opengl_ShaderKind(kind));
+    GLint glslLen = (GLint)glsl.len;
+    glShaderSource(shader, 1, &glsl.ptr, &glslLen);
+    glCompileShader(shader);
+    
+    GLint status = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+    if(!status)
+    {
+        char info[1024];
+        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
+        Log("%s", info);
+    }
+    
+    return {.kind = kind, .handle = shader};
+}
+
 R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depth, bool stencil)
 {
     width  = max(width, 1);
@@ -168,8 +187,8 @@ void R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height)
     if(framebuffer.width == width && framebuffer.height == height)
         return;
     
-    framebuffer.width  = width;
-    framebuffer.height = height;
+    framebuffer.width  = max(1, width);
+    framebuffer.height = max(1, height);
     
     int curTexture = 0;
     if(framebuffer.color)
@@ -319,48 +338,18 @@ void R_Init()
         glVertexArrayAttribFormat(r->unitCone, 0, 3, GL_FLOAT, GL_FALSE, 0);
     }
     
-    // Default resources
-    {
-        String vertShader = StrLit(R""""(
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       #version 460 core
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       void main()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               )"""");
-        
-        String pixelShader = StrLit(R""""(
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            #version 460 core
-                                                                                                                                                                                                                                                                                                                                                                                                        out vec4 fragColor;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    void main()
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                )"""");
-        
-        String computeShader = StrLit(R""""(
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    #version 460 core
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    void main() { }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            )"""");
-        
-        r->defaultVertShader    = R_CompileShader(ShaderKind_Vertex,  StrLit(""), StrLit(""), vertShader);
-        r->defaultPixelShader   = R_CompileShader(ShaderKind_Pixel,   StrLit(""), StrLit(""), pixelShader);
-        r->defaultComputeShader = R_CompileShader(ShaderKind_Compute, StrLit(""), StrLit(""), computeShader);
-    }
-    
     // Specify default rendering settings
     R_DepthTest(true);
     R_CullFace(true);
     R_AlphaBlending(true);
 }
 
-void R_DrawMesh(Mesh mesh)
+void R_DrawMesh(R_Mesh mesh)
 {
     Renderer* r = &renderer;
     
-    glBindVertexArray(mesh.handle);
-    glDrawElements(GL_TRIANGLES, (GLsizei)mesh.indices.len, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(mesh.vao);
+    glDrawElements(GL_TRIANGLES, mesh.numIndices, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 }
 
@@ -373,7 +362,7 @@ Mat4 R_ConvertView2ProjMatrix(Mat4 mat)
     return mat;
 }
 
-R_Buffer R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
+R_Mesh R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
 {
     GLuint vao;
     glCreateVertexArrays(1, &vao);
@@ -381,9 +370,10 @@ R_Buffer R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
     constexpr int numBufs = 2;
     GLuint bufferIds[numBufs];
     glCreateBuffers(2, bufferIds);
-    vbo = bufferIds[0];
-    ebo = bufferIds[1];
-    assert(1 < numBufs);
+    int curIdx = 0;
+    vbo = bufferIds[curIdx++];
+    ebo = bufferIds[curIdx++];
+    assert(curIdx == numBufs);
     
     glNamedBufferData(vbo, verts.len * sizeof(verts[0]), verts.ptr, GL_STATIC_DRAW);
     glNamedBufferData(ebo, indices.len * sizeof(indices[0]), indices.ptr, GL_STATIC_DRAW);
@@ -410,7 +400,11 @@ R_Buffer R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
     
     glVertexArrayVertexBuffer(vao, 0, vbo, 0, sizeof(verts[0]));
     glVertexArrayElementBuffer(vao, ebo);
-    return vao;
+    
+    R_Mesh res = {0};
+    res.vao = vao;
+    res.numIndices = (u32)indices.len;
+    return res;
 }
 
 R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
@@ -482,37 +476,69 @@ R_Cubemap R_UploadCubemap(String top, String bottom, String left, String right, 
     return res;
 }
 
-R_Shader R_DefaultShader(ShaderKind kind)
+R_Shader R_MakeDefaultShader(ShaderKind kind)
 {
+    String vertShader = StrLit(R""""(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         void main()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             )"""");
+    
+    String pixelShader = StrLit(R""""(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                out vec4 fragColor;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    void main()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    )"""");
+    
+    String computeShader = StrLit(R""""(
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                void main() { }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  )"""");
+    
     switch(kind)
     {
-        case ShaderKind_None:    return renderer.defaultPixelShader;
-        case ShaderKind_Count:   return renderer.defaultPixelShader;
-        case ShaderKind_Vertex:  return renderer.defaultVertShader;
-        case ShaderKind_Pixel:   return renderer.defaultPixelShader;
-        case ShaderKind_Compute: return renderer.defaultComputeShader;
+        case ShaderKind_None:    return Opengl_CompileShader(ShaderKind_Vertex,  vertShader);
+        case ShaderKind_Count:   return Opengl_CompileShader(ShaderKind_Vertex,  vertShader);
+        case ShaderKind_Vertex:  return Opengl_CompileShader(ShaderKind_Vertex,  vertShader);
+        case ShaderKind_Pixel:   return Opengl_CompileShader(ShaderKind_Pixel,   pixelShader);
+        case ShaderKind_Compute: return Opengl_CompileShader(ShaderKind_Compute, computeShader);
     }
     
-    return renderer.defaultVertShader;
+    return R_CompileShader(ShaderKind_Vertex,  StrLit(""), StrLit(""), vertShader);
 }
 
-R_Shader Opengl_CompileShader(ShaderKind kind, String glsl)
+R_Mesh R_MakeDefaultMesh()
 {
-    GLuint shader = glCreateShader(Opengl_ShaderKind(kind));
-    GLint glslLen = (GLint)glsl.len;
-    glShaderSource(shader, 1, &glsl.ptr, &glslLen);
-    glCompileShader(shader);
+    GLuint vao;
+    glCreateVertexArrays(1, &vao);
+    GLuint vbo, ebo;
+    constexpr int numBufs = 2;
+    GLuint bufferIds[numBufs];
+    glCreateBuffers(2, bufferIds);
+    int curIdx = 0;
+    vbo = bufferIds[curIdx++];
+    ebo = bufferIds[curIdx++];
+    assert(curIdx == numBufs);
     
-    GLint status = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-    if(!status)
-    {
-        char info[1024];
-        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
-        Log("%s", info);
-    }
+    glNamedBufferData(vbo, 0, nullptr, GL_STATIC_DRAW);
+    glNamedBufferData(ebo, 0, nullptr, GL_STATIC_DRAW);
+    glEnableVertexArrayAttrib(vao, 0);  // Position
+    glEnableVertexArrayAttrib(vao, 1);  // Normal
+    glEnableVertexArrayAttrib(vao, 2);  // Texture coords
+    glEnableVertexArrayAttrib(vao, 3);  // Tangents
     
-    return {.kind = kind, .handle = shader};
+    glVertexArrayVertexBuffer(vao, 0, vbo, 0, 0);
+    glVertexArrayElementBuffer(vao, ebo);
+    R_Mesh res = {};
+    res.vao = vao;
+    res.numIndices = 0;
+    return res;
 }
 
 R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, String glsl)
@@ -523,7 +549,6 @@ R_Shader R_CompileShader(ShaderKind kind, String dxil, String vulkanSpirv, Strin
 R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
 {
     R_Pipeline res = {0};
-    res.shaders = ArenaPushSlice(&sceneArena, shaders);
     res.handle = glCreateProgram();
     
     for(int i = 0; i < shaders.len; ++i)
@@ -537,8 +562,33 @@ R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
     {
         char info[512];
         glGetProgramInfoLog(res.handle, 512, NULL, info);
-        Log("%s", info);
+        Log("Shader pipeline creation error: %s", info);
+        
+        // Redo shader program with default shaders
+        glDeleteProgram(res.handle);
+        
+        R_Shader defaultShaders[] =
+        {
+            R_MakeDefaultShader(ShaderKind_Vertex),
+            R_MakeDefaultShader(ShaderKind_Pixel)
+        };
+        
+        Slice<R_Shader> slice = ArrToSlice(defaultShaders);
+        res.shaders = ArenaPushSlice(&sceneArena, slice);
+        res.handle = glCreateProgram();
+        for(int i = 0; i < ArrayCount(defaultShaders); ++i)
+            glAttachShader(res.handle, defaultShaders[i].handle);
+        glLinkProgram(res.handle);
+        
+        GLint status = 0;
+        glGetProgramiv(res.handle, GL_LINK_STATUS, &status);
+        assert(status);  // Linking default shaders shouldn't fail
+        return res;
     }
+    
+    // Successfully created the pipeline
+    
+    res.shaders = ArenaPushSlice(&sceneArena, shaders);
     
     res.globalsUniformBlockIndex = glGetUniformBlockIndex(res.handle, "type_Globals");
     if(res.globalsUniformBlockIndex != -1)
@@ -623,12 +673,6 @@ int R_ReadIntPixelFromFramebuffer(int x, int y)
     return res;
 }
 
-int R_ReadIntPixelFromFramebufferAndGetItNextFrame(R_Texture texture, int x, int y)
-{
-    TODO;
-    return 0;
-}
-
 Vec4 R_ReadPixelFromFramebuffer(int x, int y)
 {
     R_TextureFormat format = renderer.boundFramebuffer.colorFormat;
@@ -640,12 +684,6 @@ Vec4 R_ReadPixelFromFramebuffer(int x, int y)
     glReadPixels(x, y, 1, 1, Opengl_PixelDataFormat(format), GL_FLOAT, &res);
     
     return res;
-}
-
-Vec4 R_ReadPixelFromTextureAndGetItNextFrame(R_Texture texture, int x, int y)
-{
-    TODO;
-    return {0};
 }
 
 void R_SetTexture(R_Texture texture, u32 slot)

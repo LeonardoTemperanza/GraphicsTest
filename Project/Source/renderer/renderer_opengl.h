@@ -1,9 +1,11 @@
 
 #pragma once
 
-// GPU Resources
-//typedef u32 R_Texture;
-typedef u32 R_Buffer;
+struct R_Mesh
+{
+    u32 vao;
+    u32 numIndices;
+};
 
 typedef u32 R_Cubemap;
 
@@ -55,11 +57,6 @@ struct Renderer
     GLuint perSceneBuffer;
     GLuint perFrameBuffer;
     GLuint perObjBuffer;
-    
-    // Default objects
-    R_Shader defaultVertShader;
-    R_Shader defaultPixelShader;
-    R_Shader defaultComputeShader;
     
     // Objects for simple rendering
     GLuint fullscreenQuad;

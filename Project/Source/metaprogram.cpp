@@ -27,7 +27,10 @@ enum TokenKind
     Tok_CloseBrace,
     Tok_Colon,
     Tok_Semicolon,
+    Tok_GT,
+    Tok_LT,
     Tok_Asterisk,
+    Tok_Slash,
     Tok_String,
     Tok_Ident,
     Tok_Unknown,
@@ -109,6 +112,48 @@ int main()
     printf("\n");
     printf("\n");
     
+    // First pass: gather all introspectables
+    auto ptr = ArenaZAllocArray(Slice<Token>, ArrayCount(paths), &permArena);
+    Slice<Slice<Token>> tokensPerFile = {.ptr = ptr, .len = 2};
+    for(int i = 0; i < ArrayCount(paths); ++i)
+    {
+        tokensPerFile[i] = LexFile(paths[i], &permArena);
+        
+        Parser parser = {};
+        parser.path = ToLenStr(paths[i]);
+        parser.at = &tokensPerFile[i][0];
+        Parser* p = &parser;
+        
+        while(p->at->kind != Tok_EndOfStream)
+        {
+            while(p->at->kind != Tok_EndOfStream && (p->at->kind != Tok_Ident || p->at->text != "introspect"))
+                ++p->at;
+            
+            if(p->at->kind == Tok_EndOfStream) break;
+            
+            ++p->at;  // Eat introspect keyword
+            EatRequiredToken(p, Tok_OpenParen);
+            EatRequiredToken(p, Tok_CloseParen);
+            
+            if(p->at->kind == Tok_Ident && p->at->text == "struct")
+            {
+                ++p->at;
+                
+                if(p->at->kind == Tok_Ident)
+                {
+                    String text = p->at->text;
+                    ++p->at;
+                    
+                    Append(&introspectables, text);
+                }
+                else
+                    ParseError(p, p->at, "Expecting identifier after 'struct'");
+            }
+            else
+                ParseError(p, p->at, "Expecting 'struct' after 'introspect()'");
+        }
+    }
+    
     printf("enum MetaType\n");
     printf("{\n");
     printf("    Meta_Unknown = 0,\n");
@@ -117,6 +162,12 @@ int main()
     printf("    Meta_Float,\n");
     printf("    Meta_Vec3,\n");
     printf("    Meta_Quat,\n");
+    printf("    Meta_String,\n");
+    // Non-primitive types
+    for(int i = 0; i < introspectables.len; ++i)
+    {
+        printf("    Meta_%.*s,\n", StrPrintf(introspectables[i]));
+    }
     printf("};\n");
     
     printf("\n");
@@ -124,9 +175,6 @@ int main()
     printf("struct MetaTypeInfo\n");
     printf("{\n");
     printf("    MetaType metaType;\n");
-    printf("    int numPointers;\n");
-    printf("    bool isSlice;\n");
-    printf("    bool isString;\n");
     printf("};\n");
     
     printf("\n");
@@ -153,8 +201,18 @@ int main()
     
     printf("\n");
     
-    // TODO: Two passes, first pass to get all introspectables
-    // and second pass to do actual parsing
+    // Macro to handle recursive cases
+    printf("// NOTE: The function needs to have a MetaStruct as the first argument.\n");
+    printf("// The variadic arguments are just the remaining arguments to feed to the function.\n");
+    printf("#define Meta_RecursiveCases(functionName, ...) \\\n");
+    for(int i = 0; i < introspectables.len; ++i)
+    {
+        printf("    case Meta_%.*s: functionName(meta%.*s, __VA_ARGS__); break; \\\n",
+               StrPrintf(introspectables[i]), StrPrintf(introspectables[i]));
+    }
+    printf("\n");
+    
+    // Second pass: Parsing and code generation
     for(int i = 0; i < ArrayCount(paths); ++i)
     {
         Slice<Token> tokens = LexFile(paths[i], &permArena);
@@ -206,7 +264,10 @@ Token GetNextToken(Tokenizer* t)
         case '}':  token.kind = Tok_CloseBrace;   ++t->at; break;
         case ':':  token.kind = Tok_Colon;        ++t->at; break;
         case ';':  token.kind = Tok_Semicolon;    ++t->at; break;
+        case '>':  token.kind = Tok_GT;           ++t->at; break;
+        case '<':  token.kind = Tok_LT;           ++t->at; break;
         case '*':  token.kind = Tok_Asterisk;     ++t->at; break;
+        case '/':  token.kind = Tok_Slash;        ++t->at; break;
         
         case '"':
         {
@@ -269,7 +330,7 @@ void EatAllWhitespace(Tokenizer* t)
             t->lineStart = t->at;
             ++t->at;
         }
-        else if(*t->at == '/' && *t->at == '/')  // Single line comment
+        else if(t->at[0] == '/' && t->at[1] == '/')  // Single line comment
         {
             while(*t->at != '\n' && *t->at != 0) ++t->at;
             
@@ -392,7 +453,6 @@ void ParseIntrospection(Parser* p)
             {
                 ++p->at;
                 
-                Append(&introspectables, structName->text);
                 EatRequiredToken(p, Tok_OpenBrace);
                 ParseMemberList(p, structName->text);
                 EatRequiredToken(p, Tok_CloseBrace);
@@ -424,8 +484,8 @@ void ParseMemberList(Parser* p, String structName)
         bool showEditor = true;
         
         // Optional keywords
+        while(true)
         {
-            // nice_name keyword
             if(p->at->text == "nice_name")
             {
                 ++p->at;
@@ -443,19 +503,15 @@ void ParseMemberList(Parser* p, String structName)
                 EatRequiredToken(p, Tok_CloseParen);
                 EatRequiredToken(p, Tok_Semicolon);
             }
-            
-            // editor_hide keyword
-            if(p->at->text == "editor_hide")
+            else if(p->at->text == "editor_hide")
             {
                 ++p->at;
                 EatRequiredToken(p, Tok_Semicolon);
                 showEditor = false;
             }
+            else if(p->at->text == "const") ++p->at;
+            else break;
         }
-        
-        // Ignore const keyword
-        if(p->at->text == "const")
-            ++p->at;
         
         if(p->at->text == "static")
         {
@@ -468,12 +524,34 @@ void ParseMemberList(Parser* p, String structName)
             continue;
         }
         
-        // Ignore const keyword
-        if(p->at->text == "const")
-            ++p->at;
-        
         String typeName = p->at->text;
         ++p->at;
+        
+        if(typeName == "Slice")
+        {
+            /*++p->at;
+            EatRequiredToken(p, Tok_LT);
+            
+            if(p->at->kind == Tok_Ident)
+            {
+                String text = p->at->text;
+                ++p->at;
+                
+                EatRequiredToken(p, Tok_GT);
+            }
+            else
+                ParseError(p, p->at, "Expecting identifier after 'Slice<'");*/
+            
+            // TODO Ignore for now
+            p->at += 5;
+            continue;
+        }
+        if(typeName == "Array")
+        {
+            // TODO Ignore for now
+            p->at += 5;
+            continue;
+        }
         
         const char* metaType = "Meta_Unknown";
         if(typeName == "int")
@@ -495,6 +573,10 @@ void ParseMemberList(Parser* p, String structName)
         else if(typeName == "Quat")
         {
             metaType = "Meta_Quat";
+        }
+        else if(typeName == "String")
+        {
+            metaType = "Meta_String";
         }
         
         int numPtrs = 0;
@@ -557,8 +639,8 @@ const char* BoolString(bool b)
 
 void PrintMemberDefinition(String structName, const char* metaType, int numPointers, bool isSlice, bool isString, String name, String niceName, bool showEditor)
 {
-    printf("{ { %s, %d, %s, %s }, offsetof(%.*s, %.*s), StrLit(\"%.*s\"), \"%.*s\", StrLit(\"%.*s\"), \"%.*s\", %s },\n",
-           metaType, numPointers, BoolString(isSlice), BoolString(isString), StrPrintf(structName), StrPrintf(name),
+    printf("{ { %s }, offsetof(%.*s, %.*s), StrLit(\"%.*s\"), \"%.*s\", StrLit(\"%.*s\"), \"%.*s\", %s },\n",
+           metaType, StrPrintf(structName), StrPrintf(name),
            StrPrintf(name), StrPrintf(name), StrPrintf(niceName), StrPrintf(niceName), BoolString(showEditor));
 }
 

@@ -11,6 +11,9 @@ enum EntityFlags
     EntityFlags_Destroyed        = 1 << 1,
     EntityFlags_Visible          = 1 << 3,
     EntityFlags_Active           = 1 << 4,
+    EntityFlags_IgnoreMountPos   = 1 << 5,
+    EntityFlags_IgnoreMountRot   = 1 << 6,
+    EntityFlags_IgnoreMountScale = 1 << 7
 };
 
 enum EntityKind: u8
@@ -47,15 +50,17 @@ struct Entity
     nice_name("Scale");
     Vec3 scale;
     
-    u16 flags;
+    // @tmp Change to u16 later
+    int flags;
     u32 gen;
+    
+    AssetKey mesh;
+    AssetKey material;
     
     // We have the option to get the derived
     // entity, though it's a bit harder than the other way around
     EntityKind derivedKind;
     u16 derivedId;  // Index in the corresponding array
-    
-    AssetKey model;  // Can be null
     
     EntityKey mount;
     u16 mountBone;
@@ -120,7 +125,7 @@ struct Entities
     
     // Per frame data
     // NOTE: This is editor only for now. It's pretty
-    // expensive so it shouldn't be done every frame in release
+    // expensive so it shouldn't be computed every frame in release
     Slice<Slice<Entity*>> liveChildrenPerEntity;
 };
 
@@ -130,7 +135,6 @@ Entities* InitEntities();
 void FreeEntities(Entities* entities);
 void MainUpdate(Entities* entities, Editor* ui, float deltaTime, Arena* permArena, Arena* frameArena);
 void UpdateEntities(Entities* entities, float deltaTime);
-void RenderEntities(Entities* entities, Editor* editor, bool inEditor, float deltaTime);
 
 // Entity manipulation.
 // All functions returning entity pointers can return null

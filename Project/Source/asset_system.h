@@ -1,39 +1,15 @@
 
-// A few notes so i don't forget things
-// There are string ids which signify intent for a particular asset.
-// To reference assets in files those will primarily be used instead of the path,
-// so that the path itself can be changed easily. There are "assetbinding" files that
-// specify the file path for each string id (or asset intent).
-// Models are just binary files with vertex info and others
-// Shaders are just binary files with shader binaries (or sources) for the corresponding graphics apis
-// Textures are just png files (the simplest files here)
-// Materials are the only textual files at the moment (other than asset bindings) which contain references to string ids
-
-// A string map can be used for looking up resources from their string id. Also used for hot reloading.
-// Textual files like materials which reference other assets via their string id, will be loaded using the string map, to prevent
-// loading the same texture/shader multiple times, wasting space and time.
-
 #pragma once
 
 #include "base.h"
-//#include "renderer/renderer_generic.h"
 
 #include "serialization.h"
+#include "metaprogram_custom_keywords.h"
 
 struct PipelinePath
 {
-    const char* vertPath;
-    const char* pixelPath;
-};
-
-struct CubemapPath
-{
-    const char* topPath;
-    const char* bottomPath;
-    const char* leftPath;
-    const char* rightPath;
-    const char* frontPath;
-    const char* backPath;
+    String vertPath;
+    String pixelPath;
 };
 
 struct Material;
@@ -42,78 +18,79 @@ struct AssetSystem
 {
     // @tmp TODO: This will soon get restructured anyway, but this will let
     // us conveniently load things for now
-    Array<const char*>  modelPaths;
-    Array<Model*>       models;
-    Array<const char*>  texturePaths;
+    Array<String>       meshPaths;
+    Array<R_Mesh>       meshes;
+    Array<String>       texturePaths;
     Array<R_Texture>    textures;
-    Array<const char*>  shaderPaths;
+    Array<String>       shaderPaths;
     Array<R_Shader>     shaders;
     Array<PipelinePath> pipelinePaths;
     Array<R_Pipeline>   pipelines;
-    Array<CubemapPath>  cubemapPaths;
+    Array<String>       cubemapPaths;
     Array<R_Cubemap>    cubemaps;
-    Array<const char*>  materialPaths;
-    Array<Material*>    materials;
+    Array<String>       materialPaths;
+    Array<Material>     materials;
 };
 
 typedef u64 AssetId;
 
 // NOTE: a "" path or a uint_max idx means a null asset
+#ifdef Development
+introspect()
 struct AssetKey
 {
-#ifdef Development
-    const char* path;
+    DynString path;
+    int a;
+};
 #else
+struct AssetKey
+{
     u32 idx;
+};
 #endif
-};
-
-struct Mesh
-{
-    bool hasTextureCoords;
-    bool hasBones;
-    
-    Slice<Vertex> verts;
-    Slice<s32>    indices;
-    
-    R_Buffer handle;
-};
-
-struct Model
-{
-    Slice<Mesh> meshes;
-};
 
 struct Material
 {
-    AssetKey pipeline;
+    const char* vertShaderPath;
+    const char* pixelShaderPath;
     Slice<R_UniformValue> uniforms;
     Slice<AssetKey> textures;
 };
 
 AssetKey MakeAssetKey(const char* path);
+AssetKey MakeNullAssetKey();
+void FreeAssetKey(AssetKey* key);
 
-Model* LoadModel(const char* path);
-R_Texture LoadTexture(const char* path);
-R_Shader LoadShader(const char* path, ShaderKind kind);
-Material* LoadMaterial(const char* path);
+R_Mesh    LoadMesh(String path, bool* outSuccess);
+R_Texture LoadTexture(String path, bool* outSuccess);
+R_Shader  LoadShader(String path, ShaderKind kind, bool* outSuccess);
+Material  LoadMaterial(String path, bool* outSuccess);
+Material  DefaultMaterial();
 
 // TODO: everything is lazily loaded for now,
 // will change later
 
-Model* GetModelByPath(const char* path);
+R_Mesh    GetMeshByPath(String path);
+R_Texture GetTextureByPath(String path);
+R_Shader  GetShaderByPath(String path, ShaderKind kind);
+// NOTE: _top, _bottom, _left, _right, _front and _back is added (before the extension)
+// to load each individual texture
+R_Cubemap GetCubemapByPath(String path);
+R_Pipeline GetPipelineByPath(String vert, String pixel);
+Material   GetMaterialByPath(String path);
+
+// Utilities for C strings
+R_Mesh    GetMeshByPath(const char* path);
 R_Texture GetTextureByPath(const char* path);
-R_Shader GetShaderByPath(const char* path, ShaderKind kind);
-// Make it so the user only supplies one path, and then the rest is derived
-// (by adding _top, _bottom, _left, _right to the path
-R_Cubemap GetCubemapByPath(const char* topPath, const char* bottomPath, const char* leftPath, const char* rightPath, const char* frontPath, const char* backPath);
-
+R_Shader  GetShaderByPath(const char* path, ShaderKind kind);
+R_Cubemap GetCubemapByPath(const char* path);
 R_Pipeline GetPipelineByPath(const char* vert, const char* pixel);
-Material* GetMaterialByPath(const char* path);
+Material   GetMaterialByPath(const char* path);
 
-Model* GetModel(AssetKey key);
-R_Texture GetTexture(AssetKey key);
-Material* GetMaterial(AssetKey key);
+R_Mesh     GetMesh(AssetKey key);
+R_Pipeline GetPipeline(AssetKey vert, AssetKey pixel);
+R_Texture  GetTexture(AssetKey key);
+Material   GetMaterial(AssetKey key);
 
 // Utility functions
 void UseMaterial(AssetKey material);
@@ -121,6 +98,10 @@ void UseMaterial(AssetKey material);
 // Text file handling
 
 // NOTE: @cleanup Duplicated code from metaprogram. Unify later
+// ...Except that the tokenizer is slightly different... For example
+// comments in C are // and /**/, while in our text files it's #.
+// So what to do? In my opinion it's better to keep them separate
+// for now, a little duplication is not going to kill anyone
 
 enum TokenKind
 {
@@ -133,6 +114,7 @@ enum TokenKind
     Tok_Colon,
     Tok_Semicolon,
     Tok_Asterisk,
+    Tok_Slash,
     Tok_String,
     Tok_Ident,
     Tok_Unknown,
@@ -161,8 +143,19 @@ struct Tokenizer
     char* lineStart;
 };
 
+struct Parser
+{
+    String path;
+    
+    Token* at;
+    bool foundError;
+};
+
 Token GetNextToken(Tokenizer* t);
+Slice<Token> GetTokens(char* contents, Arena* dst);
 void EatAllWhitespace(Tokenizer* t);
 bool IsWhitespace(char c);
 bool IsAlpha(char c);
 bool IsNumber(char c);
+void ParseError(Parser* p, Token* token, const char* message);
+void EatRequiredToken(Parser* p, TokenKind kind);

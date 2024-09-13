@@ -1106,10 +1106,10 @@ void UseArena(Array<t>* array, Arena* arena)
 }
 
 template<typename t>
-void Reserve(Array<t>* array)
+void Resize(Array<t>* array, int newSize)
 {
     int oldLen = array->len;
-    int newLen = oldLen + 1;
+    int newLen = newSize;
     int oldCapacity = array->capacity;
     
     if(newLen > array->capacity)
@@ -1122,6 +1122,24 @@ void Reserve(Array<t>* array)
         newPtr = (t*)ArenaResizeLastAlloc(array->arena, array->ptr, oldCapacity*sizeof(t), array->capacity*sizeof(t), alignof(t));
     else
         newPtr = (t*)realloc(array->ptr, array->capacity*sizeof(t));
+    
+    array->ptr = newPtr;
+}
+
+template<typename t>
+void ResizeExact(Array<t>* array, int newSize)
+{
+    array->len = newSize;
+    int oldCapacity = array->capacity;
+    array->capacity = newSize;
+    
+    t* newPtr = nullptr;
+    if(array->arena)
+        newPtr = (t*)ArenaResizeLastAlloc(array->arena, array->ptr, oldCapacity, array->capacity, alignof(t));
+    else
+        newPtr = (t*)realloc(array->ptr, array->capacity*sizeof(t));
+    
+    array->ptr = newPtr;
 }
 
 template<typename t>
@@ -1144,6 +1162,13 @@ void Append(Array<t>* array, t el)
     
     array->ptr = newPtr;
     array->ptr[array->len - 1] = el;
+}
+
+template<typename t>
+void Pop(Array<t>* array)
+{
+    // TODO: Free memory if necessary
+    --array->len;
 }
 
 template<typename t>
@@ -1517,74 +1542,6 @@ ScratchArena::ScratchArena(int idx)
 ////
 // Miscellaneous
 
-String LoadEntireFile(const char* path, bool* outSuccess)
-{
-    *outSuccess = true;
-    String res = {0};
-    
-    // This would make fopen fail
-    if(!path || *path == '\0')
-    {
-        *outSuccess = false;
-        return res;
-    }
-    
-    FILE* file = fopen(path, "rb");
-    if(!file)
-    {
-        *outSuccess = false;
-        res.ptr = nullptr;
-        res.len = 0;
-        return res;
-    }
-    
-    defer { fclose(file); };
-    
-    fseek(file, 0, SEEK_END);
-    res.len = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    res.ptr = (char*)malloc(res.len);
-    fread((void*)res.ptr, res.len, 1, file);
-    
-    return res;
-}
-
-char* LoadEntireFileAndNullTerminate(const char* path, bool* outSuccess)
-{
-    *outSuccess = true;
-    char* res;
-    
-    // This would make fopen fail
-    if(!path || *path == '\0')
-    {
-        *outSuccess = false;
-        res = (char*)malloc(1);
-        res[0] = '\0';
-        return res;
-    }
-    
-    FILE* file = fopen(path, "rb");
-    if(!file)
-    {
-        *outSuccess = false;
-        res = (char*)malloc(1);
-        res[0] = '\0';
-        return res;
-    }
-    defer { fclose(file); };
-    
-    fseek(file, 0, SEEK_END);
-    s64 len = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    res = (char*)malloc(len+1);
-    fread((void*)res, len, 1, file);
-    res[len] = '\0';
-    
-    return res;
-}
-
 String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess)
 {
     *outSuccess = true;
@@ -1645,6 +1602,28 @@ char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst, bool* outSucc
     return res;
 }
 
+String LoadEntireFile(String path, Arena* dst, bool* outSuccess)
+{
+    ScratchArena scratch(dst);
+    StringBuilder builder = {};
+    UseArena(&builder, scratch);
+    
+    Append(&builder, path);
+    NullTerminate(&builder);
+    return LoadEntireFile(ToString(&builder).ptr, dst, outSuccess);
+}
+
+char* LoadEntireFileAndNullTerminate(String path, Arena* dst, bool* outSuccess)
+{
+    ScratchArena scratch(dst);
+    StringBuilder builder = {};
+    UseArena(&builder, scratch);
+    
+    Append(&builder, path);
+    NullTerminate(&builder);
+    return LoadEntireFileAndNullTerminate(ToString(&builder).ptr, dst, outSuccess);
+}
+
 String GetPathExtension(const char* path)
 {
     int len = (int)strlen(path);
@@ -1661,6 +1640,22 @@ String GetPathExtension(const char* path)
     return {.ptr=&path[lastDotIdx+1], .len=len-(lastDotIdx+1)};
 }
 
+String GetPathExtension(String path)
+{
+    int len = (int)path.len;
+    int lastDotIdx = len-1;
+    for(int i = len-1; i >= 0; --i)
+    {
+        if(path[i] == '.')
+        {
+            lastDotIdx = i;
+            break;
+        }
+    }
+    
+    return {.ptr=path.ptr + lastDotIdx + 1, .len=len-(lastDotIdx+1)};
+}
+
 String GetPathNoExtension(const char* path)
 {
     int len = (int)strlen(path);
@@ -1675,6 +1670,22 @@ String GetPathNoExtension(const char* path)
     }
     
     return {.ptr=path, .len=lastDotIdx};
+}
+
+String GetPathNoExtension(String path)
+{
+    int len = (int)path.len;
+    int lastDotIdx = len;
+    for(int i = len-1; i >= 0; --i)
+    {
+        if(path[i] == '.')
+        {
+            lastDotIdx = i;
+            break;
+        }
+    }
+    
+    return {.ptr=path.ptr, .len=lastDotIdx};
 }
 
 String PopLastDirFromPath(const char* path)
@@ -1695,6 +1706,24 @@ String PopLastDirFromPath(const char* path)
         return {.ptr=path, .len=pathLen};
     
     return {.ptr=path, .len=lastSlashPos};
+}
+
+String PopLastDirFromPath(String path)
+{
+    int lastSlashPos = -1;
+    int i;
+    for(i = 0; i < path.len; ++i)
+    {
+        if(path[i] == '/' || path[i] == '\\')
+        {
+            lastSlashPos = i;
+        }
+    }
+    
+    if(lastSlashPos == -1)
+        return path;
+    
+    return {.ptr=path.ptr, .len=lastSlashPos};
 }
 
 #ifdef _WIN32

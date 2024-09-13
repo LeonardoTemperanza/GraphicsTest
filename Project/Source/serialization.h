@@ -95,3 +95,16 @@ inline const char* GetShaderKindString(ShaderKind kind)
     
     return "unknown";
 }
+
+struct MeshHeader_v0
+{
+    bool isSkinned;
+    
+    s32 numVerts;
+    s32 numIndices;
+    bool hasTextureCoords;
+    u32 vertsOffset;
+    u32 indicesOffset;
+};
+
+typedef MeshHeader_v0 MeshHeader;

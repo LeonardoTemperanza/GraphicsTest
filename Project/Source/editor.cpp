@@ -207,17 +207,11 @@ void UpdateEditor(Editor* editor, float deltaTime)
     {
         if(e->selected.len == 1)
         {
-            Entity* selected = e->selected[0];
-            
-            Mat4 world = ComputeWorldTransform(selected);
-            Vec3 pos, scale;
-            Quat rot;
-            PosRotScaleFromMat4(world, &pos, &rot, &scale);
-            isInteractingWithGizmos = TranslationGizmo("EntityTranslate", e, &selected->pos);
-            Mat4 newWorld = Mat4FromPosRotScale(pos, rot, scale);
-            ConvertToLocalTransform(selected, newWorld);
-            PosRotScaleFromMat4(newWorld, &pos, &rot, &scale);
-            //selected->pos = pos;
+            Entity* selected = GetEntity(e->selected[0]);
+            if(selected)
+            {
+                isInteractingWithGizmos = TranslationGizmo("EntityTranslate", e, &selected->pos);
+            }
         }
     }
     
@@ -256,11 +250,22 @@ void UpdateEditor(Editor* editor, float deltaTime)
         {
             for(int i = 0; i < e->selected.len; ++i)
             {
-                Entity* ent = e->selected[i];
-                DestroyEntity(ent);
+                Entity* ent = GetEntity(e->selected[i]);
+                if(ent)
+                    DestroyEntity(ent);
             }
-            
-            Free(&e->selected);
+        }
+    }
+    
+    // Remove deleted entities from selection
+    {
+        for(int i = 0; i < e->selected.len; ++i)
+        {
+            if(!GetEntity(e->selected[i]))
+            {
+                e->selected[i] = e->selected[e->selected.len - 1];
+                Pop(&e->selected);
+            }
         }
     }
     
@@ -271,8 +276,9 @@ void UpdateEditor(Editor* editor, float deltaTime)
         
         if(e->selected.len == 1)
         {
-            Entity* selected = e->selected[0];
-            ShowEntityControl(e, selected);
+            Entity* selected = GetEntity(e->selected[0]);
+            if(selected)
+                ShowEntityControl(e, selected);
         }
         else if(e->selected.len == 0)
         {
@@ -353,28 +359,27 @@ void RenderEditor(Editor* editor, float deltaTime)
 {
     int width, height;
     OS_GetClientAreaSize(&width, &height);
+    if(width <= 0 || height <= 0) return;
+    
     R_ResizeFramebuffer(editor->selectedFramebuffer, width, height);
     R_ResizeFramebuffer(editor->entityIdFramebuffer, width, height);
     
     // Render pass for selected entities
     {
         R_SetFramebuffer(editor->selectedFramebuffer);
-        R_Pipeline paintTrue = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_bool_true.shader");
+        R_Pipeline paintTrue = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_bool_true.shader"));
         R_SetPipeline(paintTrue);
         R_ClearFrame({0});
         
         for(int i = 0; i < editor->selected.len; ++i)
         {
-            Entity* ent = editor->selected[i];
+            Entity* ent = GetEntity(editor->selected[i]);
+            if(!ent) continue;
             if(ent->flags & EntityFlags_Destroyed) continue;
             
             R_SetPerObjData({ ComputeWorldTransform(ent) });
-            Model* model = GetModel(ent->model);
-            if(model)
-            {
-                for(int i = 0; i < model->meshes.len; ++i)
-                    R_DrawMesh(model->meshes[i]);
-            }
+            R_Mesh mesh = GetMesh(ent->mesh);
+            R_DrawMesh(mesh);
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
@@ -383,7 +388,7 @@ void RenderEditor(Editor* editor, float deltaTime)
     // Render pass for entity ids (clicking on entities to select them)
     {
         R_SetFramebuffer(editor->entityIdFramebuffer);
-        R_Pipeline paintId = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_int.shader");
+        R_Pipeline paintId = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_int.shader"));
         R_SetPipeline(paintId);
         R_ClearFrameInt(-1, -1, -1, -1);
         
@@ -395,12 +400,7 @@ void RenderEditor(Editor* editor, float deltaTime)
             R_UniformValue uniforms[] = { MakeUniformInt(GetId(ent)) };
             R_SetUniforms(ArrToSlice(uniforms));
             
-            Model* model = GetModel(ent->model);
-            if(model)
-            {
-                for(int i = 0; i < model->meshes.len; ++i)
-                    R_DrawMesh(model->meshes[i]);
-            }
+            R_DrawMesh(GetMesh(ent->mesh));
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
@@ -425,7 +425,7 @@ void RenderEditor(Editor* editor, float deltaTime)
         R_DepthTest(false);
         R_AlphaBlending(true);
         R_SetTexture(R_GetFramebufferColorTexture(editor->selectedFramebuffer), 0);
-        R_Pipeline outline = GetPipelineByPath("CompiledShaders/screenspace_vertex.shader", "CompiledShaders/outline_from_int_texture.shader");
+        R_Pipeline outline = GetPipelineByPath(StrLit("CompiledShaders/screenspace_vertex.shader"), StrLit("CompiledShaders/outline_from_int_texture.shader"));
         R_SetPipeline(outline);
         
         R_UniformValue uniforms[] = { MakeUniformVec4(outlineColor) };
@@ -469,10 +469,11 @@ void RenderEditor(Editor* editor, float deltaTime)
                     Vec4 yColor = w->clickedY ? yellow : green;
                     Vec4 zColor = w->clickedZ ? yellow : blue;
                     
+                    R_Pipeline simpleColor = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_color.shader"));
+                    R_SetPipeline(simpleColor);
+                    
                     // X
                     {
-                        R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
-                        R_SetPipeline(simpleColor);
                         R_UniformValue uniforms[] = { MakeUniformVec4(xColor) };
                         R_SetUniforms(ArrToSlice(uniforms));
                         R_DrawArrow(w->widgetPos, w->widgetPos + Vec3::right * length, width, width * 2.5f, length * 0.15f);
@@ -480,8 +481,6 @@ void RenderEditor(Editor* editor, float deltaTime)
                     
                     // Y
                     {
-                        R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
-                        R_SetPipeline(simpleColor);
                         R_UniformValue uniforms[] = { MakeUniformVec4(yColor) };
                         R_SetUniforms(ArrToSlice(uniforms));
                         R_DrawArrow(w->widgetPos, w->widgetPos + Vec3::up * length, width, width * 2.5f, length * 0.15f);
@@ -489,8 +488,6 @@ void RenderEditor(Editor* editor, float deltaTime)
                     
                     // Z
                     {
-                        R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
-                        R_SetPipeline(simpleColor);
                         R_UniformValue uniforms[] = { MakeUniformVec4(zColor) };
                         R_SetUniforms(ArrToSlice(uniforms));
                         R_DrawArrow(w->widgetPos, w->widgetPos + Vec3::forward * length, width, width * 2.5f, length * 0.15f);
@@ -739,7 +736,7 @@ int GetEntitySelectionId(Editor* ui, Entity* entity)
 {
     for(int i = 0; i < ui->selected.len; ++i)
     {
-        if(ui->selected[i] == entity)
+        if(GetEntity(ui->selected[i]) == entity)
             return i;
     }
     
@@ -758,10 +755,10 @@ void SelectEntity(Editor* ui, Entity* entity)
     if(holdingCtrl && isSelected)
     {
         ui->selected[selectionId] = ui->selected[ui->selected.len - 1];
-        --ui->selected.len;
+        Pop(&ui->selected);
     }
     else
-        Append(&ui->selected, entity);
+        Append(&ui->selected, GetKey(entity));
 }
 
 // TODO: @tmp This is temporary, it's largely from the dear imgui demo debug window
@@ -1118,6 +1115,10 @@ void ShowEntityControl(Editor* editor, Entity* entity)
         ShowStructControl(metaStruct, editor, GetDerivedAddr(entity));
     }
     
+    // Control the asset paths for mesh and material
+    ShowDynInputText("Mesh", &entity->mesh.path, ImGuiInputTextFlags_EnterReturnsTrue);
+    ShowDynInputText("Material", &entity->material.path);
+    
     ImGui::PopID();
 }
 
@@ -1131,6 +1132,8 @@ void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address)
     for(int i = 0; i < members.len; ++i)
     {
         MemberDefinition member = members[i];
+        void* memberPtr = (char*)address + member.offset;
+        
         MetaType metaType = member.typeInfo.metaType;
         if(metaType == Meta_Unknown) continue;
         if(!member.showEditor)       continue;
@@ -1143,30 +1146,36 @@ void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address)
             case Meta_Unknown: break;
             case Meta_Int:
             {
-                ImGui::DragInt(member.cNiceName, (int*)((char*)address + member.offset), 0.05f);
+                ImGui::DragInt(member.cNiceName, (int*)memberPtr, 0.05f);
                 break;
             }
             case Meta_Bool:
             {
-                ImGui::Checkbox(member.cNiceName, (bool*)((char*)address + member.offset));
+                ImGui::Checkbox(member.cNiceName, (bool*)memberPtr);
                 break;
             }
             case Meta_Float:
             {
-                ImGui::DragFloat(member.cNiceName, (float*)((char*)address + member.offset), 0.05f);
+                ImGui::DragFloat(member.cNiceName, (float*)memberPtr, 0.05f);
                 break;
             }
             case Meta_Vec3:
             {
-                ShowVec3Control(member.cNiceName, (Vec3*)((char*)address + member.offset), 150.0f, 0.05f);
+                ShowVec3Control(member.cNiceName, (Vec3*)memberPtr, 150.0f, 0.05f);
                 break;
             }
             case Meta_Quat:
             {
-                ShowQuatControl(member.cNiceName, editor, (Quat*)((char*)address + member.offset), 150.0f, 0.5f);
+                ShowQuatControl(member.cNiceName, editor, (Quat*)memberPtr, 150.0f, 0.5f);
                 break;
             }
-            //Meta_RecursiveCases
+            case Meta_String:
+            {
+                String str = *(String*)memberPtr;
+                ImGui::Text("%s: %.*s", member.cNiceName, StrPrintf(str));
+                break;
+            }
+            Meta_RecursiveCases(ShowStructControl, editor, memberPtr);
         }
         
         ImGui::PopID();
@@ -1331,7 +1340,7 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     Vec3 q3 = v2 - perp * scale;
     Vec3 q4 = v2 + perp * scale;
     
-    R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
+    R_Pipeline simpleColor = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_color.shader"));
     R_SetPipeline(simpleColor);
     
     R_UniformValue uniforms[] = { MakeUniformVec4(color) };
@@ -1495,15 +1504,15 @@ Vec3 ProjectToLine(Ray cameraRay, Vec3 pos, Vec3 dir, bool* outSuccess)
     Vec3 planeNormal = normalize(-cameraRay.dir - dir * dot(-cameraRay.dir, dir));
     
     float planeDst = RayPlaneDst(cameraRay, pos, planeNormal);
-    if(planeDst != FLT_MAX)
+    if(planeDst == FLT_MAX)
     {
-        Vec3 intersectionPoint = cameraRay.ori + cameraRay.dir * planeDst;
-        Vec3 projected = dir * dot(intersectionPoint, dir);
-        return projected;
+        *outSuccess = false;
+        return pos;
     }
     
-    *outSuccess = false;
-    return pos;
+    Vec3 intersectionPoint = cameraRay.ori + cameraRay.dir * planeDst;
+    Vec3 projected = dir * dot(intersectionPoint, dir);
+    return projected;
 }
 
 float GetScreenspaceToWorldDistance(Editor* editor, Vec3 pos)
@@ -1519,4 +1528,29 @@ float GetScreenspaceToWorldDistance(Editor* editor, Vec3 pos)
     
     float pixelsPerUnit = height / screenHeightAtDistance;
     return 1.0f / pixelsPerUnit;
+}
+
+
+// Callback for enlarging my dynamic string when typing in an inputtext.
+int InputTextCallback(ImGuiInputTextCallbackData* data)
+{
+    DynString* str = (DynString*)data->UserData;
+    
+    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+    {
+        assert(data->Buf == str->ptr);
+        Resize(str, data->BufTextLen + 1);  // BufTextLen excludes the null terminator, while i include it
+        data->Buf = str->ptr;               // Reassign buffer pointer to point to the resized string
+    }
+    
+    return 0;
+}
+
+bool ShowDynInputText(const char* label, DynString* str, ImGuiInputTextFlags flags)
+{
+    if(!str->ptr) Append(str, '\0');
+    if(str->ptr[str->len - 1] != '\0') Append(str, '\0');
+    
+    flags |= ImGuiInputTextFlags_CallbackResize;
+    return ImGui::InputText(label, str->ptr, str->capacity, flags, InputTextCallback, (void*)str);
 }

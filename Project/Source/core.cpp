@@ -11,14 +11,11 @@ Entities* InitEntities()
     entities = {0};
     auto& res = entities;
     
-    Model* raptoidModel = GetModelByPath("Raptoid/Raptoid.model");
-    Model* cubeModel    = GetModelByPath("Common/Cube.model");
-    
-    //raptoidModel->material = MakeAssetKey("Materials/Robot.mat");
-    //sphereModel->material = raptoidModel->material;
-    
-    Model* cylinderModel = GetModelByPath("Common/cylinder.model");
-    //cylinderModel->pipeline = raptoidModel->pipeline;
+    const char* raptoidPath  = "Raptoid/Raptoid_2.mesh";
+    const char* cubePath     = "Common/Cube.mesh";
+    const char* spherePath   = "Common/Cube.mesh";
+    const char* cylinderPath = "Common/cylinder.mesh";
+    const char* pbr = "pbr.mat";
     
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
     static Arena cameraArena = ArenaVirtualMemInit(MB(64), MB(2));
@@ -31,7 +28,8 @@ Entities* InitEntities()
     static_assert(4 == Entity_Count, "Every array for each type should be based on an arena for pointer stability");
     
     auto raptoid = NewEntity();
-    //raptoid->model = raptoidModel;
+    raptoid->mesh = MakeAssetKey(raptoidPath);
+    raptoid->material = MakeAssetKey(pbr);
     
     auto camera = NewEntity<Camera>();
     camera->base->pos.z = -8.0f;
@@ -44,7 +42,8 @@ Entities* InitEntities()
     res.mainCamera = GetKey(camera->base);
     
     auto player = NewEntity<Player>();
-    //player->base->model = cylinderModel;
+    player->base->mesh = MakeAssetKey(cylinderPath);
+    player->base->material = MakeAssetKey(pbr);
     player->base->scale = {0.5f, 1.0f, 0.5f};
     player->gravity = 20.0f;
     player->jumpVel = 10.0f;
@@ -56,15 +55,17 @@ Entities* InitEntities()
     float pos = 0.0f;
     
     {
-        Entity* e = NewEntity();
-        //e->model = cubeModel;
+        Entity* e   = NewEntity();
+        e->mesh     = MakeAssetKey(cubePath);
+        e->material = MakeAssetKey(pbr);
         e->pos.x = pos;
         pos += 3.0f;
     }
     
     {
         Entity* e = NewEntity();
-        //e->model = sphereModel;
+        e->mesh = MakeAssetKey(spherePath);
+        e->material = MakeAssetKey(pbr);
         e->pos.x = pos;
         pos += 3.0f;
     }
@@ -74,7 +75,8 @@ Entities* InitEntities()
         for(int i = 0; i < 7; ++i)
         {
             e[i] = NewEntity();
-            //e[i]->model = raptoidModel;
+            e[i]->mesh = MakeAssetKey(raptoidPath);
+            e[i]->material = MakeAssetKey(pbr);
             e[i]->pos.x = pos;
             pos += 3.0f;
         }
@@ -169,54 +171,51 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
         CommitDestroy(entities);
     }
     
-    // Render skybox
+    // Render
+    if(width > 0 && height > 0)
     {
-        R_Pipeline pipeline = GetPipelineByPath("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
-        R_SetPipeline(pipeline);
-        R_Cubemap cubemap = GetCubemapByPath("Skybox/top.png", "Skybox/bottom.png",
-                                             "Skybox/left.png", "Skybox/right.png",
-                                             "Skybox/front.png", "Skybox/back.png");
-        R_SetCubemap(cubemap, 0);
-        
-        Model* cube = GetModelByPath("Common/cube.model");
-        R_CullFace(false);
-        R_DepthTest(false);
-        for(int i = 0; i < cube->meshes.len; ++i)
-            R_DrawMesh(cube->meshes[i]);
-        R_DepthTest(true);
-        R_CullFace(true);
-    }
-    
-    // Render entities in the scene
-    {
-        for_live_entities(ent)
+        // Render skybox
         {
-            Model* model = GetModel(ent->model);
-            if(model)
+            R_Pipeline pipeline = GetPipelineByPath(StrLit("CompiledShaders/skybox_vertex.shader"), StrLit("CompiledShaders/skybox_pixel.shader"));
+            R_SetPipeline(pipeline);
+            R_Cubemap cubemap = GetCubemapByPath(StrLit("Skybox/sky2.png"));
+            R_SetCubemap(cubemap, 0);
+            
+            R_Mesh cube = GetMeshByPath(StrLit("Common/cube.mesh"));
+            R_CullFace(false);
+            R_DepthTest(false);
+            R_DrawMesh(cube);
+            R_DepthTest(true);
+            R_CullFace(true);
+        }
+        
+        // Render entities in the scene
+        {
+            for_live_entities(ent)
             {
+                R_Mesh mesh = GetMesh(ent->mesh);
                 R_PerObjData perObj = { ComputeWorldTransform(ent) };
                 R_SetPerObjData(perObj);
-                
-                for(int i = 0; i < model->meshes.len; ++i)
-                    R_DrawMesh(model->meshes[i]);
+                UseMaterial(ent->material);
+                R_DrawMesh(mesh);
             }
         }
-    }
-    
-    // Render and finalize editor
-    if(inEditor)
-    {
-        RenderEditor(editor, deltaTime);
-    }
-    else
-    {
-        // Provide a way to go back to edit mode
-        // TODO: In a more complete engine this would actually
-        // reload the scene
-        Input input = GetInput();
-        if(PressedKey(input, Keycode_Esc))
+        
+        // Render and finalize editor
+        if(inEditor)
         {
-            editor->inEditor = true;
+            RenderEditor(editor, deltaTime);
+        }
+        else
+        {
+            // Provide a way to go back to edit mode
+            // TODO: In a more complete engine this would actually
+            // reload the scene
+            Input input = GetInput();
+            if(PressedKey(input, Keycode_Esc))
+            {
+                editor->inEditor = true;
+            }
         }
     }
     
@@ -231,57 +230,6 @@ void UpdateEntities(Entities* entities, float deltaTime)
     for_live_derived(p, Player)
     {
         UpdatePlayer(p, deltaTime);
-    }
-}
-
-void RenderEntities(Entities* entities, Editor* editor, bool inEditor, float deltaTime)
-{
-    for_live_entities(ent)
-    {
-        Model* model = GetModel(ent->model);
-        if(model)
-        {
-            for(int i = 0; i < model->meshes.len; ++i)
-                R_DrawMesh(model->meshes[i]);
-        }
-    }
-}
-
-void RenderScene()
-{
-    // Render skybox
-    {
-        R_Pipeline pipeline = GetPipelineByPath("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
-        R_SetPipeline(pipeline);
-        R_Cubemap cubemap = GetCubemapByPath("Skybox/colorful/top.jpg", "Skybox/colorful/bottom.jpg",
-                                             "Skybox/colorful/left.jpg", "Skybox/colorful/right.jpg",
-                                             "Skybox/colorful/front.jpg", "Skybox/colorful/back.jpg");
-        R_SetCubemap(cubemap, 0);
-        
-        Model* cube = GetModelByPath("Common/cube.model");
-        R_CullFace(false);
-        R_DepthTest(false);
-        for(int i = 0; i < cube->meshes.len; ++i)
-            R_DrawMesh(cube->meshes[i]);
-        R_DepthTest(true);
-        R_CullFace(true);
-    }
-    
-    // Render entities in the scene
-    {
-        for_live_entities(ent)
-        {
-            Model* model = GetModel(ent->model);
-            if(model)
-            {
-                R_PerObjData perObj = { ComputeWorldTransform(ent) };
-                R_SetPerObjData(perObj);
-                
-                //R_SetPipeline(ent->model->pipeline);
-                for(int i = 0; i < model->meshes.len; ++i)
-                    R_DrawMesh(model->meshes[i]);
-            }
-        }
     }
 }
 
@@ -452,9 +400,18 @@ Mat4 ComputeWorldTransform(Entity* entity)
 {
     if(!entity) return Mat4::identity;
     
-    Mat4 transform = Mat4FromPosRotScale(entity->pos, entity->rot, entity->scale);
-    transform = ComputeWorldTransform(GetMount(entity)) * transform;
-    return transform;
+    Mat4 worldTransform = Mat4FromPosRotScale(entity->pos, entity->rot, entity->scale);
+    
+    Entity* mount = GetMount(entity);
+    while(mount)
+    {
+        Mat4 transform = Mat4FromPosRotScale(mount->pos, mount->rot, mount->scale);
+        worldTransform = transform * worldTransform;
+        
+        mount = GetMount(mount);
+    }
+    
+    return worldTransform;
 }
 
 Mat4 ConvertToLocalTransform(Entity* entity, Mat4 world)
@@ -489,6 +446,8 @@ Entity* NewEntity()
     entity->rot = Quat::identity;
     entity->scale = {.x=1.0f, .y=1.0f, .z=1.0f};
     entity->mount = NullKey();
+    entity->mesh     = MakeNullAssetKey();
+    entity->material = MakeNullAssetKey();
     return entity;
 }
 
@@ -564,6 +523,10 @@ void CommitDestroy(Entities* entities)
             ++ent->gen;
             
             // TODO: @leak Remove entity from derived type array as well
+            
+            // Freeing asset keys (this should be irrelevant in editor mode)
+            FreeAssetKey(&ent->mesh);
+            FreeAssetKey(&ent->material);
         }
     }
     

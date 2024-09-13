@@ -36,7 +36,7 @@ struct Editor
     
     float consoleAnimation;  // 0 when fully hidden, 1 when fully visible
     
-    Array<Entity*> selected;
+    Array<EntityKey> selected;
     
     // Rendering
     R_Framebuffer selectedFramebuffer;  // Serves to draw selected objects to
@@ -96,6 +96,7 @@ void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address);
 // Dear Imgui helpers for basic types
 void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float sensitivity);
 void ShowQuatControl(const char* strId, Editor* editor, Quat* value, float columnWidth, float sensitivity);
+bool ShowDynInputText(const char* label, DynString* str, ImGuiInputTextFlags flags = 0);
 
 // Info to be stored in the widget table
 // where we store widget specific data persistently
@@ -150,6 +151,7 @@ bool RotationGizmo(Quat* rot);
 bool ScaleGizmo(Vec3* scale);
 
 float GetScreenspaceToWorldDistance(Editor* editor, Vec3 pos);
+
 // TODO: @tmp Quick function that we use for now. Will later be
 // pushed to the renderer
 void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color);

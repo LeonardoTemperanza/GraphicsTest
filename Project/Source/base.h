@@ -354,6 +354,8 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
 ////
 // Length strings utils
 
+// This is like a "string view" of sorts. It doesn't actually
+// handle allocating the memory and all that.
 struct String
 {
     const char* ptr;
@@ -406,10 +408,10 @@ struct Slice
 template<typename t>
 struct Array
 {
-    t* ptr;
-    int32_t len;
-    int32_t capacity;
-    Arena* arena;
+    t* ptr = 0;
+    int32_t len = 0;
+    int32_t capacity = 0;
+    Arena* arena = 0;
     
 #ifdef BoundsChecking
     // For reading the value
@@ -424,13 +426,20 @@ struct Array
 #endif
 };
 
+// This should actually be its own type with
+// functions that null terminate automatically
+typedef Array<char> DynString;
+
 template<typename t>
 void UseArena(Array<t>* array);
-// Does not exactly reserve "len", but its nearest power of 2
 template<typename t>
-void Reserve(Array<t>* array, int len);
+void Resize(Array<t>* array, int newSize);
+template<typename t>
+void ResizeExact(Array<t>* array, int newSize);
 template<typename t>
 void Append(Array<t>* array, t el);
+template<typename t>
+void Pop(Array<t>* array);
 template<typename t>
 Slice<t> ToSlice(Array<t>* array);
 template<typename t>
@@ -627,20 +636,17 @@ String Next(const char** cursor, int strLen);
 
 ////
 // Filesystem utils
-
-// All these need to be freed, in all circumstances.
-// even if outSuccess is false, meaning the loading
-// has failed, the returned char*/String must be freed
-String LoadEntireFile(const char* path, bool* outSuccess);
-char* LoadEntireFileAndNullTerminate(const char* path, bool* outSuccess);
-
-// No need to free anything here because we're using arenas
 String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess);
 char* LoadEntireFileAndNullTerminate(const char* path, Arena* dst, bool* outSuccess);
+String LoadEntireFile(String path, Arena* dst, bool* outSuccess);
+char* LoadEntireFileAndNullTerminate(String path, Arena* dst, bool* outSuccess);
 
 String GetPathExtension(const char* path);
+String GetPathExtension(String path);
 String GetPathNoExtension(const char* path);
+String GetPathNoExtension(String path);
 String PopLastDirFromPath(const char* path);
+String PopLastDirFromPath(String path);
 
 char* GetExecutablePath();
 bool B_SetCurrentDirectory(const char* path);

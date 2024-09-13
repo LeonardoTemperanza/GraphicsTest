@@ -16,14 +16,17 @@ enum MetaType
     Meta_Float,
     Meta_Vec3,
     Meta_Quat,
+    Meta_String,
+    Meta_AssetKey,
+    Meta_Entity,
+    Meta_Camera,
+    Meta_Player,
+    Meta_PointLight,
 };
 
 struct MetaTypeInfo
 {
     MetaType metaType;
-    int numPointers;
-    bool isSlice;
-    bool isString;
 };
 
 struct MemberDefinition
@@ -44,18 +47,37 @@ struct MetaStruct
     const char* cName;
 };
 
+// NOTE: The function needs to have a MetaStruct as the first argument.
+// The variadic arguments are just the remaining arguments to feed to the function.
+#define Meta_RecursiveCases(functionName, ...) \
+    case Meta_AssetKey: functionName(metaAssetKey, __VA_ARGS__); break; \
+    case Meta_Entity: functionName(metaEntity, __VA_ARGS__); break; \
+    case Meta_Camera: functionName(metaCamera, __VA_ARGS__); break; \
+    case Meta_Player: functionName(metaPlayer, __VA_ARGS__); break; \
+    case Meta_PointLight: functionName(metaPointLight, __VA_ARGS__); break; \
+
+MemberDefinition _membersOfAssetKey[] =
+{
+{ { Meta_Unknown }, offsetof(AssetKey, path), StrLit("path"), "path", StrLit("Path"), "Path", true },
+{ { Meta_Int }, offsetof(AssetKey, a), StrLit("a"), "a", StrLit("A"), "A", true },
+};
+
+MetaStruct metaAssetKey =
+{ {.ptr=_membersOfAssetKey, .len=ArrayCount(_membersOfAssetKey)}, StrLit("AssetKey"), "AssetKey" };
+
 MemberDefinition _membersOfEntity[] =
 {
-{ { Meta_Vec3, 0, false, false }, offsetof(Entity, pos), StrLit("pos"), "pos", StrLit("Position"), "Position", true },
-{ { Meta_Quat, 0, false, false }, offsetof(Entity, rot), StrLit("rot"), "rot", StrLit("Rotation"), "Rotation", true },
-{ { Meta_Vec3, 0, false, false }, offsetof(Entity, scale), StrLit("scale"), "scale", StrLit("Scale"), "Scale", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, flags), StrLit("flags"), "flags", StrLit("Flags"), "Flags", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, gen), StrLit("gen"), "gen", StrLit("Gen"), "Gen", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedKind), StrLit("derivedKind"), "derivedKind", StrLit("Derived Kind"), "Derived Kind", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, derivedId), StrLit("derivedId"), "derivedId", StrLit("Derived Id"), "Derived Id", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, model), StrLit("model"), "model", StrLit("Model"), "Model", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, mount), StrLit("mount"), "mount", StrLit("Mount"), "Mount", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Entity, mountBone), StrLit("mountBone"), "mountBone", StrLit("Mount Bone"), "Mount Bone", true },
+{ { Meta_Vec3 }, offsetof(Entity, pos), StrLit("pos"), "pos", StrLit("Position"), "Position", true },
+{ { Meta_Quat }, offsetof(Entity, rot), StrLit("rot"), "rot", StrLit("Rotation"), "Rotation", true },
+{ { Meta_Vec3 }, offsetof(Entity, scale), StrLit("scale"), "scale", StrLit("Scale"), "Scale", true },
+{ { Meta_Int }, offsetof(Entity, flags), StrLit("flags"), "flags", StrLit("Flags"), "Flags", true },
+{ { Meta_Unknown }, offsetof(Entity, gen), StrLit("gen"), "gen", StrLit("Gen"), "Gen", true },
+{ { Meta_Unknown }, offsetof(Entity, mesh), StrLit("mesh"), "mesh", StrLit("Mesh"), "Mesh", true },
+{ { Meta_Unknown }, offsetof(Entity, material), StrLit("material"), "material", StrLit("Material"), "Material", true },
+{ { Meta_Unknown }, offsetof(Entity, derivedKind), StrLit("derivedKind"), "derivedKind", StrLit("Derived Kind"), "Derived Kind", true },
+{ { Meta_Unknown }, offsetof(Entity, derivedId), StrLit("derivedId"), "derivedId", StrLit("Derived Id"), "Derived Id", true },
+{ { Meta_Unknown }, offsetof(Entity, mount), StrLit("mount"), "mount", StrLit("Mount"), "Mount", true },
+{ { Meta_Unknown }, offsetof(Entity, mountBone), StrLit("mountBone"), "mountBone", StrLit("Mount Bone"), "Mount Bone", true },
 };
 
 MetaStruct metaEntity =
@@ -63,8 +85,8 @@ MetaStruct metaEntity =
 
 MemberDefinition _membersOfCamera[] =
 {
-{ { Meta_Unknown, 1, false, false }, offsetof(Camera, base), StrLit("base"), "base", StrLit("Base"), "Base", true },
-{ { Meta_Unknown, 0, false, false }, offsetof(Camera, params), StrLit("params"), "params", StrLit("Params"), "Params", true },
+{ { Meta_Unknown }, offsetof(Camera, base), StrLit("base"), "base", StrLit("Base"), "Base", true },
+{ { Meta_Unknown }, offsetof(Camera, params), StrLit("params"), "params", StrLit("Params"), "Params", true },
 };
 
 MetaStruct metaCamera =
@@ -72,13 +94,13 @@ MetaStruct metaCamera =
 
 MemberDefinition _membersOfPlayer[] =
 {
-{ { Meta_Unknown, 1, false, false }, offsetof(Player, base), StrLit("base"), "base", StrLit("Base"), "Base", true },
-{ { Meta_Vec3, 0, false, false }, offsetof(Player, speed), StrLit("speed"), "speed", StrLit("Speed"), "Speed", false },
-{ { Meta_Bool, 0, false, false }, offsetof(Player, grounded), StrLit("grounded"), "grounded", StrLit("Grounded"), "Grounded", false },
-{ { Meta_Float, 0, false, false }, offsetof(Player, gravity), StrLit("gravity"), "gravity", StrLit("Gravity"), "Gravity", true },
-{ { Meta_Float, 0, false, false }, offsetof(Player, jumpVel), StrLit("jumpVel"), "jumpVel", StrLit("Jump Vel"), "Jump Vel", true },
-{ { Meta_Float, 0, false, false }, offsetof(Player, moveSpeed), StrLit("moveSpeed"), "moveSpeed", StrLit("Move Speed"), "Move Speed", true },
-{ { Meta_Float, 0, false, false }, offsetof(Player, groundAccel), StrLit("groundAccel"), "groundAccel", StrLit("Ground Accel"), "Ground Accel", true },
+{ { Meta_Unknown }, offsetof(Player, base), StrLit("base"), "base", StrLit("Base"), "Base", true },
+{ { Meta_Vec3 }, offsetof(Player, speed), StrLit("speed"), "speed", StrLit("Speed"), "Speed", false },
+{ { Meta_Bool }, offsetof(Player, grounded), StrLit("grounded"), "grounded", StrLit("Grounded"), "Grounded", false },
+{ { Meta_Float }, offsetof(Player, gravity), StrLit("gravity"), "gravity", StrLit("Gravity"), "Gravity", true },
+{ { Meta_Float }, offsetof(Player, jumpVel), StrLit("jumpVel"), "jumpVel", StrLit("Jump Vel"), "Jump Vel", true },
+{ { Meta_Float }, offsetof(Player, moveSpeed), StrLit("moveSpeed"), "moveSpeed", StrLit("Move Speed"), "Move Speed", true },
+{ { Meta_Float }, offsetof(Player, groundAccel), StrLit("groundAccel"), "groundAccel", StrLit("Ground Accel"), "Ground Accel", true },
 };
 
 MetaStruct metaPlayer =
@@ -86,9 +108,9 @@ MetaStruct metaPlayer =
 
 MemberDefinition _membersOfPointLight[] =
 {
-{ { Meta_Unknown, 1, false, false }, offsetof(PointLight, base), StrLit("base"), "base", StrLit("Base"), "Base", true },
-{ { Meta_Float, 0, false, false }, offsetof(PointLight, intensity), StrLit("intensity"), "intensity", StrLit("Intensity"), "Intensity", true },
-{ { Meta_Vec3, 0, false, false }, offsetof(PointLight, offset), StrLit("offset"), "offset", StrLit("Offset"), "Offset", true },
+{ { Meta_Unknown }, offsetof(PointLight, base), StrLit("base"), "base", StrLit("Base"), "Base", true },
+{ { Meta_Float }, offsetof(PointLight, intensity), StrLit("intensity"), "intensity", StrLit("Intensity"), "Intensity", true },
+{ { Meta_Vec3 }, offsetof(PointLight, offset), StrLit("offset"), "offset", StrLit("Offset"), "Offset", true },
 };
 
 MetaStruct metaPointLight =
