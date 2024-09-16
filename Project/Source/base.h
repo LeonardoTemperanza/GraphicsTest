@@ -10,6 +10,8 @@
 #include <string>
 #include <cmath>
 #include <cassert>
+#include <xmmintrin.h>
+#include <intrin.h>
 
 #include "os/os_generic.h"
 
@@ -62,6 +64,25 @@ typedef unsigned char uchar;
 #define StrLit(str) String{.ptr=str, .len=sizeof(str)}
 #define StrPrintf(str) (int)str.len, str.ptr
 #define ArrToSlice(array) {.ptr=array, .len=ArrayCount(array)}
+
+#define SmallNumber (1.e-8f)
+
+// SIMD Handy macros
+
+#define MakeShuffleMask(x,y,z,w)           (x | (y<<2) | (z<<4) | (w<<6))
+// vec(0, 1, 2, 3) -> (vec[x], vec[y], vec[z], vec[w])
+#define VecSwizzleMask(vec, mask)          _mm_castsi128_ps(_mm_shuffle_epi32(_mm_castps_si128(vec), mask))
+#define VecSwizzle(vec, x, y, z, w)        VecSwizzleMask(vec, MakeShuffleMask(x,y,z,w))
+#define VecSwizzle1(vec, x)                VecSwizzleMask(vec, MakeShuffleMask(x,x,x,x))
+// special swizzle
+#define VecSwizzle_0022(vec)               _mm_moveldup_ps(vec)
+#define VecSwizzle_1133(vec)               _mm_movehdup_ps(vec)
+
+// return (vec1[x], vec1[y], vec2[z], vec2[w])
+#define VecShuffle(vec1, vec2, x,y,z,w)    _mm_shuffle_ps(vec1, vec2, MakeShuffleMask(x,y,z,w))
+// special shuffle
+#define VecShuffle_0101(vec1, vec2)        _mm_movelh_ps(vec1, vec2)
+#define VecShuffle_2323(vec1, vec2)        _mm_movehl_ps(vec2, vec1)
 
 ////
 // Hash functions
@@ -261,6 +282,25 @@ Vec3 lerp(Vec3 v1, Vec3 v2);
 Vec4 lerp(Vec4 v1, Vec4 v2);
 
 // Row major
+struct Mat3
+{
+    union
+    {
+        struct
+        {
+            float m11, m12, m13;
+            float m21, m22, m23;
+            float m31, m32, m33;
+        };
+        float m[3][3];  // Since it's in row major order, first index is the row and the second one is the column
+        Vec3 rows[3];
+    };
+    
+    static const Mat3 identity;
+};
+
+// Row major
+#pragma pack(16)
 struct Mat4
 {
     union
@@ -273,15 +313,19 @@ struct Mat4
             float m41, m42, m43, m44;
         };
         float m[4][4];  // Since it's in row major order, first index is the row and the second one is the column
+        Vec4 rows[4];
+        __m128 rowsSimd[4];
     };
     
     static const Mat4 identity;
 };
 
-Mat4& operator *=(Mat4& m1, Mat4 m2);
-Mat4 operator *(Mat4 m1, Mat4 m2);
+Mat3 ToMat3(const Mat4& mat);
 
-Mat4 transpose(Mat4 m);
+Mat4& operator *=(Mat4& m1, Mat4 m2);
+Mat4 operator *(const Mat4& m1, const Mat4& m2);
+
+Mat4 transpose(const Mat4& m);
 
 struct Quat
 {

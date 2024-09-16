@@ -172,6 +172,13 @@ const Vec3 Vec3::zero     = { 0.0f,  0.0f,  0.0f};
 
 const Quat Quat::identity = {.w=1.0f, .x=0.0f, .y=0.0f, .z=0.0f};
 
+const Mat3 Mat3::identity =
+{
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1
+};
+
 const Mat4 Mat4::identity =
 { 
     1, 0, 0, 0,
@@ -382,14 +389,27 @@ Vec4& operator /=(Vec4& v, float f)
     return v;
 }
 
-// @performance
+Mat3 ToMat3(const Mat4& mat)
+{
+    Mat3 res;
+    // @speed
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+            res.m[i][j] = mat.m[i][j];
+    }
+    
+    return res;
+}
+
+// @speed
 Mat4& operator *=(Mat4& m1, Mat4 m2)
 {
     m1 = m1 * m2;
     return m1;
 }
 
-Mat4 operator *(Mat4 m1, Mat4 m2)
+Mat4 operator *(const Mat4& m1, const Mat4& m2)
 {
     Mat4 res;
     for(int i = 0; i < 4; ++i)
@@ -406,7 +426,7 @@ Mat4 operator *(Mat4 m1, Mat4 m2)
     return res;
 }
 
-Mat4 transpose(Mat4 m)
+Mat4 transpose(const Mat4& m)
 {
     Mat4 res
     {
@@ -426,36 +446,44 @@ float Determinant(const Mat4& m) {
         m.m14 * (m.m21 * (m.m32 * m.m43 - m.m33 * m.m42) - m.m22 * (m.m31 * m.m43 - m.m33 * m.m41) + m.m23 * (m.m31 * m.m42 - m.m32 * m.m41));
 }
 
-// Function to invert a 4x4 matrix
-Mat4 inverse(const Mat4 m) {
-    float det = Determinant(m);
-    assert(det != 0 && "Matrix is not invertible");
+// Requires this matrix to be transform matrix
+inline Mat4 ComputeTransformInverse(const Mat4& inM)
+{
+	Mat4 r;
     
-    float invDet = 1.0f / det;
+	// transpose 3x3, we know m03 = m13 = m23 = 0
+	__m128 t0 = VecShuffle_0101(inM.rowsSimd[0], inM.rowsSimd[1]); // 00, 01, 10, 11
+	__m128 t1 = VecShuffle_2323(inM.rowsSimd[0], inM.rowsSimd[1]); // 02, 03, 12, 13
+	r.rowsSimd[0] = VecShuffle(t0, inM.rowsSimd[2], 0,2,0,3); // 00, 10, 20, 23(=0)
+	r.rowsSimd[1] = VecShuffle(t0, inM.rowsSimd[2], 1,3,1,3); // 01, 11, 21, 23(=0)
+	r.rowsSimd[2] = VecShuffle(t1, inM.rowsSimd[2], 0,2,2,3); // 02, 12, 22, 23(=0)
     
-    Mat4 inv;
+	// (SizeSqr(rowsSimd[0]), SizeSqr(rowsSimd[1]), SizeSqr(rowsSimd[2]), 0)
+	__m128 sizeSqr;
+	sizeSqr =                     _mm_mul_ps(r.rowsSimd[0], r.rowsSimd[0]);
+	sizeSqr = _mm_add_ps(sizeSqr, _mm_mul_ps(r.rowsSimd[1], r.rowsSimd[1]));
+	sizeSqr = _mm_add_ps(sizeSqr, _mm_mul_ps(r.rowsSimd[2], r.rowsSimd[2]));
     
-    inv.m11 = invDet * (m.m22 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m23 * (m.m32 * m.m44 - m.m34 * m.m42) + m.m24 * (m.m32 * m.m43 - m.m33 * m.m42));
-    inv.m12 = -invDet * (m.m12 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m13 * (m.m32 * m.m44 - m.m34 * m.m42) + m.m14 * (m.m32 * m.m43 - m.m33 * m.m42));
-    inv.m13 = invDet * (m.m12 * (m.m23 * m.m44 - m.m24 * m.m43) - m.m13 * (m.m22 * m.m44 - m.m24 * m.m42) + m.m14 * (m.m22 * m.m43 - m.m23 * m.m42));
-    inv.m14 = -invDet * (m.m12 * (m.m23 * m.m34 - m.m24 * m.m33) - m.m13 * (m.m22 * m.m34 - m.m24 * m.m32) + m.m14 * (m.m22 * m.m33 - m.m23 * m.m32));
+	// optional test to avoid divide by 0
+	__m128 one = _mm_set1_ps(1.f);
+	// for each component, if(sizeSqr < SmallNumber) sizeSqr = 1;
+	__m128 rSizeSqr = _mm_blendv_ps(
+                                    _mm_div_ps(one, sizeSqr),
+                                    one,
+                                    _mm_cmplt_ps(sizeSqr, _mm_set1_ps(SmallNumber))
+                                    );
     
-    inv.m21 = -invDet * (m.m21 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m23 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m24 * (m.m31 * m.m43 - m.m33 * m.m41));
-    inv.m22 = invDet * (m.m11 * (m.m33 * m.m44 - m.m34 * m.m43) - m.m13 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m14 * (m.m31 * m.m43 - m.m33 * m.m41));
-    inv.m23 = -invDet * (m.m11 * (m.m23 * m.m44 - m.m24 * m.m43) - m.m13 * (m.m21 * m.m44 - m.m24 * m.m41) + m.m14 * (m.m21 * m.m43 - m.m23 * m.m41));
-    inv.m24 = invDet * (m.m11 * (m.m23 * m.m34 - m.m24 * m.m33) - m.m13 * (m.m21 * m.m34 - m.m24 * m.m31) + m.m14 * (m.m21 * m.m33 - m.m23 * m.m31));
+	r.rowsSimd[0] = _mm_mul_ps(r.rowsSimd[0], rSizeSqr);
+	r.rowsSimd[1] = _mm_mul_ps(r.rowsSimd[1], rSizeSqr);
+	r.rowsSimd[2] = _mm_mul_ps(r.rowsSimd[2], rSizeSqr);
     
-    inv.m31 = invDet * (m.m21 * (m.m32 * m.m44 - m.m34 * m.m42) - m.m22 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m24 * (m.m31 * m.m42 - m.m32 * m.m41));
-    inv.m32 = -invDet * (m.m11 * (m.m32 * m.m44 - m.m34 * m.m42) - m.m12 * (m.m31 * m.m44 - m.m34 * m.m41) + m.m14 * (m.m31 * m.m42 - m.m32 * m.m41));
-    inv.m33 = invDet * (m.m11 * (m.m22 * m.m44 - m.m24 * m.m42) - m.m12 * (m.m21 * m.m44 - m.m24 * m.m41) + m.m14 * (m.m21 * m.m42 - m.m22 * m.m41));
-    inv.m34 = -invDet * (m.m11 * (m.m22 * m.m34 - m.m24 * m.m32) - m.m12 * (m.m21 * m.m34 - m.m24 * m.m31) + m.m14 * (m.m21 * m.m32 - m.m22 * m.m31));
+	// last line
+	r.rowsSimd[3] =                       _mm_mul_ps(r.rowsSimd[0], VecSwizzle1(inM.rowsSimd[3], 0));
+	r.rowsSimd[3] = _mm_add_ps(r.rowsSimd[3], _mm_mul_ps(r.rowsSimd[1], VecSwizzle1(inM.rowsSimd[3], 1)));
+	r.rowsSimd[3] = _mm_add_ps(r.rowsSimd[3], _mm_mul_ps(r.rowsSimd[2], VecSwizzle1(inM.rowsSimd[3], 2)));
+	r.rowsSimd[3] = _mm_sub_ps(_mm_setr_ps(0.f, 0.f, 0.f, 1.f), r.rowsSimd[3]);
     
-    inv.m41 = -invDet * (m.m21 * (m.m32 * m.m43 - m.m33 * m.m42) - m.m22 * (m.m31 * m.m43 - m.m33 * m.m41) + m.m23 * (m.m31 * m.m42 - m.m32 * m.m41));
-    inv.m42 = invDet * (m.m11 * (m.m32 * m.m43 - m.m33 * m.m42) - m.m12 * (m.m31 * m.m43 - m.m33 * m.m41) + m.m13 * (m.m31 * m.m42 - m.m32 * m.m41));
-    inv.m43 = -invDet * (m.m11 * (m.m22 * m.m43 - m.m23 * m.m42) - m.m12 * (m.m21 * m.m43 - m.m23 * m.m41) + m.m13 * (m.m21 * m.m42 - m.m22 * m.m41));
-    inv.m44 = invDet * (m.m11 * (m.m22 * m.m33 - m.m23 * m.m32) - m.m12 * (m.m21 * m.m33 - m.m23 * m.m31) + m.m13 * (m.m21 * m.m32 - m.m22 * m.m31));
-    
-    return inv;
+	return r;
 }
 
 Quat& operator *=(Quat& a, Quat b)
@@ -1461,13 +1489,13 @@ void ArenaTempEnd(ArenaTemp tmp)
 // NOTE: Remember to keep all scratch arenas initialized at
 // the start of the program.
 #define NumScratchArenas 4
-static thread_local Arena scratchArenas[NumScratchArenas] =
+static thread_local Arena scratchArenas[NumScratchArenas] = { };
+
+void InitScratchArenas()
 {
-    ArenaVirtualMemInit(GB(4), MB(2)),
-    ArenaVirtualMemInit(GB(4), MB(2)),
-    ArenaVirtualMemInit(GB(4), MB(2)),
-    ArenaVirtualMemInit(GB(4), MB(2))
-};
+    for(int i = 0; i < NumScratchArenas; ++i)
+        scratchArenas[i] = ArenaVirtualMemInit(GB(4), MB(2));
+}
 
 // Some procedures might accept arenas as arguments,
 // for dynamically allocated results yielded to the caller.

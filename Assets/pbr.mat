@@ -8,9 +8,5 @@ vertex_shader: "CompiledShaders/model2proj.shader"
 pixel_shader:  "CompiledShaders/pbr.shader"
 
 :/textures
-0: 
 
 :/uniforms
-roughness: 2.0
-metalness: 1.5
-is_bird: true

@@ -10,6 +10,8 @@ void SetWorkingDirRelativeToExe(const char* path);
 
 int main()
 {
+    InitScratchArenas();
+    
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
     

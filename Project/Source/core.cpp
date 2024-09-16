@@ -29,7 +29,7 @@ Entities* InitEntities()
     
     auto raptoid = NewEntity();
     raptoid->mesh = MakeAssetKey(raptoidPath);
-    raptoid->material = MakeAssetKey(pbr);
+    raptoid->material = MakeAssetKey("Raptoid/raptoid.mat");
     
     auto camera = NewEntity<Camera>();
     camera->base->pos.z = -8.0f;
@@ -56,9 +56,10 @@ Entities* InitEntities()
     
     {
         Entity* e   = NewEntity();
-        e->mesh     = MakeAssetKey(cubePath);
-        e->material = MakeAssetKey(pbr);
+        e->mesh     = MakeAssetKey("Common/sphere.mesh");
+        e->material = MakeAssetKey("Raptoid/raptoid.mat");
         e->pos.x = pos;
+        e->pos.z = -3.0f;
         pos += 3.0f;
     }
     
@@ -76,7 +77,7 @@ Entities* InitEntities()
         {
             e[i] = NewEntity();
             e[i]->mesh = MakeAssetKey(raptoidPath);
-            e[i]->material = MakeAssetKey(pbr);
+            e[i]->material = MakeAssetKey("Raptoid/raptoid.mat");
             e[i]->pos.x = pos;
             pos += 3.0f;
         }
@@ -147,13 +148,7 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
         }
         
         Mat4 view2Proj = View2ProjMatrix(camParams.nearClip, camParams.farClip, camParams.fov, aspectRatio);
-        R_PerFrameData perFrame =
-        {
-            World2ViewMatrix(camPos, camRot),
-            R_ConvertView2ProjMatrix(view2Proj),
-            camPos
-        };
-        R_SetPerFrameData(perFrame);
+        R_SetPerFrameData(World2ViewMatrix(camPos, camRot), R_ConvertView2ProjMatrix(view2Proj), camPos);
     }
     
     // Update
@@ -176,12 +171,12 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
     {
         // Render skybox
         {
-            R_Pipeline pipeline = GetPipelineByPath(StrLit("CompiledShaders/skybox_vertex.shader"), StrLit("CompiledShaders/skybox_pixel.shader"));
+            R_Pipeline pipeline = GetPipelineByPath("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
             R_SetPipeline(pipeline);
-            R_Cubemap cubemap = GetCubemapByPath(StrLit("Skybox/sky2.png"));
+            R_Cubemap cubemap = GetCubemapByPath("Skybox/sky2.png");
             R_SetCubemap(cubemap, 0);
             
-            R_Mesh cube = GetMeshByPath(StrLit("Common/cube.mesh"));
+            R_Mesh cube = GetMeshByPath("Common/cube.mesh");
             R_CullFace(false);
             R_DepthTest(false);
             R_DrawMesh(cube);
@@ -194,8 +189,9 @@ void MainUpdate(Entities* entities, Editor* editor, float deltaTime, Arena* perm
             for_live_entities(ent)
             {
                 R_Mesh mesh = GetMesh(ent->mesh);
-                R_PerObjData perObj = { ComputeWorldTransform(ent) };
-                R_SetPerObjData(perObj);
+                Mat4 model = ComputeWorldTransform(ent);
+                Mat3 normal = ToMat3(transpose(ComputeTransformInverse(model)));
+                R_SetPerObjData(model, normal);
                 UseMaterial(ent->material);
                 R_DrawMesh(mesh);
             }
@@ -390,7 +386,7 @@ void MountEntity(Entity* entity, Entity* mountTo)
     
     // Then turn it into a relative transform
     // with respect to the mounted entity
-    worldEntity = inverse(worldMountTo) * worldEntity;
+    worldEntity = ComputeTransformInverse(worldMountTo) * worldEntity;
     PosRotScaleFromMat4(worldEntity, &entity->pos, &entity->rot, &entity->scale);
     
     entity->mount = GetKey(mountTo);
@@ -419,7 +415,7 @@ Mat4 ConvertToLocalTransform(Entity* entity, Mat4 world)
     if(!entity) return world;
     
     Mat4 mountTransform = ComputeWorldTransform(GetMount(entity));
-    return inverse(mountTransform) * world;
+    return ComputeTransformInverse(mountTransform) * world;
 }
 
 Entity* NewEntity()

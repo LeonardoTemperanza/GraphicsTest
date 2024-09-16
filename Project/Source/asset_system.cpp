@@ -209,8 +209,6 @@ Material LoadMaterial(String path, bool* outSuccess)
                 
                 if(text == "material")
                 {
-                    Log("Material");
-                    
                     while(p->at->kind == Tok_Ident)
                     {
                         String text = p->at->text;
@@ -258,18 +256,78 @@ Material LoadMaterial(String path, bool* outSuccess)
                             ParseError(p, p->at, "Unidentified material param");
                     }
                 }
-#if 0
                 else if(text == "textures")
                 {
-                    Log("Textures");
+                    while(p->at->kind == Tok_String)
+                    {
+                        String text = p->at->text;
+                        ++p->at;
+                        
+                        // TODO: Use permanent arena instead
+                        char* path = (char*)calloc(text.len, 1);
+                        memcpy(path, text.ptr, text.len);
+                        
+                        String pathStr = {path, text.len};
+                        Append(&mat.textures, pathStr);
+                    }
                 }
                 else if(text == "uniforms")
                 {
-                    Log("Uniforms");
+                    while(true)
+                    {
+                        if(p->at->kind == Tok_OpenBrace)
+                        {
+                            ++p->at;
+                            
+                            float values[4] = {};
+                            int pointer = 0;
+                            for(int i = 0; i < 4; ++i)  // Expecting a maximum of 4 values
+                            {
+                                if(p->at->kind == Tok_FloatNum)
+                                {
+                                    values[pointer++] = p->at->floatVal;
+                                    ++p->at;
+                                    
+                                    if(p->at->kind == Tok_CloseBrace)
+                                    {
+                                        ++p->at;
+                                        break;
+                                    }
+                                    else
+                                        EatRequiredToken(p, Tok_Comma);
+                                }
+                                else
+                                    ParseError(p, p->at, "Expecting a floating point value inside a { ... } (vector)");
+                            }
+                            
+                            // Add it to the list of uniforms
+                            int vecSize = pointer;
+                            switch(vecSize)
+                            {
+                                case 0: ParseError(p, p->at, "Vector needs to have at least three elements"); break;
+                                case 1: ParseError(p, p->at, "Vector needs to have at least three elements"); break;
+                                case 2: ParseError(p, p->at, "Vector needs to have at least three elements"); break;
+                                case 3: Append(&mat.uniforms, MakeUniformVec3({values[0], values[1], values[2]})); break;
+                                case 4: Append(&mat.uniforms, MakeUniformVec4({values[0], values[1], values[2], values[3]})); break;
+                            }
+                            
+                            EatRequiredToken(p, Tok_CloseBrace);
+                        }
+                        else if(p->at->kind == Tok_FloatNum)
+                        {
+                            float value = p->at->floatVal;
+                            Append(&mat.uniforms, MakeUniformFloat(value));
+                        }
+                        else if(p->at->kind == Tok_IntNum)
+                        {
+                            int value = p->at->intVal;
+                            Append(&mat.uniforms, MakeUniformInt(value));
+                        }
+                        else break;
+                    }
                 }
                 else
                     ParseError(p, p->at, "Unknown section name. This needs to be 'material' , 'textures' or 'uniforms'");
-#endif
             }
             else
                 ParseError(p, p->at, "Expected an identifier.");
@@ -373,6 +431,11 @@ R_Shader GetShaderByPath(String path, ShaderKind kind)
     Append(&assetSystem.shaderPaths, path);
     Append(&assetSystem.shaders, res);
     return res;
+}
+
+R_Cubemap GetCubemapByPath(const char* path)
+{
+    return GetCubemapByPath(ToLenStr(path));
 }
 
 R_Cubemap GetCubemapByPath(String path)
@@ -570,13 +633,24 @@ Material GetMaterial(AssetKey key)
     return GetMaterialByPath(path);
 }
 
+bool CheckMaterial(Material mat, R_Pipeline pipeline)
+{
+    // TODO: Check if the number of textures in the material slot is correct, etc.
+    return true;
+}
+
 void UseMaterial(AssetKey material)
 {
     Material mat = GetMaterial(material);
     R_Pipeline pipeline = GetPipelineByPath(mat.vertShaderPath, mat.pixelShaderPath);
     R_SetPipeline(pipeline);
-    //R_SetUniforms();
-    //R_SetTexture();
+    R_SetUniforms(ToSlice(&mat.uniforms));
+    
+    for(int i = 0; i < mat.textures.len; ++i)
+    {
+        R_Texture texture = GetTextureByPath(mat.textures[i]);
+        R_SetTexture(texture, i);
+    }
 }
 
 // Dealing with text files
@@ -601,6 +675,7 @@ Token GetNextToken(Tokenizer* t)
         case '}':  token.kind = Tok_CloseBrace;   ++t->at; break;
         case ':':  token.kind = Tok_Colon;        ++t->at; break;
         case ';':  token.kind = Tok_Semicolon;    ++t->at; break;
+        case ',':  token.kind = Tok_Comma;        ++t->at; break;
         case '*':  token.kind = Tok_Asterisk;     ++t->at; break;
         case '/':  token.kind = Tok_Slash;        ++t->at; break;
         
@@ -636,12 +711,36 @@ Token GetNextToken(Tokenizer* t)
                 
                 token.text.len = t->at - token.text.ptr;
             }
-#if 0
             else if(IsNumber(t->at[0]))
             {
+                bool isFloat = false;
+                char* decimalPos = t->at;
+                while(IsNumber(*decimalPos)) ++decimalPos;
+                if(*decimalPos == '.') isFloat = true;
                 
+                if(isFloat)
+                {
+                    token.kind = Tok_FloatNum;
+                    
+                    char* end = t->at;
+                    float num = strtof(t->at, &end);
+                    
+                    token.floatVal = num;
+                    token.text.len = end - t->at;
+                    t->at = end;
+                }
+                else
+                {
+                    token.kind = Tok_IntNum;
+                    
+                    char* end = t->at;
+                    
+                    int num = strtol(t->at, &end, 10);
+                    token.intVal = num;
+                    token.text.len = end - t->at;
+                    t->at = end;
+                }
             }
-#endif
             else
             {
                 token.kind = Tok_Unknown;
@@ -728,11 +827,7 @@ void ParseError(Parser* p, Token* token, const char* message)
 void EatRequiredToken(Parser* p, TokenKind kind)
 {
     if(p->at->kind == kind)
-    {
         ++p->at;
-    }
     else
-    {
         ParseError(p, p->at, "Unexpected token");
-    }
 }

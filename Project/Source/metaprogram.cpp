@@ -91,6 +91,8 @@ Array<String> introspectables = {0};
 
 int main()
 {
+    InitScratchArenas();
+    
     Arena permArena = ArenaVirtualMemInit(GB(2), MB(2));
     
     bool ok = SetCurrentDirectoryRelativeToExe("../Source/");
@@ -615,9 +617,12 @@ Token* GetNullToken()
 
 void ParseError(Parser* p, Token* token, const char* message)
 {
-    fprintf(stderr, "%.*s(%d): meta-error: %s\n", (int)p->path.len, p->path.ptr, token->lineNum, message);
-    p->at = GetNullToken();
-    p->foundError = true;
+    if(!p->foundError)
+    {
+        fprintf(stderr, "%.*s(%d): meta-error: %s\n", (int)p->path.len, p->path.ptr, token->lineNum, message);
+        p->at = GetNullToken();
+        p->foundError = true;
+    }
 }
 
 void EatRequiredToken(Parser* p, TokenKind kind)
@@ -656,7 +661,7 @@ char ToUpperCase(char c)
 String GetNiceNameFromMemberName(String memberName, Arena* dst)
 {
     if(memberName.len <= 0) return {0};
-    
+    \
     StringBuilder builder = {0};
     UseArena(&builder, dst);
     

@@ -123,9 +123,9 @@ void R_SetFramebuffer(R_Framebuffer framebuffer);
 void R_SetTexture(R_Texture texture, u32 slot);
 void R_SetCubemap(R_Cubemap cubemap, u32 slot);
 
-void R_SetPerSceneData(R_PerSceneData perScene);
-void R_SetPerFrameData(R_PerFrameData perFrame);
-void R_SetPerObjData(R_PerObjData perObj);
+void R_SetPerSceneData();
+void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos);
+void R_SetPerObjData(Mat4 model2World, Mat3 normalMat);
 
 void R_ClearFrame(Vec4 color);
 void R_ClearFrameInt(int r, int g, int b, int a);

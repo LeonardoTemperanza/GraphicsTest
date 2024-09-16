@@ -21,6 +21,7 @@ cbuffer PerFrame : register(b1)
 cbuffer PerObj : register(b2)
 {
     float4x4 model2World;
+    float3x3 normalMat;
 };
 
 struct Vertex

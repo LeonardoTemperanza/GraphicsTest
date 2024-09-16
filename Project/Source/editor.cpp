@@ -246,7 +246,8 @@ void UpdateEditor(Editor* editor, float deltaTime)
     
     // Deleting entities
     {
-        if(e->selected.len > 0 && PressedUnfilteredKey(input, Keycode_Del))
+        // TODO: This should also work when focused on the entity list window
+        if(e->selected.len > 0 && PressedKey(input, Keycode_Del))
         {
             for(int i = 0; i < e->selected.len; ++i)
             {
@@ -367,7 +368,7 @@ void RenderEditor(Editor* editor, float deltaTime)
     // Render pass for selected entities
     {
         R_SetFramebuffer(editor->selectedFramebuffer);
-        R_Pipeline paintTrue = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_bool_true.shader"));
+        R_Pipeline paintTrue = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_bool_true.shader");
         R_SetPipeline(paintTrue);
         R_ClearFrame({0});
         
@@ -377,7 +378,9 @@ void RenderEditor(Editor* editor, float deltaTime)
             if(!ent) continue;
             if(ent->flags & EntityFlags_Destroyed) continue;
             
-            R_SetPerObjData({ ComputeWorldTransform(ent) });
+            Mat4 model = ComputeWorldTransform(ent);
+            Mat3 normal = ToMat3(transpose(ComputeTransformInverse(model)));
+            R_SetPerObjData(model, normal);
             R_Mesh mesh = GetMesh(ent->mesh);
             R_DrawMesh(mesh);
         }
@@ -388,13 +391,15 @@ void RenderEditor(Editor* editor, float deltaTime)
     // Render pass for entity ids (clicking on entities to select them)
     {
         R_SetFramebuffer(editor->entityIdFramebuffer);
-        R_Pipeline paintId = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_int.shader"));
+        R_Pipeline paintId = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_int.shader");
         R_SetPipeline(paintId);
         R_ClearFrameInt(-1, -1, -1, -1);
         
         for_live_entities(ent)
         {
-            R_SetPerObjData({ ComputeWorldTransform(ent) });
+            Mat4 model = ComputeWorldTransform(ent);
+            Mat3 normal = ToMat3(transpose(ComputeTransformInverse(model)));
+            R_SetPerObjData(model, normal);
             
             // Upload the int uniform here
             R_UniformValue uniforms[] = { MakeUniformInt(GetId(ent)) };
@@ -425,7 +430,7 @@ void RenderEditor(Editor* editor, float deltaTime)
         R_DepthTest(false);
         R_AlphaBlending(true);
         R_SetTexture(R_GetFramebufferColorTexture(editor->selectedFramebuffer), 0);
-        R_Pipeline outline = GetPipelineByPath(StrLit("CompiledShaders/screenspace_vertex.shader"), StrLit("CompiledShaders/outline_from_int_texture.shader"));
+        R_Pipeline outline = GetPipelineByPath("CompiledShaders/screenspace_vertex.shader", "CompiledShaders/outline_from_int_texture.shader");
         R_SetPipeline(outline);
         
         R_UniformValue uniforms[] = { MakeUniformVec4(outlineColor) };
@@ -469,7 +474,7 @@ void RenderEditor(Editor* editor, float deltaTime)
                     Vec4 yColor = w->clickedY ? yellow : green;
                     Vec4 zColor = w->clickedZ ? yellow : blue;
                     
-                    R_Pipeline simpleColor = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_color.shader"));
+                    R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
                     R_SetPipeline(simpleColor);
                     
                     // X
@@ -1340,13 +1345,13 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     Vec3 q3 = v2 - perp * scale;
     Vec3 q4 = v2 + perp * scale;
     
-    R_Pipeline simpleColor = GetPipelineByPath(StrLit("CompiledShaders/model2proj.shader"), StrLit("CompiledShaders/paint_color.shader"));
+    R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
     R_SetPipeline(simpleColor);
     
     R_UniformValue uniforms[] = { MakeUniformVec4(color) };
     R_SetUniforms(ArrToSlice(uniforms));
     
-    R_SetPerObjData({ Mat4::identity });
+    R_SetPerObjData(Mat4::identity, Mat3::identity);
     
     R_DrawQuad(q1, q2, q3, q4);
     R_DrawQuad(q4, q3, q2, q1);

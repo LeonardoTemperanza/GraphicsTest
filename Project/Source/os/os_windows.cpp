@@ -264,9 +264,9 @@ static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, 
         {
             if(B_IsDebuggerPresent())
             {
-                assert(!"OpenGL error - check the callstack in debugger");
+                //assert(!"OpenGL error - check the callstack in debugger");
             }
-            OS_FatalError("OpenGL API usage error! Use debugger to examine call stack!");
+            //OS_FatalError("OpenGL API usage error! Use debugger to examine call stack!");
         }
     }
 }

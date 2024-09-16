@@ -116,6 +116,8 @@ String CompileToMetalIR(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* 
 // The path is relative to the Assets folder
 int main(int argCount, char** args)
 {
+    InitScratchArenas();
+    
     constexpr int numArgs = 1;
     if(argCount != numArgs + 1)
     {
@@ -135,7 +137,9 @@ int main(int argCount, char** args)
     SetWorkingDirRelativeToExe("../../../Shaders/");
     
     bool ok = true;
-    char* nullTerm = LoadEntireFileAndNullTerminate(shaderPath, &ok);
+    
+    Arena arena = ArenaVirtualMemInit(GB(2), MB(4));
+    char* nullTerm = LoadEntireFileAndNullTerminate(shaderPath, &arena, &ok);
     if(!ok)
     {
         fprintf(stderr, "Error: Could not open file\n");
@@ -146,7 +150,6 @@ int main(int argCount, char** args)
     String shaderSource = {0};
     shaderSource.ptr = nullTerm;
     shaderSource.len = strlen(nullTerm);
-    defer { free(nullTerm); };
     
     ParseResult result = {0};
     Slice<ShaderPragma> pragmas = ParseShaderPragmas(nullTerm, scratch);
@@ -187,8 +190,6 @@ int main(int argCount, char** args)
         auto& stage = result.stages[i];
         if(stage.defined)
         {
-            ScratchArena scratch;
-            
             bool ok = true;
             
             String dxil = {0};
@@ -535,12 +536,28 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
     try
     {
         compiler.build_combined_image_samplers();
+        
+        int location = 0;
+        
+        ShaderResources resources = compiler.get_shader_resources();
+        int numTextures = resources.separate_images.size();
+        int numSamplers = resources.separate_samplers.size();
+        
+        printf("texs: %d, samplers: %d\n", numTextures, numSamplers);
+        
+        for (auto &remap : compiler.get_combined_image_samplers())
+        {
+            compiler.set_name(remap.combined_id, join("SPIRV_Cross_Combined_", compiler.get_name(remap.image_id),
+                                                      compiler.get_name(remap.sampler_id)));
+            
+            int textureBinding = compiler.get_decoration(remap.image_id, spv::DecorationBinding);
+            int samplerBinding = compiler.get_decoration(remap.image_id, spv::DecorationBinding);
+            compiler.set_decoration(remap.combined_id, spv::DecorationLocation, textureBinding);
+        }
     }
     catch(...) {}
     
     const char* shaderKindStr = GetShaderKindString(shaderKind);
-    
-    // TODO: Would probably be better to just use the C API
     
     std::string source;
     try

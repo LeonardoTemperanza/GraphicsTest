@@ -70,7 +70,7 @@ MemberDefinition _membersOfEntity[] =
 { { Meta_Vec3 }, offsetof(Entity, pos), StrLit("pos"), "pos", StrLit("Position"), "Position", true },
 { { Meta_Quat }, offsetof(Entity, rot), StrLit("rot"), "rot", StrLit("Rotation"), "Rotation", true },
 { { Meta_Vec3 }, offsetof(Entity, scale), StrLit("scale"), "scale", StrLit("Scale"), "Scale", true },
-{ { Meta_Int }, offsetof(Entity, flags), StrLit("flags"), "flags", StrLit("Flags"), "Flags", true },
+{ { Meta_Unknown }, offsetof(Entity, flags), StrLit("flags"), "flags", StrLit("Flags"), "Flags", true },
 { { Meta_Unknown }, offsetof(Entity, gen), StrLit("gen"), "gen", StrLit("Gen"), "Gen", true },
 { { Meta_Unknown }, offsetof(Entity, mesh), StrLit("mesh"), "mesh", StrLit("Mesh"), "Mesh", true },
 { { Meta_Unknown }, offsetof(Entity, material), StrLit("material"), "material", StrLit("Material"), "Material", true },

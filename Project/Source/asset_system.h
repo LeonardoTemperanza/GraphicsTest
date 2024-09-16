@@ -49,12 +49,15 @@ struct AssetKey
 };
 #endif
 
+// NOTE: All this stuff needs to get freed. We'll deal with that later
+// @leak
 struct Material
 {
     const char* vertShaderPath;
     const char* pixelShaderPath;
-    Slice<R_UniformValue> uniforms;
-    Slice<AssetKey> textures;
+    
+    Array<R_UniformValue> uniforms;
+    Array<String> textures;
 };
 
 AssetKey MakeAssetKey(const char* path);
@@ -93,6 +96,9 @@ R_Texture  GetTexture(AssetKey key);
 Material   GetMaterial(AssetKey key);
 
 // Utility functions
+// Check if the material specifies the correct uniforms and textures, etc.
+// Logs the exact problem to the console
+bool CheckMaterial(Material mat, R_Pipeline pipeline);
 void UseMaterial(AssetKey material);
 
 // Text file handling
@@ -113,10 +119,13 @@ enum TokenKind
     Tok_CloseBrace,
     Tok_Colon,
     Tok_Semicolon,
+    Tok_Comma,
     Tok_Asterisk,
     Tok_Slash,
     Tok_String,
     Tok_Ident,
+    Tok_IntNum,
+    Tok_FloatNum,
     Tok_Unknown,
     
     Tok_EndOfStream
@@ -133,6 +142,12 @@ struct Token
     int startPos;
     
     static const Token null;
+    
+    union
+    {
+        int intVal;
+        float floatVal;
+    };
 };
 
 struct Tokenizer

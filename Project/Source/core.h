@@ -50,8 +50,7 @@ struct Entity
     nice_name("Scale");
     Vec3 scale;
     
-    // @tmp Change to u16 later
-    int flags;
+    u16 flags;
     u32 gen;
     
     AssetKey mesh;
@@ -121,10 +120,8 @@ struct Entities
     Array<Player> players;
     Array<PointLight> pointLights;
     
-    // Components here maybe?
-    
     // Per frame data
-    // NOTE: This is editor only for now. It's pretty
+    // NOTE: This is editor only for now. It's a bit
     // expensive so it shouldn't be computed every frame in release
     Slice<Slice<Entity*>> liveChildrenPerEntity;
 };

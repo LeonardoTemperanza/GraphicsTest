@@ -18,6 +18,8 @@ bool WriteMaterial(const char* modelPath, int materialIdx, const char* path, con
 // The path is relative to the Assets folder
 int main(int argCount, char** args)
 {
+    InitScratchArenas();
+    
     ScratchArena scratch;
     
     char* exePathCStr = GetExecutablePath();
