@@ -1,7 +1,7 @@
 
 #include "editor.h"
 #include "imgui/imgui_internal.h"
-#include "generated_meta.h"
+#include "generated/introspection.h"
 
 // Need it for gizmo intersection
 #include "collision.h"
@@ -28,7 +28,7 @@ Console InitConsole()
 
 static Console console = InitConsole();
 
-Editor InitEditor()
+Editor InitEditor(EntityManager* man)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     
@@ -132,6 +132,7 @@ Editor InitEditor()
     
     // Setup UI State
     Editor state = {0};
+    state.man = man;
     state.entityListWindowOpen = true;
     state.propertyWindowOpen = true;
     state.camParams.fov = 90.0f;
@@ -152,6 +153,7 @@ Editor InitEditor()
 void UpdateEditor(Editor* editor, float deltaTime)
 {
     Editor* e = editor;
+    EntityManager* man = e->man;
     
     Input input = GetInput();
     ImGuiIO& imguiIo = ImGui::GetIO();
@@ -207,7 +209,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
     {
         if(e->selected.len == 1)
         {
-            Entity* selected = GetEntity(e->selected[0]);
+            Entity* selected = GetEntity(man, e->selected[0]);
             if(selected)
             {
                 isInteractingWithGizmos = TranslationGizmo("EntityTranslate", e, &selected->pos);
@@ -224,12 +226,13 @@ void UpdateEditor(Editor* editor, float deltaTime)
             
             R_SetFramebuffer(e->entityIdFramebuffer);
             int picked = R_ReadIntPixelFromFramebuffer(input.mouseX, height - input.mouseY);
-            assert(picked >= -1 && picked < GetNumEntities());
+            int numEntities = man->bases.len;
+            assert(picked >= -1 && picked < numEntities);
             
             R_SetFramebuffer(R_DefaultFramebuffer());
             if(picked != -1)
             {
-                SelectEntity(e, GetEntity(picked));
+                SelectEntity(e, GetEntity(man, picked));
             }
             else if(!input.unfilteredKeys[Keycode_Ctrl])
             {
@@ -251,7 +254,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
         {
             for(int i = 0; i < e->selected.len; ++i)
             {
-                Entity* ent = GetEntity(e->selected[i]);
+                Entity* ent = GetEntity(man, e->selected[i]);
                 if(ent)
                     DestroyEntity(ent);
             }
@@ -262,7 +265,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
     {
         for(int i = 0; i < e->selected.len; ++i)
         {
-            if(!GetEntity(e->selected[i]))
+            if(!GetEntity(man, e->selected[i]))
             {
                 e->selected[i] = e->selected[e->selected.len - 1];
                 Pop(&e->selected);
@@ -277,7 +280,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
         
         if(e->selected.len == 1)
         {
-            Entity* selected = GetEntity(e->selected[0]);
+            Entity* selected = GetEntity(man, e->selected[0]);
             if(selected)
                 ShowEntityControl(e, selected);
         }
@@ -356,29 +359,31 @@ void UpdateEditor(Editor* editor, float deltaTime)
     }
 }
 
-void RenderEditor(Editor* editor, float deltaTime)
+void RenderEditor(Editor* e, float deltaTime)
 {
+    EntityManager* man = e->man;
+    
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     if(width <= 0 || height <= 0) return;
     
-    R_ResizeFramebuffer(editor->selectedFramebuffer, width, height);
-    R_ResizeFramebuffer(editor->entityIdFramebuffer, width, height);
+    R_ResizeFramebuffer(e->selectedFramebuffer, width, height);
+    R_ResizeFramebuffer(e->entityIdFramebuffer, width, height);
     
     // Render pass for selected entities
     {
-        R_SetFramebuffer(editor->selectedFramebuffer);
+        R_SetFramebuffer(e->selectedFramebuffer);
         R_Pipeline paintTrue = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_bool_true.shader");
         R_SetPipeline(paintTrue);
         R_ClearFrame({0});
         
-        for(int i = 0; i < editor->selected.len; ++i)
+        for(int i = 0; i < e->selected.len; ++i)
         {
-            Entity* ent = GetEntity(editor->selected[i]);
+            Entity* ent = GetEntity(man, e->selected[i]);
             if(!ent) continue;
             if(ent->flags & EntityFlags_Destroyed) continue;
             
-            Mat4 model = ComputeWorldTransform(ent);
+            Mat4 model = ComputeWorldTransform(man, ent);
             Mat3 normal = ToMat3(transpose(ComputeTransformInverse(model)));
             R_SetPerObjData(model, normal);
             R_Mesh mesh = GetMesh(ent->mesh);
@@ -390,19 +395,19 @@ void RenderEditor(Editor* editor, float deltaTime)
     
     // Render pass for entity ids (clicking on entities to select them)
     {
-        R_SetFramebuffer(editor->entityIdFramebuffer);
+        R_SetFramebuffer(e->entityIdFramebuffer);
         R_Pipeline paintId = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_int.shader");
         R_SetPipeline(paintId);
         R_ClearFrameInt(-1, -1, -1, -1);
         
-        for_live_entities(ent)
+        for_live_entities(man, ent)
         {
-            Mat4 model = ComputeWorldTransform(ent);
+            Mat4 model = ComputeWorldTransform(man, ent);
             Mat3 normal = ToMat3(transpose(ComputeTransformInverse(model)));
             R_SetPerObjData(model, normal);
             
             // Upload the int uniform here
-            R_UniformValue uniforms[] = { MakeUniformInt(GetId(ent)) };
+            R_UniformValue uniforms[] = { MakeUniformInt(GetId(man, ent)) };
             R_SetUniforms(ArrToSlice(uniforms));
             
             R_DrawMesh(GetMesh(ent->mesh));
@@ -429,7 +434,7 @@ void RenderEditor(Editor* editor, float deltaTime)
         
         R_DepthTest(false);
         R_AlphaBlending(true);
-        R_SetTexture(R_GetFramebufferColorTexture(editor->selectedFramebuffer), 0);
+        R_SetTexture(R_GetFramebufferColorTexture(e->selectedFramebuffer), 0);
         R_Pipeline outline = GetPipelineByPath("CompiledShaders/screenspace_vertex.shader", "CompiledShaders/outline_from_int_texture.shader");
         R_SetPipeline(outline);
         
@@ -447,7 +452,7 @@ void RenderEditor(Editor* editor, float deltaTime)
         // specifically for the overlay stuff, but right now it's probably fine
         R_ClearDepth();
         
-        auto& widgetTable = editor->widgetTable;
+        auto& widgetTable = e->widgetTable;
         for(auto it = widgetTable.begin(); it != widgetTable.end(); ++it)
         {
             Widget* w = &it->second;
@@ -455,7 +460,7 @@ void RenderEditor(Editor* editor, float deltaTime)
             // TODO: Instead of doing this weird screen to world transformation
             // we should just stick to screen coordinates and do the hit detection
             // in that system. Figure out later how to do that
-            float scale = GetScreenspaceToWorldDistance(editor, w->widgetPos);
+            float scale = GetScreenspaceToWorldDistance(e, w->widgetPos);
             const float screenspaceWidth = 2.0f;
             float width = scale * screenspaceWidth;
             const float screenspaceLength = 100.0f;
@@ -507,7 +512,7 @@ void RenderEditor(Editor* editor, float deltaTime)
     }
 }
 
-void ShowMainMenuBar(Editor* ui)
+void ShowMainMenuBar(Editor* e)
 {
     if (ImGui::BeginMainMenuBar())
     {
@@ -531,20 +536,20 @@ void ShowMainMenuBar(Editor* ui)
         
         if(ImGui::BeginMenu("Window"))
         {
-            if(ImGui::MenuItem("Entities", "", ui->entityListWindowOpen, true))
-                ui->entityListWindowOpen ^= true;
-            if(ImGui::MenuItem("Properties", "", ui->propertyWindowOpen, true))
-                ui->propertyWindowOpen ^= true;
-            if(ImGui::MenuItem("Metrics", "", ui->metricsWindowOpen, true))
-                ui->metricsWindowOpen ^= true;
-            if(ImGui::MenuItem("DearImgui Demo", "", ui->demoWindowOpen, true))
-                ui->demoWindowOpen ^= true;
-            if(ImGui::MenuItem("Debugging", "", ui->debugWindowOpen, true))
-                ui->debugWindowOpen ^= true;
-            if(ImGui::MenuItem("Stats", "", ui->statsWindowOpen, true))
-                ui->statsWindowOpen ^= true;
-            if(ImGui::MenuItem("Editor Camera Settings", "", ui->cameraSettingsWindowOpen, true))
-                ui->cameraSettingsWindowOpen ^= true;
+            if(ImGui::MenuItem("Entities", "", e->entityListWindowOpen, true))
+                e->entityListWindowOpen ^= true;
+            if(ImGui::MenuItem("Properties", "", e->propertyWindowOpen, true))
+                e->propertyWindowOpen ^= true;
+            if(ImGui::MenuItem("Metrics", "", e->metricsWindowOpen, true))
+                e->metricsWindowOpen ^= true;
+            if(ImGui::MenuItem("DearImgui Demo", "", e->demoWindowOpen, true))
+                e->demoWindowOpen ^= true;
+            if(ImGui::MenuItem("Debugging", "", e->debugWindowOpen, true))
+                e->debugWindowOpen ^= true;
+            if(ImGui::MenuItem("Stats", "", e->statsWindowOpen, true))
+                e->statsWindowOpen ^= true;
+            if(ImGui::MenuItem("Editor Camera Settings", "", e->cameraSettingsWindowOpen, true))
+                e->cameraSettingsWindowOpen ^= true;
             
             ImGui::EndMenu();
         }
@@ -553,9 +558,11 @@ void ShowMainMenuBar(Editor* ui)
     }
 }
 
-void ShowEntityList(Editor* ui)
+void ShowEntityList(Editor* e)
 {
-    Slice<Slice<Entity*>> childrenPerEntity = GetLiveChildrenPerEntity();
+    EntityManager* man = e->man;
+    
+    Slice<Slice<Entity*>> childrenPerEntity = e->man->liveChildrenPerEntity;
     
     ImGui::Begin("Entities");
     defer { ImGui::End(); };
@@ -579,17 +586,19 @@ void ShowEntityList(Editor* ui)
     
     ImGui::SeparatorText("Entity list");
     
-    for_live_entities(e)
+    for_live_entities(man, ent)
     {
-        if(!GetMount(e))
-            ShowEntityAndChildren(ui, e, childrenPerEntity);
+        if(!GetMount(man, ent))
+            ShowEntityAndChildren(e, ent, childrenPerEntity);
     }
 }
 
 
-void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity)
+void ShowEntityAndChildren(Editor* e, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity)
 {
-    u32 id = GetId(entity);
+    EntityManager* man = e->man;
+    
+    u32 id = GetId(man, entity);
     
     // Show entity tree node
     const char* kindStr = "";
@@ -610,7 +619,7 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
         isLeaf = true;
     }
     
-    int selectionId = GetEntitySelectionId(ui, entity);
+    int selectionId = GetEntitySelectionId(e, entity);
     bool isSelected = selectionId > -1;
     if(isSelected)
         flags |= ImGuiTreeNodeFlags_Selected;
@@ -623,7 +632,7 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
     
     if(ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
     {
-        SelectEntity(ui, entity);
+        SelectEntity(e, entity);
     }
     
     // Drag and drop
@@ -633,9 +642,9 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
         if(payload)
         {
             Entity* draggedFrom = *(Entity**)payload->Data;
-            if(draggedFrom && !IsChild(entity, draggedFrom, childrenPerEntity))
+            if(draggedFrom && !IsChild(man, entity, draggedFrom))
             {
-                MountEntity(draggedFrom, entity);
+                MountEntity(man, draggedFrom, entity);
             }
         }
         
@@ -649,10 +658,10 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
     }
     
     // Right click options
-    if(GetMount(entity) && ImGui::BeginPopupContextWindow())
+    if(GetMount(man, entity) && ImGui::BeginPopupContextWindow())
     {
         if(ImGui::Selectable("Break mount"))
-            MountEntity(entity, nullptr);
+            MountEntity(man, entity, nullptr);
         
         ImGui::EndPopup();
     }
@@ -660,24 +669,24 @@ void ShowEntityAndChildren(Editor* ui, Entity* entity, Slice<Slice<Entity*>> chi
     // Children visualization
     if(nodeOpen)
     {
-        Slice<Entity*> children = childrenPerEntity[GetId(entity)];
+        Slice<Entity*> children = childrenPerEntity[GetId(man, entity)];
         for(int i = 0; i < children.len; ++i)
         {
-            Entity* e = children[i];
-            if(!(e->flags & EntityFlags_Destroyed))
-                ShowEntityAndChildren(ui, e, childrenPerEntity);
+            Entity* ent = children[i];
+            if(!(ent->flags & EntityFlags_Destroyed))
+                ShowEntityAndChildren(e, ent, childrenPerEntity);
         }
         
         ImGui::TreePop();
     }
 }
 
-void UpdateEditorCamera(Editor* editor, float deltaTime)
+void UpdateEditorCamera(Editor* e, float deltaTime)
 {
     Input input = GetInput();
     
-    Vec3& pos = editor->camPos;
-    Quat& rot = editor->camRot;
+    Vec3& pos = e->camPos;
+    Quat& rot = e->camRot;
     
     // Camera rotation
     const float rotateXSpeed = Deg2Rad(120);
@@ -737,36 +746,38 @@ void UpdateEditorCamera(Editor* editor, float deltaTime)
     pos += curVel * deltaTime;
 }
 
-int GetEntitySelectionId(Editor* ui, Entity* entity)
+int GetEntitySelectionId(Editor* e, Entity* entity)
 {
-    for(int i = 0; i < ui->selected.len; ++i)
+    for(int i = 0; i < e->selected.len; ++i)
     {
-        if(GetEntity(ui->selected[i]) == entity)
+        if(GetEntity(e->man, e->selected[i]) == entity)
             return i;
     }
     
     return -1;
 }
 
-void SelectEntity(Editor* ui, Entity* entity)
+void SelectEntity(Editor* e, Entity* entity)
 {
+    EntityManager* man = e->man;
+    
     Input input = GetInput();
     bool holdingCtrl = input.unfilteredKeys[Keycode_Ctrl];
     if(!holdingCtrl)
-        Free(&ui->selected);
+        Free(&e->selected);
     
-    int selectionId = GetEntitySelectionId(ui, entity);
+    int selectionId = GetEntitySelectionId(e, entity);
     bool isSelected = selectionId > -1;
     if(holdingCtrl && isSelected)
     {
-        ui->selected[selectionId] = ui->selected[ui->selected.len - 1];
-        Pop(&ui->selected);
+        e->selected[selectionId] = e->selected[e->selected.len - 1];
+        Pop(&e->selected);
     }
     else
-        Append(&ui->selected, GetKey(entity));
+        Append(&e->selected, GetKey(man, entity));
 }
 
-// TODO: @tmp This is temporary, it's largely from the dear imgui demo debug window
+// TODO: @tmp This is temporary, it's largely from the dear imge demo debug window
 
 // Portable helpers
 static int Stricmp(const char* s1, const char* s2)
@@ -962,7 +973,7 @@ int TextEditCallback(ImGuiInputTextCallbackData* data)
     return 0;
 }
 
-void ShowConsole(Editor* ui)
+void ShowConsole(Editor* e)
 {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
     if (!ImGui::Begin("Console", nullptr, flags))
@@ -1074,7 +1085,7 @@ void ShowConsole(Editor* ui)
     ImGuiInputTextFlags input_text_flags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_EscapeClearsAll | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory;
     
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-    if(ui->focusOnConsole) ImGui::SetKeyboardFocusHere(0);
+    if(e->focusOnConsole) ImGui::SetKeyboardFocusHere(0);
     if(ImGui::InputText("##ConsoleInput", console.inputBuf, IM_ARRAYSIZE(console.inputBuf), input_text_flags, &TextEditCallback, nullptr))
     {
         char* s = console.inputBuf;
@@ -1097,12 +1108,14 @@ void ShowConsole(Editor* ui)
     ImGui::End();
 }
 
-void ShowEntityControl(Editor* editor, Entity* entity)
+void ShowEntityControl(Editor* e, Entity* entity)
 {
-    ImGui::PushID(GetId(entity));
+    EntityManager* man = e->man;
+    
+    ImGui::PushID(GetId(man, entity));
     
     // Show base entity
-    ShowStructControl(metaEntity, editor, entity);
+    ShowStructControl(metaEntity, e, entity);
     
     if(entity->derivedKind != Entity_None)
     {
@@ -1117,7 +1130,7 @@ void ShowEntityControl(Editor* editor, Entity* entity)
             case Entity_PointLight: metaStruct = metaPointLight; break;
         }
         
-        ShowStructControl(metaStruct, editor, GetDerivedAddr(entity));
+        ShowStructControl(metaStruct, e, GetDerivedAddr(man, entity));
     }
     
     // Control the asset paths for mesh and material
@@ -1127,7 +1140,7 @@ void ShowEntityControl(Editor* editor, Entity* entity)
     ImGui::PopID();
 }
 
-void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address)
+void ShowStructControl(MetaStruct metaStruct, Editor* e, void* address)
 {
     ImGui::SeparatorText(metaStruct.cName);
     Slice<MemberDefinition> members = metaStruct.members;
@@ -1171,7 +1184,7 @@ void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address)
             }
             case Meta_Quat:
             {
-                ShowQuatControl(member.cNiceName, editor, (Quat*)memberPtr, 150.0f, 0.5f);
+                ShowQuatControl(member.cNiceName, e, (Quat*)memberPtr, 150.0f, 0.5f);
                 break;
             }
             case Meta_String:
@@ -1180,7 +1193,7 @@ void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address)
                 ImGui::Text("%s: %.*s", member.cNiceName, StrPrintf(str));
                 break;
             }
-            Meta_RecursiveCases(ShowStructControl, editor, memberPtr);
+            Meta_RecursiveCases(ShowStructControl, e, memberPtr);
         }
         
         ImGui::PopID();
@@ -1254,7 +1267,7 @@ void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float se
     ImGui::Columns(1);
 }
 
-void ShowQuatControl(const char* strId, Editor* editor, Quat* value, float columnWidth, float sensitivity)
+void ShowQuatControl(const char* strId, Editor* e, Quat* value, float columnWidth, float sensitivity)
 {
     // NOTE: As far as i know there's no way to convert to quaternion
     // and then back in a consistent way, so the euler representation
@@ -1273,8 +1286,8 @@ void ShowQuatControl(const char* strId, Editor* editor, Quat* value, float colum
         if(*v == -0.0f) *v = 0.0f;
     }
     
-    AddWidgetIfNotPresent(editor, id, widget);
-    auto& widgetTable = editor->widgetTable;
+    AddWidgetIfNotPresent(e, id, widget);
+    auto& widgetTable = e->widgetTable;
     if(!widgetTable.contains(id))
     {
         Widget widget = {0};
@@ -1291,9 +1304,9 @@ void ShowQuatControl(const char* strId, Editor* editor, Quat* value, float colum
     *value = EulerRadToQuat(eulerRad);
 }
 
-void RemoveUnusedWidgets(Editor* editor)
+void RemoveUnusedWidgets(Editor* e)
 {
-    auto& widgetTable = editor->widgetTable;
+    auto& widgetTable = e->widgetTable;
     for(auto it = widgetTable.begin(); it != widgetTable.end();)
     {
         bool removeThis = false;
@@ -1310,10 +1323,10 @@ void RemoveUnusedWidgets(Editor* editor)
     ++Widget::frameCounter;
 }
 
-bool AddWidgetIfNotPresent(Editor* editor, ImGuiID id, Widget initialState)
+bool AddWidgetIfNotPresent(Editor* e, ImGuiID id, Widget initialState)
 {
     bool res = true;
-    auto& widgetTable = editor->widgetTable;
+    auto& widgetTable = e->widgetTable;
     if(!widgetTable.contains(id))
     {
         res = false;
@@ -1357,12 +1370,12 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     R_DrawQuad(q4, q3, q2, q1);
 }
 
-bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
+bool TranslationGizmo(const char* strId, Editor* e, Vec3* pos)
 {
     ImGuiID id = ImGui::GetID(strId);
     Widget initial = {0};
-    AddWidgetIfNotPresent(editor, id, initial);
-    Widget& widget = editor->widgetTable[id];
+    AddWidgetIfNotPresent(e, id, initial);
+    Widget& widget = e->widgetTable[id];
     widget.renderMode = WidgetRender_Translate;
     widget.widgetPos  = *pos;
     
@@ -1373,17 +1386,17 @@ bool TranslationGizmo(const char* strId, Editor* editor, Vec3* pos)
     bool interactingZ = false;
     
     // Draw a quad, scaled to be the same size even when further away
-    float fov = Deg2Rad(editor->camParams.fov);
-    Vec3 diff = *pos - editor->camPos;
+    float fov = Deg2Rad(e->camParams.fov);
+    Vec3 diff = *pos - e->camPos;
     // Get forward distance only
-    float dist = dot(diff, editor->camRot * Vec3::forward);
+    float dist = dot(diff, e->camRot * Vec3::forward);
     float screenHeightAtDistance = 2.0f * dist * tan(fov / 2.0f);
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     float pixelsPerUnit = height / screenHeightAtDistance;
     float scale = 125.0f / pixelsPerUnit;
     
-    Ray cameraRay = CameraRay((int)input.mouseX, (int)input.mouseY, editor->camPos, editor->camRot, editor->camParams.fov);
+    Ray cameraRay = CameraRay((int)input.mouseX, (int)input.mouseY, e->camPos, e->camRot, e->camParams.fov);
     
     Vec4 red    = {1, 0, 0, 1};
     Vec4 green  = {0, 1, 0, 1};
@@ -1520,15 +1533,15 @@ Vec3 ProjectToLine(Ray cameraRay, Vec3 pos, Vec3 dir, bool* outSuccess)
     return projected;
 }
 
-float GetScreenspaceToWorldDistance(Editor* editor, Vec3 pos)
+float GetScreenspaceToWorldDistance(Editor* e, Vec3 pos)
 {
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     
-    float fov = Deg2Rad(editor->camParams.fov);
-    Vec3 diff = pos - editor->camPos;
+    float fov = Deg2Rad(e->camParams.fov);
+    Vec3 diff = pos - e->camPos;
     // Get forward distance only
-    float dist = dot(diff, editor->camRot * Vec3::forward);
+    float dist = dot(diff, e->camRot * Vec3::forward);
     float screenHeightAtDistance = 2.0f * dist * tan(fov / 2.0f);
     
     float pixelsPerUnit = height / screenHeightAtDistance;

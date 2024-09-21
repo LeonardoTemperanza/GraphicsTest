@@ -126,6 +126,7 @@ void OS_ShowWindow();
 void OS_GetWindowSize(int* width, int* height);
 void OS_GetClientAreaSize(int* width, int* height);
 void OS_SwapBuffers();
+bool OS_NeedThisFrameBeforeNextIteration();
 // Return value = false means to quit the application,
 // true means the opposite 
 bool OS_HandleWindowEvents();

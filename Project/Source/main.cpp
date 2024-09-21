@@ -35,11 +35,11 @@ int main()
     S_Init();
     defer { S_Cleanup(); };
     
-    Entities* entities = InitEntities();
-    defer { FreeEntities(entities); };
+    EntityManager entManager = InitEntityManager();
+    defer { FreeEntities(&entManager); };
     
     OS_InitDearImgui();
-    Editor editor = InitEditor();
+    Editor editor = InitEditor(&entManager);
     
     OS_ShowWindow();
     
@@ -49,6 +49,7 @@ int main()
     u64 endTicks    = 0;
     
     bool firstIter = true;
+    bool frameInFlight = false;
     while(bool proceed = OS_HandleWindowEvents())
     {
         // In the first iteration, we simply want to render
@@ -58,14 +59,26 @@ int main()
             endTicks = OS_GetTicks();
             deltaTime = min(maxDeltaTime, (float)OS_GetElapsedSeconds(startTicks, endTicks));
             startTicks = OS_GetTicks();
-            
-            OS_SwapBuffers();
+            MainUpdate(&entManager, &editor, deltaTime, &permArena, &frameArena);
         }
         
-        MainUpdate(entities, &editor, deltaTime, &permArena, &frameArena);
+        
+        // If the previous frame hasn't been fully rendered at this point,
+        // then we stall the CPU until it is.
+        if(frameInFlight) OS_SwapBuffers();
+        
+        MainRender(&entManager, &editor, deltaTime, &permArena, &frameArena);
         
         ArenaFreeAll(&frameArena);
         firstIter = false;
+        
+        if(OS_NeedThisFrameBeforeNextIteration())
+        {
+            OS_SwapBuffers();
+            frameInFlight = false;
+        }
+        else
+            frameInFlight = true;
     }
     
     return 0;

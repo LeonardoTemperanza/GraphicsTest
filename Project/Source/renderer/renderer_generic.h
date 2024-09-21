@@ -5,7 +5,6 @@
 #include "serialization.h"
 
 struct Texture;
-struct Entities;
 enum ShaderKind;
 enum UniformType;
 

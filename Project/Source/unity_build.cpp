@@ -10,6 +10,10 @@
 
 #include "include/glad.c"
 
+// Generated code
+#include "generated/introspection.cpp"
+
+// Main Project
 #include "os/os_generic.cpp"
 
 #define STB_IMAGE_IMPLEMENTATION

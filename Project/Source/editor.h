@@ -6,7 +6,7 @@
 #include "core.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui/imgui.h"
-#include "generated_meta.h"
+#include "generated/introspection.h"
 #include "collision.h"
 
 // TODO: @tmp Use something else later
@@ -21,6 +21,8 @@ struct QueryElement
 struct Widget;
 struct Editor
 {
+    EntityManager* man;
+    
     // Open windows
     bool entityListWindowOpen;
     bool propertyWindowOpen;
@@ -70,7 +72,7 @@ struct Console
     bool               scrollToBottom;
 };
 
-Editor InitEditor();
+Editor InitEditor(EntityManager* man);
 void UpdateEditor(Editor* editor, float deltaTime);
 void RenderEditor(Editor* editor, float deltaTime);
 void ShowMainMenuBar(Editor* editor);

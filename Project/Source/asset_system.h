@@ -3,6 +3,7 @@
 
 #include "base.h"
 
+#include "renderer/renderer_generic.h"
 #include "serialization.h"
 #include "metaprogram_custom_keywords.h"
 
@@ -78,7 +79,7 @@ R_Texture GetTextureByPath(String path);
 R_Shader  GetShaderByPath(String path, ShaderKind kind);
 // NOTE: _top, _bottom, _left, _right, _front and _back is added (before the extension)
 // to load each individual texture
-R_Cubemap GetCubemapByPath(String path);
+R_Cubemap  GetCubemapByPath(String path);
 R_Pipeline GetPipelineByPath(String vert, String pixel);
 Material   GetMaterialByPath(String path);
 
