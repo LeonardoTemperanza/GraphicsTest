@@ -399,10 +399,13 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio
 // Length strings utils
 
 // This is like a "string view" of sorts. It doesn't actually
-// handle allocating the memory and all that.
+// handle allocating the memory and all that. It's pretty much
+// a read-only slice of chars.
 struct String
 {
     const char* ptr;
+    // This struct will be 16 bytes anyway (padding), so might as well use them.
+    // It's signed because we don't really need the 64th bit, and it's better to prevent underflows
     int64_t len;
     
 #ifdef BoundsChecking
@@ -416,6 +419,7 @@ struct String
 
 bool StringBeginsWith(String s, char* beginsWith);
 bool StringBeginsWith(String s, String beginsWith);
+String RemoveLeadingAndTrailingSpaces(String s);
 b32 operator ==(String s1, String s2);
 b32 operator !=(String s1, String s2);
 b32 operator ==(String s1, const char* s2);
@@ -697,6 +701,34 @@ bool B_SetCurrentDirectory(const char* path);
 bool SetCurrentDirectoryRelativeToExe(const char* path);
 char* B_GetCurrentDirectory(Arena* dst);
 String GetFullPath(const char* path, Arena* dst);
+
+////
+// Simple Text file handling
+struct TextFileHandler
+{
+    String file;
+    char* at;
+    bool ok;
+    int lineNum;
+};
+
+struct TextLine
+{
+    int num;
+    String text;
+    bool ok;
+};
+
+struct TwoStrings
+{
+    String a;
+    String b;
+};
+
+TextFileHandler LoadTextFile(String path, Arena* dst);
+TextLine ConsumeNextLine(TextFileHandler* handler);
+TwoStrings BreakByChar(TextLine line, char c);
+void ParseValue(String* string);
 
 ////
 // Miscellaneous

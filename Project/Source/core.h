@@ -133,8 +133,8 @@ struct Editor;
 
 EntityManager InitEntityManager();
 void FreeEntities(EntityManager* man);
-void MainUpdate(EntityManager* man, Editor* ui, float deltaTime, Arena* permArena, Arena* frameArena);
-void MainRender(EntityManager* man, Editor* ui, float deltaTime, Arena* permArena, Arena* frameArena);
+void MainUpdate(EntityManager* man, Editor* ui, float deltaTime, Arena* frameArena);
+void MainRender(EntityManager* man, Editor* ui, float deltaTime, Arena* frameArena);
 void UpdateEntities(EntityManager* man, float deltaTime);
 
 // Entity manipulation.

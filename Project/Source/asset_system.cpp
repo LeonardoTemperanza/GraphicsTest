@@ -34,8 +34,8 @@ AssetKey MakeNullAssetKey()
 {
     AssetKey key = {};
     return key;
-    
 }
+
 void FreeAssetKey(AssetKey* key)
 {
     Free(&key->path);
@@ -172,165 +172,75 @@ R_Shader LoadShader(String path, ShaderKind kind, bool* outSuccess)
 
 Material LoadMaterial(String path, bool* outSuccess)
 {
-    if(path.len == 0) return DefaultMaterial();
+    if(path.len <= 0) return DefaultMaterial();
     
     ScratchArena scratch;
     
-    bool success = true;
-    char* contents = LoadEntireFileAndNullTerminate(path, scratch, &success);
-    if(!success)
+    Material mat = DefaultMaterial();
+    
+    TextFileHandler handler = LoadTextFile(path, scratch);
+    if(!handler.ok)
     {
-        Log("Failed to load file '%s'\n", path);
+        Log("Could not load material '%.*s'", StrPrintf(path));
         *outSuccess = false;
         return DefaultMaterial();
     }
     
-    Material mat = DefaultMaterial();
-    
-    // Parse file contents
+    while(true)
     {
-        Slice<Token> tokens = GetTokens(contents, scratch);
+        auto line = ConsumeNextLine(&handler);
+        if(!line.ok) break;
         
-        Parser parser = {0};
-        parser.path = path;
-        parser.at = &tokens[0];
-        Parser* p = &parser;
-        
-        Log("Parsing material file");
-        
-        while(p->at->kind != Tok_EndOfStream)
+        if(line.text == ":/material")
         {
-            EatRequiredToken(p, Tok_Colon);
-            EatRequiredToken(p, Tok_Slash);
-            if(p->at->kind == Tok_Ident)
+            while(true)
             {
-                String text = p->at->text;
-                ++p->at;
+                auto matLine = GetNextLine(&handler);
+                if(!matLine.ok) break;
                 
-                if(text == "material")
+                auto strings = BreakByChar(matLine, ':');
+                if(strings.a == "vertex_shader")
                 {
-                    while(p->at->kind == Tok_Ident)
-                    {
-                        String text = p->at->text;
-                        if(text == "vertex_shader")
-                        {
-                            ++p->at;
-                            EatRequiredToken(p, Tok_Colon);
-                            
-                            if(p->at->kind == Tok_String)
-                            {
-                                String text = p->at->text;
-                                ++p->at;
-                                
-                                // TODO: Use permanent arena instead
-                                char* path = (char*)calloc(text.len + 1, 1);
-                                memcpy(path, text.ptr, text.len);
-                                path[text.len + 1] = '\0';
-                                
-                                mat.vertShaderPath = path;
-                            }
-                            else
-                                ParseError(p, p->at, "Expected string after ':'");
-                        }
-                        else if(text == "pixel_shader")
-                        {
-                            ++p->at;
-                            EatRequiredToken(p, Tok_Colon);
-                            
-                            if(p->at->kind == Tok_String)
-                            {
-                                String text = p->at->text;
-                                ++p->at;
-                                
-                                // TODO: Use permanent arena instead
-                                char* path = (char*)calloc(text.len + 1, 1);
-                                memcpy(path, text.ptr, text.len);
-                                path[text.len + 1] = '\0';
-                                
-                                mat.pixelShaderPath = path;
-                            }
-                            else
-                                ParseError(p, p->at, "Expected identifier after ':'");
-                        }
-                        else
-                            ParseError(p, p->at, "Unidentified material param");
-                    }
+                    // @leak
+                    const char* path = ArenaPushNullTermString(&permArena, strings.b);
+                    mat.vertShaderPath = path;
+                    ConsumeNextLine(&handler);
                 }
-                else if(text == "textures")
+                else if(strings.a == "pixel_shader")
                 {
-                    while(p->at->kind == Tok_String)
-                    {
-                        String text = p->at->text;
-                        ++p->at;
-                        
-                        // TODO: Use permanent arena instead
-                        char* path = (char*)calloc(text.len, 1);
-                        memcpy(path, text.ptr, text.len);
-                        
-                        String pathStr = {path, text.len};
-                        Append(&mat.textures, pathStr);
-                    }
-                }
-                else if(text == "uniforms")
-                {
-                    while(true)
-                    {
-                        if(p->at->kind == Tok_OpenBrace)
-                        {
-                            ++p->at;
-                            
-                            float values[4] = {};
-                            int pointer = 0;
-                            for(int i = 0; i < 4; ++i)  // Expecting a maximum of 4 values
-                            {
-                                if(p->at->kind == Tok_FloatNum)
-                                {
-                                    values[pointer++] = p->at->floatVal;
-                                    ++p->at;
-                                    
-                                    if(p->at->kind == Tok_CloseBrace)
-                                    {
-                                        ++p->at;
-                                        break;
-                                    }
-                                    else
-                                        EatRequiredToken(p, Tok_Comma);
-                                }
-                                else
-                                    ParseError(p, p->at, "Expecting a floating point value inside a { ... } (vector)");
-                            }
-                            
-                            // Add it to the list of uniforms
-                            int vecSize = pointer;
-                            switch(vecSize)
-                            {
-                                case 0: ParseError(p, p->at, "Vector needs to have at least three elements"); break;
-                                case 1: ParseError(p, p->at, "Vector needs to have at least three elements"); break;
-                                case 2: ParseError(p, p->at, "Vector needs to have at least three elements"); break;
-                                case 3: Append(&mat.uniforms, MakeUniformVec3({values[0], values[1], values[2]})); break;
-                                case 4: Append(&mat.uniforms, MakeUniformVec4({values[0], values[1], values[2], values[3]})); break;
-                            }
-                            
-                            EatRequiredToken(p, Tok_CloseBrace);
-                        }
-                        else if(p->at->kind == Tok_FloatNum)
-                        {
-                            float value = p->at->floatVal;
-                            Append(&mat.uniforms, MakeUniformFloat(value));
-                        }
-                        else if(p->at->kind == Tok_IntNum)
-                        {
-                            int value = p->at->intVal;
-                            Append(&mat.uniforms, MakeUniformInt(value));
-                        }
-                        else break;
-                    }
+                    // @leak
+                    const char* path = ArenaPushNullTermString(&permArena, strings.b);
+                    mat.pixelShaderPath = path;
+                    ConsumeNextLine(&handler);
                 }
                 else
-                    ParseError(p, p->at, "Unknown section name. This needs to be 'material' , 'textures' or 'uniforms'");
+                {
+                    break;
+                }
             }
-            else
-                ParseError(p, p->at, "Expected an identifier.");
+        }
+        else if(line.text == ":/textures")
+        {
+            while(true)
+            {
+                auto texLine = GetNextLine(&handler);
+                if(!texLine.ok) break;
+                if(StringBeginsWith(texLine.text, ":/")) break;
+                
+                ConsumeNextLine(&handler);
+                // @leak
+                String path = ArenaPushString(&permArena, texLine.text);
+                Append(&mat.textures, path);
+            }
+        }
+        else if(line.text == ":/uniforms")
+        {
+            // TODO
+        }
+        else
+        {
+            Log("Error in material '%.*s' (line %d): expecting ':/material', ':/textures', or ':/uniforms'", StrPrintf(path), line.num);
+            break;
         }
     }
     
@@ -651,183 +561,4 @@ void UseMaterial(AssetKey material)
         R_Texture texture = GetTextureByPath(mat.textures[i]);
         R_SetTexture(texture, i);
     }
-}
-
-// Dealing with text files
-Token GetNextToken(Tokenizer* t)
-{
-    EatAllWhitespace(t);
-    
-    Token token = {0};
-    token.kind = Tok_EndOfStream;
-    token.lineNum = t->lineNum;
-    token.startPos = (int)(t->at - t->lineStart);
-    token.text = {.ptr=t->at, .len=1};
-    
-    switch(*t->at)
-    {
-        case '\0': token.kind = Tok_EndOfStream;  ++t->at; break;
-        case '(':  token.kind = Tok_OpenParen;    ++t->at; break;
-        case ')':  token.kind = Tok_CloseParen;   ++t->at; break;
-        case '[':  token.kind = Tok_OpenBracket;  ++t->at; break;
-        case ']':  token.kind = Tok_CloseBracket; ++t->at; break;
-        case '{':  token.kind = Tok_OpenBrace;    ++t->at; break;
-        case '}':  token.kind = Tok_CloseBrace;   ++t->at; break;
-        case ':':  token.kind = Tok_Colon;        ++t->at; break;
-        case ';':  token.kind = Tok_Semicolon;    ++t->at; break;
-        case ',':  token.kind = Tok_Comma;        ++t->at; break;
-        case '*':  token.kind = Tok_Asterisk;     ++t->at; break;
-        case '/':  token.kind = Tok_Slash;        ++t->at; break;
-        
-        case '"':
-        {
-            token.kind = Tok_String;
-            
-            ++t->at;
-            token.text.ptr = t->at;
-            while(t->at[0] != '\0' && t->at[0] != '"')
-            {
-                if(t->at[0] == '\\' && t->at[1] != '\0')
-                    ++t->at;
-                
-                ++t->at;
-            }
-            
-            token.text.len = t->at - token.text.ptr;
-            
-            if(t->at[0] == '"')
-                ++t->at;
-            break;
-        }
-        
-        default:
-        {
-            if(IsAlpha(t->at[0]))
-            {
-                token.kind = Tok_Ident;
-                
-                while(IsAlpha(t->at[0]) || IsNumber(t->at[0]) || t->at[0] == '_')
-                    ++t->at;
-                
-                token.text.len = t->at - token.text.ptr;
-            }
-            else if(IsNumber(t->at[0]))
-            {
-                bool isFloat = false;
-                char* decimalPos = t->at;
-                while(IsNumber(*decimalPos)) ++decimalPos;
-                if(*decimalPos == '.') isFloat = true;
-                
-                if(isFloat)
-                {
-                    token.kind = Tok_FloatNum;
-                    
-                    char* end = t->at;
-                    float num = strtof(t->at, &end);
-                    
-                    token.floatVal = num;
-                    token.text.len = end - t->at;
-                    t->at = end;
-                }
-                else
-                {
-                    token.kind = Tok_IntNum;
-                    
-                    char* end = t->at;
-                    
-                    int num = strtol(t->at, &end, 10);
-                    token.intVal = num;
-                    token.text.len = end - t->at;
-                    t->at = end;
-                }
-            }
-            else
-            {
-                token.kind = Tok_Unknown;
-                ++t->at;
-            }
-            
-            break;
-        }
-    }
-    
-    return token;
-}
-
-Slice<Token> GetTokens(char* contents, Arena* dst)
-{
-    Tokenizer tokenizer = {0};
-    tokenizer.start = contents;
-    tokenizer.at = contents;
-    
-    Array<Token> tokens = {0};
-    UseArena(&tokens, dst);
-    Token token;
-    do
-    {
-        token = GetNextToken(&tokenizer);
-        Append(&tokens, token);
-    }
-    while(token.kind != Tok_EndOfStream);
-    
-    return ToSlice(&tokens);
-}
-
-void EatAllWhitespace(Tokenizer* t)
-{
-    while(true)
-    {
-        if(*t->at == '\n')
-        {
-            ++t->lineNum;
-            t->lineStart = t->at;
-            ++t->at;
-        }
-        else if(*t->at == '#')  // Single line comment
-        {
-            while(*t->at != '\n' && *t->at != 0) ++t->at;
-            
-            if(*t->at == '\n')
-            {
-                ++t->lineNum;
-                t->lineStart = t->at;
-                ++t->at;
-            }
-        }
-        else if(IsWhitespace(*t->at))
-            ++t->at;
-        else
-            break;
-    }
-}
-
-bool IsWhitespace(char c)
-{
-    return c == '\t' || c == ' ' || c == '\n' || c == '\r';
-}
-
-bool IsAlpha(char c)
-{
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-}
-
-bool IsNumber(char c)
-{
-    return c >= '0' && c <= '9';
-}
-
-void ParseError(Parser* p, Token* token, const char* message)
-{
-    static Token nullToken = {.kind=Tok_EndOfStream, .text=StrLit(""), .lineNum=0, .startPos=0};
-    Log("%.*s(%d): parsing error: %s\n", (int)p->path.len, p->path.ptr, token->lineNum, message);
-    p->at = &nullToken;
-    p->foundError = true;
-}
-
-void EatRequiredToken(Parser* p, TokenKind kind)
-{
-    if(p->at->kind == kind)
-        ++p->at;
-    else
-        ParseError(p, p->at, "Unexpected token");
 }

@@ -11,6 +11,7 @@ void SetWorkingDirRelativeToExe(const char* path);
 int main()
 {
     InitScratchArenas();
+    InitPermArena();
     
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
@@ -26,7 +27,6 @@ int main()
         ImGui::DestroyContext();
     };
     
-    Arena permArena = ArenaVirtualMemInit(GB(4), MB(2));
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     R_Init();
@@ -59,15 +59,15 @@ int main()
             endTicks = OS_GetTicks();
             deltaTime = min(maxDeltaTime, (float)OS_GetElapsedSeconds(startTicks, endTicks));
             startTicks = OS_GetTicks();
-            MainUpdate(&entManager, &editor, deltaTime, &permArena, &frameArena);
         }
         
+        MainUpdate(&entManager, &editor, deltaTime, &frameArena);
         
         // If the previous frame hasn't been fully rendered at this point,
         // then we stall the CPU until it is.
         if(frameInFlight) OS_SwapBuffers();
         
-        MainRender(&entManager, &editor, deltaTime, &permArena, &frameArena);
+        MainRender(&entManager, &editor, deltaTime, &frameArena);
         
         ArenaFreeAll(&frameArena);
         firstIter = false;

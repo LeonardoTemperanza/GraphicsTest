@@ -902,16 +902,49 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float horizontalDegFov, floa
 
 ////
 // String utils
-bool StringBeginsWith(String s, char* beginsWith)
+bool StringBeginsWith(String s, const char* beginsWith)
 {
-    TODO;
+    int i;
+    for(i = 0; beginsWith[i] != '\0' && i < s.len; ++i)
+    {
+        if(s[i] != beginsWith[i])
+            return false;
+    }
+    
+    if(beginsWith[i] != '\0') return false;
+    
     return true;
 }
 
 bool StringBeginsWith(String s, String beginsWith)
 {
-    TODO;
+    if(s.len != beginsWith.len) return false;
+    
+    for(int i = 0; i < s.len; ++i)
+    {
+        if(s[i] != beginsWith[i])
+            return false;
+    }
+    
     return true;
+}
+
+String RemoveLeadingAndTrailingSpaces(String s)
+{
+    int start = 0;
+    while(start < s.len && (s[start] == ' ' || s[start] == '\t' || s[start] == '\r'))
+        ++start;
+    
+    int end = (int)s.len - 1;
+    while(end > 0 && (s[end] == ' ' || s[end] == '\t' || s[end] == '\r'))
+        --end;
+    
+    if(end - start <= 0) return {0};
+    
+    String res = {};
+    res.ptr = s.ptr + start;
+    res.len = end - start + 1;
+    return res;
 }
 
 b32 operator ==(String s1, String s2)
@@ -1489,12 +1522,21 @@ void ArenaTempEnd(ArenaTemp tmp)
 // NOTE: Remember to keep all scratch arenas initialized at
 // the start of the program.
 #define NumScratchArenas 4
-static thread_local Arena scratchArenas[NumScratchArenas] = { };
+static thread_local Arena scratchArenas[NumScratchArenas] = {};
 
 void InitScratchArenas()
 {
     for(int i = 0; i < NumScratchArenas; ++i)
         scratchArenas[i] = ArenaVirtualMemInit(GB(4), MB(2));
+}
+
+// NOTE: Remember to keep the permanent arena initialized at
+// the start of the program.
+static Arena permArena = {};
+
+void InitPermArena()
+{
+    permArena = ArenaVirtualMemInit(GB(4), MB(2));
 }
 
 // Some procedures might accept arenas as arguments,
@@ -1816,6 +1858,117 @@ String GetFullPath(const char* path, Arena* dst)
     Append(&builder, "/");
     Append(&builder, path);
     return ToString(&builder);
+}
+
+TextFileHandler LoadTextFile(String path, Arena* dst)
+{
+    TextFileHandler handler = {};
+    handler.file.ptr = LoadEntireFileAndNullTerminate(path, dst, &handler.ok);
+    handler.file.len = strlen(handler.file.ptr);
+    if(!handler.ok) return handler;
+    
+    handler.at = (char*)handler.file.ptr;
+    return handler;
+}
+
+TextLine ConsumeNextLine(TextFileHandler* handler)
+{
+    TextLine line = {};
+    
+    // Eat all whitespace
+    while(true)
+    {
+        if(handler->at[0] == '\n')
+        {
+            ++handler->at;
+            ++handler->lineNum;
+        }
+        else if(handler->at[0] == ' ' || handler->at[0] == '\t' || handler->at[0] == '\r')
+        {
+            ++handler->at;
+        }
+        else if(handler->at[0] == '#')
+        {
+            ++handler->at;  // Eat '#'
+            
+            while(handler->at[0] != '\0' && handler->at[0] != '\n')
+                ++handler->at;
+            
+            if(handler->at[0] == '\0')
+            {
+                line.ok = false;
+                return line;
+            }
+            else  // Currently at a newline
+            {
+                ++handler->at;
+                ++handler->lineNum;
+            }
+        }
+        else
+            break;
+    }
+    
+    line.text.ptr = handler->at;
+    
+    // Reached end before actually getting to the next line
+    if(handler->at[0] == '\0')
+    {
+        line.ok = false;
+        return line;
+    }
+    
+    while(handler->at[0] != '\0' && handler->at[0] != '\n')
+    {
+        ++handler->at;
+        ++line.text.len;
+    }
+    
+    line.text = RemoveLeadingAndTrailingSpaces(line.text);
+    line.ok = true;
+    return line;
+}
+
+TextLine GetNextLine(TextFileHandler* handler)
+{
+    // @cleanup We repeat the same work a second time
+    // If we call GetNextLine and then ConsumeNextLine
+    TextFileHandler prevState = *handler;
+    auto res = ConsumeNextLine(handler);
+    *handler = prevState;
+    return res;
+}
+
+TwoStrings BreakByChar(TextLine line, char c)
+{
+    TwoStrings strings = {};
+    if(!line.ok) return strings;
+    
+    int firstOccurrence = -1;
+    for(int i = 0; i < line.text.len; ++i)
+    {
+        if(line.text[i] == c)
+        {
+            firstOccurrence = i;
+            break;
+        }
+    }
+    
+    if(firstOccurrence == -1)
+    {
+        strings.a = line.text;
+        strings.b = {};
+        return strings;
+    }
+    
+    strings.a.ptr = line.text.ptr;
+    strings.a.len = firstOccurrence;
+    strings.b.ptr = strings.a.ptr + strings.a.len + 1;
+    strings.b.len = line.text.len - strings.a.len - 1;
+    
+    strings.a = RemoveLeadingAndTrailingSpaces(strings.a);
+    strings.b = RemoveLeadingAndTrailingSpaces(strings.b);
+    return strings;
 }
 
 #ifdef _WIN32

@@ -100,7 +100,7 @@ void FreeEntities(EntityManager* man)
     static_assert(4 == Entity_Count, "All entity type arrays should be freed");
 }
 
-void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* permArena, Arena* frameArena)
+void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* frameArena)
 {
     bool inEditor = false;
 #ifdef Development
@@ -133,7 +133,7 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* perm
     }
 }
 
-void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* permArena, Arena* frameArena)
+void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* frameArena)
 {
     int width, height;
     OS_GetClientAreaSize(&width, &height);

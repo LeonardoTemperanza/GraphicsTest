@@ -1,8 +1,8 @@
 
 :/material
-vertex_shader: "CompiledShaders/model2proj.shader"
-pixel_shader:  "CompiledShaders/pbr.shader"
+vertex_shader: CompiledShaders/model2proj.shader
+pixel_shader:  CompiledShaders/pbr.shader  
 
 :/textures
-"Raptoid/Raptoid_material1_Diffuse.jpg"
-"Raptoid/Raptoid_material1_Normals.jpg"
+Raptoid/Raptoid_material1_Diffuse.jpg
+Raptoid/Raptoid_material1_Normals.jpg
