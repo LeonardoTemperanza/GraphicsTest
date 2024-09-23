@@ -1273,24 +1273,77 @@ void Free(Array<t>* array)
 template<typename t>
 void Append(StringMap<t>* map, String key, const t& value)
 {
-    map->map[key] = value;
+    if(key.len <= 0) return;
+    return;
+    
+    //TODO
+#if 0
+    int found = -1;
+    for(int i = 0; i < map->cells.len; ++i)
+    {
+        if(key == map->keys[i])
+        {
+            found = i;
+            break;
+        }
+    }
+    
+    if(found == -1)
+    {
+        int oldLen = (int)map->stringStorage.len;
+        Resize(&map->stringStorage, (int)map->stringStorage.len + (int)key.len);
+        String newString = {.ptr=&map->stringStorage[oldLen], .len=key.len};
+        memcpy((void*)newString.ptr, key.ptr, newString.len);
+        Append(&map->keys, newString);
+        Append(&map->values, value);
+    }
+    else
+    {
+        map->values[found] = value;
+    }
+#endif
+}
+
+template<typename t>
+void Append(StringMap<t>* map, const char* key, const t& value)
+{
+    Append(map, ToLenStr(key), value);
 }
 
 template<typename t>
 bool Lookup(StringMap<t>* map, String key, t* outResult)
 {
-    auto res = map->map.find(key);
-    // I guess this means that the key was not found...?
-    if(res == map->map.end()) return false; 
-    
-    *outResult = res->second;
     return true;
+    
+    //TODO
+#if 0
+    int found = -1;
+    for(int i = 0; i < map->keys.len; ++i)
+    {
+        if(key == map->keys[i])
+        {
+            found = i;
+            break;
+        }
+    }
+    
+    if(found == -1) return false;
+    
+    *outResult = map->values[found];
+    return true;
+#endif
 }
 
 template<typename t>
 void Free(StringMap<t>* map)
 {
-    ~map->map;
+    Free(&map->stringStorage);
+    Free(&map->keys);
+    Free(&map->values);
+    
+    ArenaFreeAll(&map->stringArena);
+    // TODO
+    //ArenaReleaseMem(&map->stringArena);
 }
 
 #ifdef _WIN32
@@ -1519,12 +1572,12 @@ char* ArenaPushNullTermString(Arena* arena, String str)
     return ptr;
 }
 
-char* ArenaPushString(Arena* arena, const char* str)
+String ArenaPushString(Arena* arena, const char* str)
 {
     int len = (int)strlen(str);
     char* ptr = (char*)ArenaAlloc(arena, len, 1);
     memcpy(ptr, str, len);
-    return ptr;
+    return {.ptr=ptr, .len=len};
 }
 
 template<typename t>

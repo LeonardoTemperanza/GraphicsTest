@@ -13,6 +13,11 @@ int main()
     InitScratchArenas();
     InitPermArena();
     
+    // TODO: @tmp StringMap testing
+    StringMap<int> map = {};
+    Append(&map, "hello", 3);
+    Append(&map, "world", 5);
+    
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
     

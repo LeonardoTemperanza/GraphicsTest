@@ -481,27 +481,27 @@ R_Texture R_UploadCubemap(String top, String bottom, String left, String right, 
 R_Shader R_MakeDefaultShader(ShaderKind kind)
 {
     String vertShader = StrLit(R""""(
-                                                                                                                                                                                             #version 460 core
-                                                                                                                                                                  void main()
-                                                                                                                                       {
-                                                                                                            gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
-                                                                                 }
-                                                      )"""");
+                                                                                                                                                                                                                        #version 460 core
+                                                                                                                                                                                             void main()
+                                                                                                                                                                  {
+                                                                                                                                       gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
+                                                                                                            }
+                                                                                 )"""");
     
     String pixelShader = StrLit(R""""(
-                                                                                                                                                                                                                                                            #version 460 core
-                                                                                                                                                                                                                                out vec4 fragColor;
-                                                                                                                                                                                                    void main()
-                                                                                                                                                                        {
-                                                                                                                                            fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-                                                                                                                }
-                                                                                    )"""");
+                                                                                                                                                                                                                                                                                        #version 460 core
+                                                                                                                                                                                                                                                            out vec4 fragColor;
+                                                                                                                                                                                                                                void main()
+                                                                                                                                                                                                    {
+                                                                                                                                                                        fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                                                                                                                                            }
+                                                                                                                )"""");
     
     String computeShader = StrLit(R""""(
-                                                                                                                                                                                    #version 460 core
-                                                                                                                                                      layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-                                                                                                                        void main() { }
-                                                                                          )"""");
+                                                                                                                                                                                                                  #version 460 core
+                                                                                                                                                                                    layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+                                                                                                                                                      void main() { }
+                                                                                                                        )"""");
     
     switch(kind)
     {
@@ -575,8 +575,6 @@ R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
             R_MakeDefaultShader(ShaderKind_Pixel)
         };
         
-        Slice<R_Shader> slice = ArrToSlice(defaultShaders);
-        res.shaders = ArenaPushSlice(&sceneArena, slice);
         res.handle = glCreateProgram();
         for(int i = 0; i < ArrayCount(defaultShaders); ++i)
             glAttachShader(res.handle, defaultShaders[i].handle);
@@ -589,8 +587,6 @@ R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
     }
     
     // Successfully created the pipeline
-    
-    res.shaders = ArenaPushSlice(&sceneArena, shaders);
     
     res.globalsUniformBlockIndex = glGetUniformBlockIndex(res.handle, "type_Globals");
     if(res.globalsUniformBlockIndex != -1)

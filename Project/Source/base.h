@@ -530,17 +530,27 @@ struct StringEqual
     }
 };
 
+#define StringMapLoadFactor 0.8f
 template<typename t>
 struct StringMap
 {
-    // @speed Change this implementation maybe, also
-    // not using c++ stdlib would yield better compile times
+    Array<char> stringStorage;
     
-    std::unordered_map<String, t, StringHash, StringEqual> map;
+    struct Cell
+    {
+        bool occupied;
+        String key;
+        t value;
+    };
+    
+    Array<Cell> cells;
+    int numFilled;
 };
 
 template<typename t>
 void Append(StringMap<t>* map, String key, const t& value);
+template<typename t>
+void Append(StringMap<t>* map, const char* key, const t& value);
 template<typename t>
 bool Lookup(StringMap<t>* map, String key, t* outResult);
 template<typename t>
@@ -655,7 +665,7 @@ void* ArenaAllocAndCopy(Arena* arena, void* toCopy,
                         size_t size, size_t align = ArenaDefAlign);
 
 char* ArenaPushNullTermString(Arena* arena, const char* str);
-char* ArenaPushString(Arena* arena, const char* str);
+String ArenaPushString(Arena* arena, const char* str);
 char* ArenaPushNullTermString(Arena* arena, String str);
 String ArenaPushString(Arena* arena, String str);
 template<typename t>
@@ -669,6 +679,11 @@ inline void ArenaFreeAll(Arena* arena)
 {
     arena->offset     = 0;
     arena->prevOffset = 0;
+}
+
+inline void ArenaReleaseMem(Arena* arena)
+{
+    TODO;
 }
 
 ArenaTemp ArenaTempBegin(Arena* arena);

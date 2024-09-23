@@ -36,7 +36,6 @@ struct R_Shader
 
 struct R_Pipeline
 {
-    Slice<R_Shader> shaders;
     GLuint handle;
     
     u32 globalsUniformBlockIndex;

@@ -15,11 +15,11 @@ Material DefaultMaterial()
 }
 
 // Implicit casts
-MeshHandle::operator R_Mesh()         { return assetSystem.meshes[idx];    }
-TextureHandle::operator R_Texture()   { return assetSystem.textures[idx];  }
-ShaderHandle::operator R_Shader()     { return assetSystem.shaders[idx];   }
-PipelineHandle::operator R_Pipeline() { return assetSystem.pipelines[idx]; }
-MaterialHandle::operator Material()   { return assetSystem.materials[idx]; }
+MeshHandle::operator R_Mesh()       { return assetSystem.meshes[idx];    }
+TextureHandle::operator R_Texture() { return assetSystem.textures[idx];  }
+ShaderHandle::operator R_Shader()   { return assetSystem.shaders[idx];   }
+PipelineHandle::operator Pipeline() { return assetSystem.pipelines[idx]; }
+MaterialHandle::operator Material() { return assetSystem.materials[idx]; }
 
 #if 0
 R_Texture LoadTexture(String path, bool* outSuccess)
@@ -103,83 +103,6 @@ R_Shader LoadShader(String path, ShaderKind kind, bool* outSuccess)
     String glsl        = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
     return R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
 }
-
-Material LoadMaterial(String path, bool* outSuccess)
-{
-    if(path.len <= 0) return DefaultMaterial();
-    
-    ScratchArena scratch;
-    
-    Material mat = DefaultMaterial();
-    
-    TextFileHandler handler = LoadTextFile(path, scratch);
-    if(!handler.ok)
-    {
-        Log("Could not load material '%.*s'", StrPrintf(path));
-        *outSuccess = false;
-        return DefaultMaterial();
-    }
-    
-    while(true)
-    {
-        auto line = ConsumeNextLine(&handler);
-        if(!line.ok) break;
-        
-        if(line.text == ":/material")
-        {
-            while(true)
-            {
-                auto matLine = GetNextLine(&handler);
-                if(!matLine.ok) break;
-                
-                auto strings = BreakByChar(matLine, ':');
-                if(strings.a == "vertex_shader")
-                {
-                    // @leak
-                    const char* path = ArenaPushNullTermString(&permArena, strings.b);
-                    mat.vertShaderPath = path;
-                    ConsumeNextLine(&handler);
-                }
-                else if(strings.a == "pixel_shader")
-                {
-                    // @leak
-                    const char* path = ArenaPushNullTermString(&permArena, strings.b);
-                    mat.pixelShaderPath = path;
-                    ConsumeNextLine(&handler);
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
-        else if(line.text == ":/textures")
-        {
-            while(true)
-            {
-                auto texLine = GetNextLine(&handler);
-                if(!texLine.ok) break;
-                if(StringBeginsWith(texLine.text, ":/")) break;
-                
-                ConsumeNextLine(&handler);
-                // @leak
-                String path = ArenaPushString(&permArena, texLine.text);
-                Append(&mat.textures, path);
-            }
-        }
-        else if(line.text == ":/uniforms")
-        {
-            // TODO
-        }
-        else
-        {
-            Log("Error in material '%.*s' (line %d): expecting ':/material', ':/textures', or ':/uniforms'", StrPrintf(path), line.num);
-            break;
-        }
-    }
-    
-    return mat;
-}
 #endif
 
 void InitAssetSystem()
@@ -203,16 +126,17 @@ void ReserveSlotForDefaultAssets()
     
     assert(sys.pipelines.len == 0);
     R_Shader shaders[] = {sys.shaders[0], sys.shaders[1]};
-    R_Pipeline defaultPipeline = R_CreatePipeline(ArrToSlice(shaders));
+    R_Pipeline obj = R_CreatePipeline(ArrToSlice(shaders));
+    Pipeline defaultPipeline = {.vert = 0, .pixel = 1, .obj = obj};
     Append(&sys.pipelines, defaultPipeline);
 }
 
 void UseMaterial(Material mat)
 {
-    R_SetPipeline(mat.pipeline);
+    Pipeline pipeline = mat.pipeline;
+    R_SetPipeline(pipeline.obj);
     R_SetUniforms(ToSlice(&mat.uniforms));
     
-    // TODO: Set textures and samplers
     for(int i = 0; i < mat.textures.len; ++i)
         R_SetTexture(mat.textures[i], i);
 }
@@ -360,36 +284,150 @@ void LoadMesh(const char* path)
 {
     String str = ToLenStr(path);
     Append(&assetSystem.meshes, {});
-    Append(&assetSystem.pathToMesh, str, {(u32)assetSystem.meshes.len - 1});
+    String newStr = ArenaPushString(&sceneArena, path);
+    Append(&assetSystem.pathToMesh, newStr, {(u32)assetSystem.meshes.len - 1});
     LoadMesh(&assetSystem.meshes[assetSystem.meshes.len - 1], str);
 }
 
 MeshHandle GetMeshByPath(const char* path)
 {
+    auto& sys = assetSystem;
+    
     MeshHandle mesh;
-    bool found = Lookup(&assetSystem.pathToMesh, ToLenStr(path), &mesh);
+    bool found = Lookup(&sys.pathToMesh, ToLenStr(path), &mesh);
     if(!found)
     {
-        Append(&assetSystem.meshes, {});
-        mesh.idx = assetSystem.meshes.len - 1;
-        LoadMesh(&assetSystem.meshes[mesh.idx], ToLenStr(path));
+        Append(&sys.meshes, {});
+        mesh.idx = sys.meshes.len - 1;
+        LoadMesh(&sys.meshes[mesh.idx], ToLenStr(path));
+        String newStr = ArenaPushString(&sceneArena, path);
+        Append(&sys.pathToMesh, newStr, mesh);
     }
     
     return mesh;
 }
 
-MaterialHandle GetMaterialByPath(const char* path)
+ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
 {
-    MaterialHandle material;
-    bool found = Lookup(&assetSystem.pathToMaterial, ToLenStr(path), &material);
+    auto& sys = assetSystem;
+    
+    String str = ToLenStr(path);
+    ShaderHandle shader;
+    bool found = Lookup(&sys.pathToShader, str, &shader);
     if(!found)
     {
-        Append(&assetSystem.materials, {});
-        material.idx = assetSystem.materials.len - 1;
-        LoadMaterial(&assetSystem.materials[material.idx], ToLenStr(path));
+        Append(&sys.shaders, {});
+        shader.idx = sys.shaders.len - 1;
+        LoadShader(&sys.shaders[shader.idx], str, kind);
+        String newStr = ArenaPushString(&sceneArena, path);
+        Append(&sys.pathToShader, newStr, shader);
+    }
+    
+    return shader;
+}
+
+MaterialHandle GetMaterialByPath(const char* path)
+{
+    auto& sys = assetSystem;
+    
+    String str = ToLenStr(path);
+    MaterialHandle material;
+    bool found = Lookup(&sys.pathToMaterial, str, &material);
+    if(!found)
+    {
+        Append(&sys.materials, {});
+        material.idx = sys.materials.len - 1;
+        LoadMaterial(&sys.materials[material.idx], str);
+        String newStr = ArenaPushString(&sceneArena, path);
+        Append(&sys.pathToMaterial, newStr, material);
     }
     
     return material;
+}
+
+PipelineHandle GetPipelineByPath(const char* vert, const char* pixel)
+{
+    ShaderHandle vertHandle  = GetShaderByPath(vert, ShaderKind_Vertex);
+    ShaderHandle pixelHandle = GetShaderByPath(pixel, ShaderKind_Pixel);
+    return GetPipelineByHandles(vertHandle, pixelHandle);
+}
+
+PipelineHandle GetPipelineByHandles(ShaderHandle vert, ShaderHandle pixel)
+{
+    auto& sys = assetSystem;
+    
+    // @speed This lookup could maybe be faster. Probably does not matter
+    int found = -1;
+    for(int i = 0; i < sys.pipelines.len; ++i)
+    {
+        auto& pipeline = sys.pipelines[i];
+        if(pipeline.vert.idx == vert.idx && pipeline.pixel.idx == vert.idx)
+        {
+            found = i;
+            break;
+        }
+    }
+    
+    if(found != -1) return {(u32)found};
+    
+    R_Shader shaders[] = {vert, pixel};
+    Pipeline pipeline = {};
+    pipeline.obj = R_CreatePipeline(ArrToSlice(shaders));
+    pipeline.vert  = vert;
+    pipeline.pixel = pixel;
+    
+    Append(&sys.pipelines, pipeline);
+    PipelineHandle res = {};
+    res.idx = sys.pipelines.len - 1;
+    return res;
+}
+
+void LoadShader(R_Shader* shader, String path, ShaderKind kind)
+{
+    ScratchArena scratch;
+    
+    bool success = true;
+    String contents = LoadEntireFile(path, scratch, &success);
+    if(!success)
+    {
+        Log("Failed to load file '%s'\n", path);
+        *shader = R_MakeDefaultShader(kind);
+        return;
+    }
+    
+    char** cursor;
+    char* c = (char*)contents.ptr;
+    cursor = &c;
+    
+    String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
+    if(magicBytes != "shader")
+    {
+        Log("Attempted to load file '%s' as a shader, which it is not.", path);
+        *shader = R_MakeDefaultShader(kind);
+        return;
+    }
+    
+    u32 version = Next<u32>(cursor);
+    if(version != 0)
+    {
+        Log("Attempted to load file '%s' as a shader, but its version is unsupported.", path);
+        *shader = R_MakeDefaultShader(kind);
+        return;
+    }
+    
+    char* headerPtr = *cursor;
+    ShaderBinaryHeader_v0 header = Next<ShaderBinaryHeader_v0>(cursor);
+    if(header.shaderKind != kind)
+    {
+        Log("Attempted to load wrong type of shader '%s'", path);
+        *shader = R_MakeDefaultShader(kind);
+        return;
+    }
+    
+    String dxil        = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
+    String vulkanSpirv = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
+    String glsl        = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
+    *shader = R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
 }
 
 void LoadMaterial(Material* material, String path)
@@ -412,6 +450,9 @@ void LoadMaterial(Material* material, String path)
     
     *material = DefaultMaterial();
     
+    const char* vertShaderPath = "";
+    const char* pixelShaderPath = "";
+    
     while(true)
     {
         auto line = ConsumeNextLine(&handler);
@@ -427,14 +468,12 @@ void LoadMaterial(Material* material, String path)
                 auto strings = BreakByChar(matLine, ':');
                 if(strings.a == "vertex_shader")
                 {
-                    const char* path = ArenaPushNullTermString(&sceneArena, strings.b);
-                    //material->vertShaderPath = path;
+                    vertShaderPath = ArenaPushNullTermString(scratch, strings.b);
                     ConsumeNextLine(&handler);
                 }
                 else if(strings.a == "pixel_shader")
                 {
-                    const char* path = ArenaPushNullTermString(&sceneArena, strings.b);
-                    //material->pixelShaderPath = path;
+                    pixelShaderPath = ArenaPushNullTermString(scratch, strings.b);
                     ConsumeNextLine(&handler);
                 }
                 else
@@ -453,6 +492,7 @@ void LoadMaterial(Material* material, String path)
                 
                 ConsumeNextLine(&handler);
                 String path = ArenaPushString(&sceneArena, texLine.text);
+                // TODO
                 //Append(&material->textures, path);
             }
         }
@@ -465,6 +505,24 @@ void LoadMaterial(Material* material, String path)
             Log("Error in material '%.*s' (line %d): expecting ':/material', ':/textures', or ':/uniforms'", StrPrintf(path), line.num);
             break;
         }
+    }
+    
+    // Set pipeline
+    {
+        ShaderHandle vertHandle = {0};
+        ShaderHandle pixelHandle = {1};  // Default pixel handle @cleanup
+        
+        if(vertShaderPath[0] == '\0')
+            Log("Error in material '%.*s': vertex shader not specified.", StrPrintf(path));
+        else
+            vertHandle = GetShaderByPath(vertShaderPath, ShaderKind_Vertex);
+        
+        if(pixelShaderPath[0] == '\0')
+            Log("Error in material '%.*s': pixel shader not specified.", StrPrintf(path));
+        else
+            pixelHandle = GetShaderByPath(pixelShaderPath, ShaderKind_Pixel);
+        
+        material->pipeline = GetPipelineByHandles(vertHandle, pixelHandle);
     }
 }
 
