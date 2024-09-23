@@ -14,15 +14,6 @@
 #include "input.h"
 #include "gameplay.h"
 
-MemberDefinition _membersOfAssetKey[] =
-{
-{ { Meta_Unknown }, offsetof(AssetKey, path), sizeof(((AssetKey*)0)->path), StrLit("AssetKey"), "AssetKey", StrLit("Path"), "Path", 0, true},
-{ { Meta_Int }, offsetof(AssetKey, a), sizeof(((AssetKey*)0)->a), StrLit("AssetKey"), "AssetKey", StrLit("A"), "A", 0, true},
-};
-
-MetaStruct metaAssetKey =
-{ {.ptr=_membersOfAssetKey, .len=ArrayCount(_membersOfAssetKey)}, StrLit("AssetKey"), "AssetKey" };
-
 MemberDefinition _membersOfEntity[] =
 {
 { { Meta_Vec3 }, offsetof(Entity, pos), sizeof(((Entity*)0)->pos), StrLit("Entity"), "Entity", StrLit("Position"), "Position", 0, true},

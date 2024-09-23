@@ -60,7 +60,6 @@ typedef unsigned char uchar;
 #endif
 #endif
 
-#define ToLenStr(str) String{.ptr=str, .len=((s64)strlen(str))}
 #define StrLit(str) String{.ptr=str, .len=sizeof(str)}
 #define StrPrintf(str) (int)str.len, str.ptr
 #define ArrToSlice(array) {.ptr=array, .len=ArrayCount(array)}
@@ -420,6 +419,8 @@ struct String
 bool StringBeginsWith(String s, char* beginsWith);
 bool StringBeginsWith(String s, String beginsWith);
 String RemoveLeadingAndTrailingSpaces(String s);
+String ToLenStr(char* str);
+String ToLenStr(const char* str);
 b32 operator ==(String s1, String s2);
 b32 operator !=(String s1, String s2);
 b32 operator ==(String s1, const char* s2);
@@ -490,10 +491,60 @@ template<typename t>
 void Pop(Array<t>* array);
 template<typename t>
 Slice<t> ToSlice(Array<t>* array);
+template<typename t, size_t n>
+Slice<t> ToSlice(std::array<t, n>& arr);
 template<typename t>
 Slice<t> CopyToArena(Array<t>* array, Arena* arena);
 template<typename t>
 void Free(Array<t>* array);
+
+// Dynamically growing string table.
+// This structure does not own the strings,
+// those need to be separately allocated
+#include <unordered_map>
+
+struct StringHash
+{
+    std::size_t operator()(const String& s) const
+    {
+        // Using the simple FNV-1a hash function
+        
+        std::size_t hash = 0xcbf29ce484222325; // FNV-1a offset basis
+        const char* data = s.ptr;
+        
+        for (int64_t i = 0; i < s.len; ++i)
+        {
+            hash ^= (std::size_t)data[i];
+            hash *= 0x100000001b3; // FNV-1a prime
+        }
+        
+        return hash;
+    }
+};
+
+struct StringEqual
+{
+    bool operator()(const String& s1, const String& s2) const
+    {
+        return s1 == s2;
+    }
+};
+
+template<typename t>
+struct StringMap
+{
+    // @speed Change this implementation maybe, also
+    // not using c++ stdlib would yield better compile times
+    
+    std::unordered_map<String, t, StringHash, StringEqual> map;
+};
+
+template<typename t>
+void Append(StringMap<t>* map, String key, const t& value);
+template<typename t>
+bool Lookup(StringMap<t>* map, String key, t* outResult);
+template<typename t>
+void Free(StringMap<t>* map);
 
 ////
 // Memory allocation

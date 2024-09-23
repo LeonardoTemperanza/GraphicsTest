@@ -947,6 +947,16 @@ String RemoveLeadingAndTrailingSpaces(String s)
     return res;
 }
 
+String ToLenStr(char* str)
+{
+    return {.ptr=str, .len=(int64_t)strlen(str)};
+}
+
+String ToLenStr(const char* str)
+{
+    return {.ptr=str, .len=(int64_t)strlen(str)};
+}
+
 b32 operator ==(String s1, String s2)
 {
     if(s1.len != s2.len) return false;
@@ -1238,6 +1248,12 @@ Slice<t> ToSlice(Array<t>* array)
     return {.ptr=array->ptr, .len=array->len};
 }
 
+template<typename t, size_t n>
+Slice<t> ToSlice(std::array<t, n>& array)
+{
+    return Slice<t>{array.data(), static_cast<int>(n)};
+}
+
 template<typename t>
 Slice<t> CopyToArena(Array<t>* array, Arena* arena)
 {
@@ -1252,6 +1268,29 @@ void Free(Array<t>* array)
     array->ptr = 0;
     array->len = 0;
     array->capacity = 0;
+}
+
+template<typename t>
+void Append(StringMap<t>* map, String key, const t& value)
+{
+    map->map[key] = value;
+}
+
+template<typename t>
+bool Lookup(StringMap<t>* map, String key, t* outResult)
+{
+    auto res = map->map.find(key);
+    // I guess this means that the key was not found...?
+    if(res == map->map.end()) return false; 
+    
+    *outResult = res->second;
+    return true;
+}
+
+template<typename t>
+void Free(StringMap<t>* map)
+{
+    ~map->map;
 }
 
 #ifdef _WIN32

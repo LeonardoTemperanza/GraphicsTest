@@ -27,9 +27,15 @@ EntityManager InitEntityManager()
     UseArena(&man->pointLights, &pointLightArena);
     static_assert(4 == Entity_Count, "Every array for each type should be based on an arena for pointer stability");
     
+    MeshHandle raptoidMesh  = GetMeshByPath("Raptoid/Raptoid_2.mesh");
+    MeshHandle sphereMesh   = GetMeshByPath("Common/sphere.mesh");
+    MeshHandle cubeMesh     = GetMeshByPath("Common/Cube.mesh");
+    MeshHandle cylinderMesh = GetMeshByPath("Common/cylinder.mesh");
+    MaterialHandle raptoidMat = GetMaterialByPath("Raptoid/raptoid.mat");
+    
     auto raptoid = NewEntity(man);
-    raptoid->mesh = MakeAssetKey(raptoidPath);
-    raptoid->material = MakeAssetKey("Raptoid/raptoid.mat");
+    raptoid->mesh = raptoidMesh;
+    raptoid->material = raptoidMat;
     
     auto camera = NewEntity<Camera>(man);
     camera->base->pos.z = -8.0f;
@@ -42,8 +48,8 @@ EntityManager InitEntityManager()
     man->mainCamera = GetKey(man, camera->base);
     
     auto player = NewEntity<Player>(man);
-    player->base->mesh = MakeAssetKey(cylinderPath);
-    player->base->material = MakeAssetKey(pbr);
+    player->base->mesh = cylinderMesh;
+    player->base->material = raptoidMat;
     player->base->scale = {0.5f, 1.0f, 0.5f};
     player->gravity = 20.0f;
     player->jumpVel = 10.0f;
@@ -56,8 +62,8 @@ EntityManager InitEntityManager()
     
     {
         Entity* e   = NewEntity(man);
-        e->mesh     = MakeAssetKey("Common/sphere.mesh");
-        e->material = MakeAssetKey("Raptoid/raptoid.mat");
+        e->mesh     = sphereMesh;
+        e->material = raptoidMat;
         e->pos.x = pos;
         e->pos.z = -3.0f;
         pos += 3.0f;
@@ -65,8 +71,8 @@ EntityManager InitEntityManager()
     
     {
         Entity* e = NewEntity(man);
-        e->mesh = MakeAssetKey(spherePath);
-        e->material = MakeAssetKey(pbr);
+        e->mesh = sphereMesh;
+        e->material = raptoidMat;
         e->pos.x = pos;
         pos += 3.0f;
     }
@@ -76,8 +82,8 @@ EntityManager InitEntityManager()
         for(int i = 0; i < 7; ++i)
         {
             e[i] = NewEntity(man);
-            e[i]->mesh = MakeAssetKey(raptoidPath);
-            e[i]->material = MakeAssetKey("Raptoid/raptoid.mat");
+            e[i]->mesh = raptoidMesh;
+            e[i]->material = raptoidMat;
             e[i]->pos.x = pos;
             pos += 3.0f;
         }
@@ -111,6 +117,10 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     
     PollAndProcessInput(inEditor);
     
+#ifdef Development
+    HotReloadAssets();
+#endif
+    
     int width, height;
     OS_GetClientAreaSize(&width, &height);
     float aspectRatio = (float)width / (float)height;
@@ -119,7 +129,6 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     {
         man->liveChildrenPerEntity = ComputeAllLiveChildrenForEachEntity(man, frameArena);
     }
-    defer { man->liveChildrenPerEntity = {0}; };
     
     // Update
     if(inEditor)
@@ -139,7 +148,14 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     OS_GetClientAreaSize(&width, &height);
     float aspectRatio = (float)width / (float)height;
     
-    if(width <= 0 || height <= 0) return;
+    if(width <= 0 || height <= 0)
+    {
+        // If these are not called anyway,
+        // an assert fails.
+        ImGui::Render();
+        R_RenderDearImgui();
+        return;
+    }
     
     bool inEditor = false;
 #ifdef Development
@@ -179,10 +195,11 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     
     // Render skybox
     {
+        /*R_SetPipeline(pipeline);
         R_Pipeline pipeline = GetPipelineByPath("CompiledShaders/skybox_vertex.shader", "CompiledShaders/skybox_pixel.shader");
-        R_SetPipeline(pipeline);
         R_Cubemap cubemap = GetCubemapByPath("Skybox/sky2.png");
         R_SetCubemap(cubemap, 0);
+        */
         
         R_Mesh cube = GetMeshByPath("Common/cube.mesh");
         R_CullFace(false);
@@ -196,12 +213,11 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     {
         for_live_entities(man, ent)
         {
-            R_Mesh mesh = GetMesh(ent->mesh);
             Mat4 model = ComputeWorldTransform(man, ent);
             Mat3 normal = ToMat3(transpose(ComputeTransformInverse(model)));
             R_SetPerObjData(model, normal);
             UseMaterial(ent->material);
-            R_DrawMesh(mesh);
+            R_DrawMesh(ent->mesh);
         }
     }
     
@@ -449,8 +465,8 @@ Entity* NewEntity(EntityManager* man)
     entity->rot = Quat::identity;
     entity->scale = {.x=1.0f, .y=1.0f, .z=1.0f};
     entity->mount = NullKey();
-    entity->mesh     = MakeNullAssetKey();
-    entity->material = MakeNullAssetKey();
+    entity->mesh     = {};
+    entity->material = {};
     return entity;
 }
 
@@ -516,10 +532,6 @@ void CommitDestroy(EntityManager* man)
             ++ent->gen;
             
             // TODO: @leak Remove entity from derived type array as well
-            
-            // Freeing asset keys (this should be irrelevant in editor mode)
-            FreeAssetKey(&ent->mesh);
-            FreeAssetKey(&ent->material);
         }
     }
     

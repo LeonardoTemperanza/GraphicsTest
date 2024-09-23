@@ -7,11 +7,10 @@ struct R_Mesh
     u32 numIndices;
 };
 
-typedef u32 R_Cubemap;
-
 struct R_Texture
 {
     GLuint handle;
+    R_TextureKind kind;
     R_TextureFormat format;
 };
 

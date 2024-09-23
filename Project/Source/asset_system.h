@@ -13,91 +13,92 @@ struct PipelinePath
     String pixelPath;
 };
 
+struct MeshHandle
+{
+    u32 idx;
+    operator R_Mesh();
+};
+
+struct TextureHandle
+{
+    u32 idx;
+    operator R_Texture();
+};
+
+struct ShaderHandle
+{
+    u32 idx;
+    operator R_Shader();
+};
+
+struct PipelineHandle
+{
+    u32 idx;
+    operator R_Pipeline();
+};
+
 struct Material;
+struct MaterialHandle
+{
+    u32 idx;
+    operator Material();
+};
 
 struct AssetSystem
 {
-    // @tmp TODO: This will soon get restructured anyway, but this will let
-    // us conveniently load things for now
-    Array<String>       meshPaths;
-    Array<R_Mesh>       meshes;
-    Array<String>       texturePaths;
-    Array<R_Texture>    textures;
-    Array<String>       shaderPaths;
-    Array<R_Shader>     shaders;
-    Array<PipelinePath> pipelinePaths;
-    Array<R_Pipeline>   pipelines;
-    Array<String>       cubemapPaths;
-    Array<R_Cubemap>    cubemaps;
-    Array<String>       materialPaths;
-    Array<Material>     materials;
+    // NOTE: Index 0 of each asset array
+    // is reserved for the default asset
+    // of that type. This means that a
+    // handle of 0 is always valid
+    Array<R_Mesh>     meshes;
+    Array<R_Texture>  textures;
+    Array<R_Shader>   shaders;
+    Array<R_Pipeline> pipelines;
+    Array<Material>   materials;
+    
+    StringMap<MeshHandle>     pathToMesh;
+    StringMap<TextureHandle>  pathToTexture;
+    StringMap<ShaderHandle>   pathToShader;
+    StringMap<MaterialHandle> pathToMaterial;
 };
 
-typedef u64 AssetId;
-
-// NOTE: a "" path or a uint_max idx means a null asset
-#ifdef Development
-introspect()
-struct AssetKey
-{
-    DynString path;
-    int a;
-};
-#else
-struct AssetKey
-{
-    u32 idx;
-};
-#endif
-
-// NOTE: All this stuff needs to get freed. We'll deal with that later
-// @leak
 struct Material
 {
-    const char* vertShaderPath;
-    const char* pixelShaderPath;
+    PipelineHandle pipeline;
     
     Array<R_UniformValue> uniforms;
-    Array<String> textures;
+    Array<TextureHandle> textures;
 };
 
-AssetKey MakeAssetKey(const char* path);
-AssetKey MakeNullAssetKey();
-void FreeAssetKey(AssetKey* key);
+void InitAssetSystem();
+void ReserveSlotForDefaultAssets();
+template<typename t>
+t DefaultAssetHandle();
+ShaderHandle DefaultVertexShaderHandle();
+ShaderHandle DefaultPixelShaderHandle();
 
-R_Mesh    LoadMesh(String path, bool* outSuccess);
-R_Texture LoadTexture(String path, bool* outSuccess);
-R_Shader  LoadShader(String path, ShaderKind kind, bool* outSuccess);
-Material  LoadMaterial(String path, bool* outSuccess);
-Material  DefaultMaterial();
+// Utility functions for new types
+void UseMaterial(Material mat);
 
-// TODO: everything is lazily loaded for now,
-// will change later
+// Hot reloading. To be performed once per frame or once per few frames
+void HotReloadAssets();
 
-R_Mesh    GetMeshByPath(String path);
-R_Texture GetTextureByPath(String path);
-R_Shader  GetShaderByPath(String path, ShaderKind kind);
-// NOTE: _top, _bottom, _left, _right, _front and _back is added (before the extension)
-// to load each individual texture
-R_Cubemap  GetCubemapByPath(String path);
-R_Pipeline GetPipelineByPath(String vert, String pixel);
-Material   GetMaterialByPath(String path);
+void LoadMesh(R_Mesh* mesh, String path);
+void LoadTexture(R_Texture* texture, String path);
+void LoadPipeline(R_Pipeline* pipeline, String path);
+void LoadMaterial(Material* material, String path);
 
-// Utilities for C strings
-R_Mesh    GetMeshByPath(const char* path);
-R_Texture GetTextureByPath(const char* path);
-R_Shader  GetShaderByPath(const char* path, ShaderKind kind);
-R_Cubemap GetCubemapByPath(const char* path);
-R_Pipeline GetPipelineByPath(const char* vert, const char* pixel);
-Material   GetMaterialByPath(const char* path);
+void LoadMesh(const char* path);
+void LoadTexture(const char* path);
+void LoadPipeline(const char* path);
+void LoadMaterial(const char* path);
 
-R_Mesh     GetMesh(AssetKey key);
-R_Pipeline GetPipeline(AssetKey vert, AssetKey pixel);
-R_Texture  GetTexture(AssetKey key);
-Material   GetMaterial(AssetKey key);
+MeshHandle     GetMeshByPath(const char* path);
+TextureHandle  GetTextureByPath(const char* path);
+MaterialHandle GetMaterialByPath(const char* path);
 
-// Utility functions
-// Check if the material specifies the correct uniforms and textures, etc.
-// Logs the exact problem to the console
-bool CheckMaterial(Material mat, R_Pipeline pipeline);
-void UseMaterial(AssetKey material);
+// Scene serialization
+struct EntityManager;
+void SerializeScene(EntityManager* man, const char* path);
+void UnloadScene(EntityManager* man);
+void LoadScene(EntityManager* man, const char* path);

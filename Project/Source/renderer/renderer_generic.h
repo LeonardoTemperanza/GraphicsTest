@@ -4,7 +4,6 @@
 #include "base.h"
 #include "serialization.h"
 
-struct Texture;
 enum ShaderKind;
 enum UniformType;
 
@@ -33,6 +32,12 @@ struct BasicMesh
 {
     Slice<Vec3> verts;
     Slice<u32>  indices;
+};
+
+enum R_TextureKind
+{
+    R_Tex2D = 0,
+    R_TexCubemap,
 };
 
 enum R_TextureFormat
@@ -93,7 +98,7 @@ Mat4 R_ConvertView2ProjMatrix(Mat4 mat);
 R_Mesh        R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
 R_Mesh        R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
 R_Texture     R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
-R_Cubemap     R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
+R_Texture     R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
                               u32 height, u8 numChannels);
 R_Shader      R_MakeDefaultShader(ShaderKind kind);
 R_Mesh        R_MakeDefaultMesh();
@@ -120,7 +125,6 @@ void R_SetPipeline(R_Pipeline pipeline);
 void R_SetUniforms(Slice<R_UniformValue> desc);
 void R_SetFramebuffer(R_Framebuffer framebuffer);
 void R_SetTexture(R_Texture texture, u32 slot);
-void R_SetCubemap(R_Cubemap cubemap, u32 slot);
 
 void R_SetPerSceneData();
 void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos);

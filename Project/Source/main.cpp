@@ -35,6 +35,8 @@ int main()
     S_Init();
     defer { S_Cleanup(); };
     
+    InitAssetSystem();
+    
     EntityManager entManager = InitEntityManager();
     defer { FreeEntities(&entManager); };
     

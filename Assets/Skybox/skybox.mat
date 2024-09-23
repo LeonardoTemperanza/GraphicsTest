@@ -1,0 +1,7 @@
+
+:/material
+vertex_shader: CompiledShaders/skybox_vertex.shader
+pixel_shader:  CompiledShaders/skybox_pixel.shader
+
+:/textures
+Skybox/sky2.png

@@ -3,7 +3,6 @@
 
 #include "os/os_generic.h"
 #include "renderer/renderer_generic.h"
-#include "asset_system.h"
 
 enum EntityFlags
 {
@@ -53,8 +52,8 @@ struct Entity
     u16 flags;
     u32 gen;
     
-    AssetKey mesh;
-    AssetKey material;
+    MeshHandle     mesh;
+    MaterialHandle material;
     
     // We have the option to get the derived
     // entity, though it's a bit harder than the other way around

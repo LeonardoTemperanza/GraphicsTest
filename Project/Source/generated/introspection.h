@@ -16,7 +16,6 @@ enum MetaType
     Meta_Vec3,
     Meta_Quat,
     Meta_String,
-    Meta_AssetKey,
     Meta_Entity,
     Meta_Camera,
     Meta_Player,
@@ -51,7 +50,6 @@ struct MetaStruct
 // NOTE: The function needs to have a MetaStruct as the first argument.
 // The variadic arguments are just the remaining arguments to feed to the function.
 #define Meta_RecursiveCases(functionName, ...) \
-    case Meta_AssetKey: functionName(metaAssetKey, __VA_ARGS__); break; \
     case Meta_Entity: functionName(metaEntity, __VA_ARGS__); break; \
     case Meta_Camera: functionName(metaCamera, __VA_ARGS__); break; \
     case Meta_Player: functionName(metaPlayer, __VA_ARGS__); break; \
