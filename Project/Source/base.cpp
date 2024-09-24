@@ -1300,27 +1300,30 @@ void Append(StringMap<t>* map, String key, const t& value)
 {
     if(key.len <= 0) return;
     
-    if(map->slots.len <= 0)
+    if(map->slots.len <= 0)  // Not initialized
     {
         // Allocate the minimum size if empty
         map->slots.ptr = (StringMapSlot<t>*)calloc(mapSizes[0], sizeof(StringMapSlot<t>));
         map->slots.len = mapSizes[0];
+        
+        // Initialize the arena
+        map->stringArena = ArenaVirtualMemInit(GB(4), MB(2));
     }
     
     u64 hash = SipHash(key);
     u64 idx = hash % map->slots.len;
     
-    StringMapSlot<t>& slot = map->slots[idx];
+    StringMapSlot<t>* slot = &map->slots[idx];
     int probeIndex = 1;
-    while(slot.occupied && slot.key != key)
+    while(slot->occupied && slot->key != key)
     {
         // Quadratic probing
         idx = (hash + probeIndex * probeIndex) % map->slots.len;
-        slot = map->slots[idx];
+        slot = &map->slots[idx];
         ++probeIndex;
     }
     
-    bool found = slot.occupied;
+    bool found = slot->occupied;
     if(found)
     {
         // If a slot already exists with this key,
@@ -1344,23 +1347,18 @@ void Append(StringMap<t>* map, String key, const t& value)
             // Rehash all slots
             for(int i = 0; i < map->slots.len; ++i)
             {
-                auto& slot = map->slots[idx];
+                auto& slot = map->slots[i];
                 if(slot.occupied)
                     Append(&newMap, slot.key, slot.value);
             }
             
-            //free(map->slots.ptr);
+            free(map->slots.ptr);
             *map = newMap;
         }
         else
         {
             // Allocate string into string storage
-            auto& strStorage = map->stringStorage;
-            u64 oldLen = strStorage.len;
-            Resize(&strStorage, (int)(oldLen + key.len));
-            String newString = {.ptr=strStorage.ptr + oldLen, .len=key.len};
-            memcpy((void*)newString.ptr, (void*)key.ptr, newString.len); 
-            
+            String newString = ArenaPushString(&map->stringArena, key);
             map->slots[idx].occupied = true;
             map->slots[idx].key = newString;
             map->slots[idx].value = value;
@@ -1394,22 +1392,22 @@ LookupResult<t> Lookup(StringMap<t>* map, const char* key)
 template<typename t>
 u64 LookupIdx(StringMap<t>* map, String key)
 {
-    if(key.len < 0) return -1;
+    if(key.len <= 0 || map->slots.len <= 0) return -1;
     
     u64 hash = SipHash(key);
     u64 idx = hash % map->slots.len;
     
-    StringMapSlot<t>& slot = map->slots[idx];
+    StringMapSlot<t>* slot = &map->slots[idx];
     int probeIndex = 1;
-    while(slot.occupied && slot.key != key)
+    while(slot->occupied && slot->key != key)
     {
         // Quadratic probing
         idx = (hash + probeIndex * probeIndex) % map->slots.len;
-        slot = map->slots[idx];
+        slot = &map->slots[idx];
         ++probeIndex;
     }
     
-    bool found = slot.occupied;
+    bool found = slot->occupied;
     if(!found) return -1;
     
     return idx;
@@ -1418,8 +1416,9 @@ u64 LookupIdx(StringMap<t>* map, String key)
 template<typename t>
 void Free(StringMap<t>* map)
 {
-    Free(&map->stringStorage);
-    free(&map->slots.ptr);
+    ArenaFreeAll(&map->stringArena);
+    ArenaReleaseMem(&map->stringArena);
+    free(map->slots.ptr);
 }
 
 #ifdef _WIN32

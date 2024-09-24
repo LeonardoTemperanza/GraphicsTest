@@ -547,7 +547,7 @@ struct StringMapSlot
 template<typename t>
 struct StringMap
 {
-    Array<char> stringStorage;
+    Arena stringArena;
     
     Slice<StringMapSlot<t>> slots;
     int numOccupied;
@@ -698,6 +698,11 @@ inline void ArenaFreeAll(Arena* arena)
 {
     arena->offset     = 0;
     arena->prevOffset = 0;
+}
+
+inline void ArenaReleaseMem(Arena* arena)
+{
+    MemFree(arena->buffer, arena->length);
 }
 
 ArenaTemp ArenaTempBegin(Arena* arena);

@@ -13,57 +13,6 @@ int main()
     InitScratchArenas();
     InitPermArena();
     
-    // TODO: @tmp StringMap testing
-    StringMap<int> map = {};
-    Append(&map, "hello", 3);
-    Append(&map, "world", 5);
-    
-    {
-        char staticString[10] = "hello";
-        for(int i = 0; i < 20; ++i)
-        {
-            staticString[5] = 'a' + i;
-            staticString[6] = '\0';
-            Append(&map, staticString, i);
-        }
-    }
-    
-    {
-        char staticString[10] = {'w', 'o', 'r', 'l', 'd', '\0'};
-        for(int i = 0; i < 20; ++i)
-        {
-            staticString[6] = 'a' + i;
-            staticString[7] = '\0';
-            Append(&map, staticString, i);
-        }
-    }
-    
-    {
-        char staticString[10] = {'h', 'e', '\0'};
-        for(int i = 0; i < 20; ++i)
-        {
-            staticString[2] = 'a' + i;
-            staticString[3] = '\0';
-            Append(&map, staticString, i);
-        }
-    }
-    
-    {
-        char staticString[10] = {'h', 'e', 'l', '\0'};
-        for(int i = 0; i < 20; ++i)
-        {
-            staticString[3] = 'a' + i;
-            staticString[4] = '\0';
-            Append(&map, staticString, i);
-        }
-    }
-    
-    auto res1 = Lookup(&map, "hello");
-    auto res2 = Lookup(&map, "world");
-    Log("%d %d", res1.res, res2.res);
-    
-    Free(&map);
-    
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
     
