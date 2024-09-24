@@ -1807,7 +1807,10 @@ String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess)
     res.len = ftell(file);
     fseek(file, 0, SEEK_SET);
     
-    res.ptr = (char*)ArenaAlloc(dst, res.len, 1);
+    // NOTE: We're aligning to 8 bytes because it's a common ground
+    // when parsing binary files
+    size_t align = 8;
+    res.ptr = (char*)ArenaAlloc(dst, res.len, align);
     fread((void*)res.ptr, res.len, 1, file);
     
     return res;

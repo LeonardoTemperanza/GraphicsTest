@@ -346,6 +346,8 @@ void R_Init()
 
 void R_DrawMesh(R_Mesh mesh)
 {
+    if(mesh.numIndices <= 0) return;
+    
     Renderer* r = &renderer;
     
     glBindVertexArray(mesh.vao);
@@ -481,27 +483,27 @@ R_Texture R_UploadCubemap(String top, String bottom, String left, String right, 
 R_Shader R_MakeDefaultShader(ShaderKind kind)
 {
     String vertShader = StrLit(R""""(
-                                                                                                                                                                                                                        #version 460 core
-                                                                                                                                                                                             void main()
-                                                                                                                                                                  {
-                                                                                                                                       gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
-                                                                                                            }
-                                                                                 )"""");
+                                                                                                                                                                                                                                                                                                                                                                                          #version 460 core
+                                                                                                                                                                                                                                                                                                                                                               void main()
+                                                                                                                                                                                                                                                                                                                                    {
+                                                                                                                                                                                                                                                                                                         gl_Position = vec4(0.0f, 0.0f, -2.0f, 0.0f);
+                                                                                                                                                                                                                                                                              }
+                                                                                                                                                                                                                                                   )"""");
     
     String pixelShader = StrLit(R""""(
-                                                                                                                                                                                                                                                                                        #version 460 core
-                                                                                                                                                                                                                                                            out vec4 fragColor;
-                                                                                                                                                                                                                                void main()
-                                                                                                                                                                                                    {
-                                                                                                                                                                        fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-                                                                                                                                            }
-                                                                                                                )"""");
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                                                                                    out vec4 fragColor;
+                                                                                                                                                                                                                                                                                                                                                                                                        void main()
+                                                                                                                                                                                                                                                                                                                                                                            {
+                                                                                                                                                                                                                                                                                                                                                fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                        )"""");
     
     String computeShader = StrLit(R""""(
-                                                                                                                                                                                                                  #version 460 core
-                                                                                                                                                                                    layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-                                                                                                                                                      void main() { }
-                                                                                                                        )"""");
+                                                                                                                                                                                                                                                                                                                                                                                                      #version 460 core
+                                                                                                                                                                                                                                                                                                                                                                        layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+                                                                                                                                                                                                                                                                                                                                          void main() { }
+                                                                                                                                                                                                                                                                                                            )"""");
     
     switch(kind)
     {
@@ -596,8 +598,8 @@ R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
     }
     
     // @tmp
-    for(int i = 0; i < 2; ++i)
-        glProgramUniform1i(res.handle, i, i);
+    //for(int i = 0; i < 2; ++i)
+    //glProgramUniform1i(res.handle, i, i);
     
     return res;
 }
@@ -621,7 +623,7 @@ void R_SetUniforms(Slice<R_UniformValue> desc)
     
     if(!renderer.boundPipeline.hasGlobals)
     {
-        Log("Trying to set uniforms, but the current shader doesn't have any");
+        //Log("Trying to set uniforms, but the current shader doesn't have any");
         return;
     }
     

@@ -293,15 +293,16 @@ MeshHandle GetMeshByPath(const char* path)
 {
     auto& sys = assetSystem;
     
-    MeshHandle mesh;
     auto res = Lookup(&sys.pathToMesh, ToLenStr(path));
     if(!res.ok)
     {
+        MeshHandle mesh;
         Append(&sys.meshes, {});
         mesh.idx = sys.meshes.len - 1;
         LoadMesh(&sys.meshes[mesh.idx], ToLenStr(path));
         String newStr = ArenaPushString(&sceneArena, path);
         Append(&sys.pathToMesh, newStr, mesh);
+        return mesh;
     }
     
     return res.res;
@@ -316,12 +317,12 @@ ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
     if(!res.ok)
     {
         ShaderHandle shader;
-        
         Append(&sys.shaders, {});
         shader.idx = sys.shaders.len - 1;
         LoadShader(&sys.shaders[shader.idx], str, kind);
         String newStr = ArenaPushString(&sceneArena, path);
         Append(&sys.pathToShader, newStr, shader);
+        return shader;
     }
     
     return res.res;
@@ -336,12 +337,12 @@ MaterialHandle GetMaterialByPath(const char* path)
     if(!res.ok)
     {
         MaterialHandle material;
-        
         Append(&sys.materials, {});
         material.idx = sys.materials.len - 1;
         LoadMaterial(&sys.materials[material.idx], str);
         String newStr = ArenaPushString(&sceneArena, path);
         Append(&sys.pathToMaterial, newStr, material);
+        return material;
     }
     
     return res.res;
@@ -392,7 +393,7 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     String contents = LoadEntireFile(path, scratch, &success);
     if(!success)
     {
-        Log("Failed to load file '%s'\n", path);
+        Log("Failed to load file '%.*s'\n", StrPrintf(path));
         *shader = R_MakeDefaultShader(kind);
         return;
     }
@@ -404,7 +405,7 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
     if(magicBytes != "shader")
     {
-        Log("Attempted to load file '%s' as a shader, which it is not.", path);
+        Log("Attempted to load file '%.*s' as a shader, which it is not.", StrPrintf(path));
         *shader = R_MakeDefaultShader(kind);
         return;
     }
@@ -412,7 +413,7 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     u32 version = Next<u32>(cursor);
     if(version != 0)
     {
-        Log("Attempted to load file '%s' as a shader, but its version is unsupported.", path);
+        Log("Attempted to load file '%.*s' as a shader, but its version is unsupported.", StrPrintf(path));
         *shader = R_MakeDefaultShader(kind);
         return;
     }
@@ -421,7 +422,9 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     ShaderBinaryHeader_v0 header = Next<ShaderBinaryHeader_v0>(cursor);
     if(header.shaderKind != kind)
     {
-        Log("Attempted to load wrong type of shader '%s'", path);
+        const char* desiredKindStr = GetShaderKindString(kind);
+        const char* actualKindStr  = GetShaderKindString((ShaderKind)header.shaderKind);
+        Log("Attempted to load shader '%.*s' as a %s, but it's a %s", StrPrintf(path), desiredKindStr, actualKindStr);
         *shader = R_MakeDefaultShader(kind);
         return;
     }

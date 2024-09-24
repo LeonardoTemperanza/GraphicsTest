@@ -127,9 +127,9 @@ int main(int argCount, char** args)
     
     const char* shaderPath = args[1];
     String ext = GetPathExtension(shaderPath);
-    if(ext != "hlsl")
+    if(ext != "hlsl" && ext != "hlsli")
     {
-        fprintf(stderr, "File does not have the '.hlsl' extension, so it's assumed not to be a shader.\n");
+        fprintf(stderr, "File does not have the '.hlsl' or '.hlsli' extension, so it's assumed not to be a shader.\n");
         return 1;
     }
     

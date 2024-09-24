@@ -13,6 +13,8 @@ int main()
     InitScratchArenas();
     InitPermArena();
     
+    //printf("%d");
+    
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
     

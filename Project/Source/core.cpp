@@ -201,10 +201,10 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         R_SetCubemap(cubemap, 0);
         */
         
-        R_Mesh cube = GetMeshByPath("Common/cube.mesh");
+        //R_Mesh cube = GetMeshByPath("Common/cube.mesh");
         R_CullFace(false);
         R_DepthTest(false);
-        R_DrawMesh(cube);
+        //R_DrawMesh(cube);
         R_DepthTest(true);
         R_CullFace(true);
     }

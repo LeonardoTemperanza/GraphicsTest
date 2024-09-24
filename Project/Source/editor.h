@@ -85,7 +85,11 @@ void SelectEntity(Editor* ui, Entity* entity);
 
 // Console print utilities
 void ClearLog();
-void Log(const char* fmt, ...);
+// We're also calling printf every time we log.
+// this is in part to enable the compiler warnings
+// we get when getting the format specifier wrong.
+#define Log(fmt, ...) do { EditorLog(fmt, __VA_ARGS__); printf(fmt, __VA_ARGS__); } while(0)
+void EditorLog(const char* fmt, ...);
 void ExecuteCommand(const char* command);
 int TextEditCallback(ImGuiInputTextCallbackData* data);
 

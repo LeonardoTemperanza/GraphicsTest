@@ -833,7 +833,7 @@ void ClearLog()
     Free(&console.items);
 }
 
-void Log(const char* fmt, ...)
+void EditorLog(const char* fmt, ...)
 {
     // FIXME-OPT
     char buf[1024];

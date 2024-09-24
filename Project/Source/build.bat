@@ -20,7 +20,7 @@ set output_name=graphics_test.exe
 
 REM gfx_api could be one of: GFX_OPENGL, GFX_D3D12
 set gfx_api=/DGFX_OPENGL
-set common=/nologo /std:c++20 /FC /W3 /we4062 /we4714 /D_CRT_SECURE_NO_WARNINGS %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
+set common=/nologo /std:c++20 /FC /W3 /we4062 /we4714 /we6340 /we6284 /we6273 /D_CRT_SECURE_NO_WARNINGS %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name% /subsystem:WINDOWS /entry:mainCRTStartup
 
 REM Generate introspection info from the metaprogram
 cl /Zi /std:c++20 /nologo /FC ..\Source\metaprogram.cpp

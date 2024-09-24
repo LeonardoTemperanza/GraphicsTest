@@ -1,8 +1,9 @@
 
 #pragma once
 
-// In a serialization.cpp file I could convert between versions
-// of certain structs
+// This file serves as a bridge for different modules/programs
+// to use the same binary structures. The various asset importers
+// and the in engine loader share this file
 
 // Shaders
 
@@ -40,12 +41,11 @@ struct ShaderBinaryHeader_v0
     // Metadata on the shader itself
     u8 shaderKind;
     
-    // All of these are byte offsets from the address of this struct
-    
     u32 numMatConstants;
     u32 matNames;
     u32 matOffsets;
     
+    // All of these are byte offsets from the address of this struct
     u32 dxil;
     u32 dxilSize;
     u32 vulkanSpirv;

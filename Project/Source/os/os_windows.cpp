@@ -179,7 +179,7 @@ void Win32_GetWGLFunctions()
     PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB = 
     (PFNWGLGETEXTENSIONSSTRINGARBPROC)wglGetProcAddress("wglGetExtensionsStringARB");
     
-    if (!wglGetExtensionsStringARB)
+    if(!wglGetExtensionsStringARB)
         OS_FatalError("OpenGL does not support WGL_ARB_extensions_string extension!");
     
     const char* ext = wglGetExtensionsStringARB(dc);

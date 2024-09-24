@@ -88,6 +88,21 @@ typedef unsigned char uchar;
 #define RotateLeft(val, n)    (((val) << (n)) | ((val) >> (SizeTBits - (n))))
 #define RotateRight(val, n)   (((val) >> (n)) | ((val) << (SizeTBits - (n))))
 
+// This is for custom printf-like functions, which benefit from the same
+// compilation messages that actual printf gets when getting some format
+// specifiers wrong, for example.
+// From: https://stackoverflow.com/questions/2354784/attribute-formatprintf-1-2-for-msvc
+#if _MSC_VER >= 1400
+#include <sal.h>
+#if _MSC_VER > 1400
+#define CheckFormatString(p) _Printf_format_string_ p
+#else
+#define CheckFormatString(p) __format_string p
+#endif /* FORMAT_STRING */
+#else
+#define CheckFormatString(p) p
+#endif /* _MSC_VER */
+
 ////
 // Hash functions
 u32 Murmur32Seed(void const* data, s64 len, u32 seed);
