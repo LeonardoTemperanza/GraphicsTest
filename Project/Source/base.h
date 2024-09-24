@@ -83,6 +83,11 @@ typedef unsigned char uchar;
 #define VecShuffle_0101(vec1, vec2)        _mm_movelh_ps(vec1, vec2)
 #define VecShuffle_2323(vec1, vec2)        _mm_movehl_ps(vec2, vec1)
 
+// Bit manipulation
+#define SizeTBits ((sizeof (size_t)) * 8)
+#define RotateLeft(val, n)    (((val) << (n)) | ((val) >> (SizeTBits - (n))))
+#define RotateRight(val, n)   (((val) >> (n)) | ((val) << (SizeTBits - (n))))
+
 ////
 // Hash functions
 u32 Murmur32Seed(void const* data, s64 len, u32 seed);
@@ -446,9 +451,9 @@ struct Slice
     inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
 #else
     // For reading the value
-    inline t  operator [](int idx) const { return ptr[idx]; };
+    inline t  operator [](u64 idx) const { return ptr[idx]; };
     // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { return ptr[idx]; };
+    inline t& operator [](u64 idx) { return ptr[idx]; };
 #endif
 };
 
@@ -530,29 +535,43 @@ struct StringEqual
     }
 };
 
-#define StringMapLoadFactor 0.8f
+#define StringMapMaxLoadFactor 0.8f
+template<typename t>
+struct StringMapSlot
+{
+    String key;
+    t value;
+    bool occupied;
+};
+
 template<typename t>
 struct StringMap
 {
     Array<char> stringStorage;
     
-    struct Cell
-    {
-        bool occupied;
-        String key;
-        t value;
-    };
-    
-    Array<Cell> cells;
-    int numFilled;
+    Slice<StringMapSlot<t>> slots;
+    int numOccupied;
+    int sizeIdx;  // Index into the array of map sizes
 };
 
+template<typename t>
+struct LookupResult
+{
+    t res;
+    bool ok;
+};
+
+u64 SipHash(String str, u64 seed = 0x31415926);
 template<typename t>
 void Append(StringMap<t>* map, String key, const t& value);
 template<typename t>
 void Append(StringMap<t>* map, const char* key, const t& value);
 template<typename t>
-bool Lookup(StringMap<t>* map, String key, t* outResult);
+LookupResult<t> Lookup(StringMap<t>* map, String key);
+template<typename t>
+LookupResult<t> Lookup(StringMap<t>* map, const char* key);
+template<typename t>
+u64 LookupIdx(StringMap<t>* map, String key);  // Returns -1 if not found
 template<typename t>
 void Free(StringMap<t>* map);
 
@@ -679,11 +698,6 @@ inline void ArenaFreeAll(Arena* arena)
 {
     arena->offset     = 0;
     arena->prevOffset = 0;
-}
-
-inline void ArenaReleaseMem(Arena* arena)
-{
-    TODO;
 }
 
 ArenaTemp ArenaTempBegin(Arena* arena);

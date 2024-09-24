@@ -1270,38 +1270,102 @@ void Free(Array<t>* array)
     array->capacity = 0;
 }
 
+// This is SipHash. Maybe there's a better hash function?
+u64 SipHash(String str, u64 seed)
+{
+    size_t hash = seed;
+    for(int i = 0; i < str.len; ++i)
+        hash = RotateLeft(hash, 9) + (unsigned char) str[i];
+    
+    // Thomas Wang 64-to-32 bit mix function, hopefully also works in 32 bits
+    hash ^= seed;
+    hash = (~hash) + (hash << 18);
+    hash ^= hash ^ RotateRight(hash,31);
+    hash = hash * 21;
+    hash ^= hash ^ RotateRight(hash,11);
+    hash += (hash << 6);
+    hash ^= RotateRight(hash,22);
+    return hash+seed;
+}
+
+static u64 mapSizes[] =
+{
+    31, 67, 131, 257, 521, 1031,
+    2053, 4099, 8192, 16411, 32771,
+    65617,
+};
+
 template<typename t>
 void Append(StringMap<t>* map, String key, const t& value)
 {
     if(key.len <= 0) return;
-    return;
     
-    //TODO
-#if 0
-    int found = -1;
-    for(int i = 0; i < map->cells.len; ++i)
+    if(map->slots.len <= 0)
     {
-        if(key == map->keys[i])
-        {
-            found = i;
-            break;
-        }
+        // Allocate the minimum size if empty
+        map->slots.ptr = (StringMapSlot<t>*)calloc(mapSizes[0], sizeof(StringMapSlot<t>));
+        map->slots.len = mapSizes[0];
     }
     
-    if(found == -1)
+    u64 hash = SipHash(key);
+    u64 idx = hash % map->slots.len;
+    
+    StringMapSlot<t>& slot = map->slots[idx];
+    int probeIndex = 1;
+    while(slot.occupied && slot.key != key)
     {
-        int oldLen = (int)map->stringStorage.len;
-        Resize(&map->stringStorage, (int)map->stringStorage.len + (int)key.len);
-        String newString = {.ptr=&map->stringStorage[oldLen], .len=key.len};
-        memcpy((void*)newString.ptr, key.ptr, newString.len);
-        Append(&map->keys, newString);
-        Append(&map->values, value);
+        // Quadratic probing
+        idx = (hash + probeIndex * probeIndex) % map->slots.len;
+        slot = map->slots[idx];
+        ++probeIndex;
+    }
+    
+    bool found = slot.occupied;
+    if(found)
+    {
+        // If a slot already exists with this key,
+        // simply overwrite its value
+        map->slots[idx].value = value;
     }
     else
     {
-        map->values[found] = value;
+        ++map->numOccupied;
+        float loadFactor = ((float)map->numOccupied / map->slots.len);
+        if(loadFactor >= StringMapMaxLoadFactor)
+        {
+            // Allocate bigger buffer
+            StringMap<t> newMap = *map;
+            ++newMap.sizeIdx;
+            assert(newMap.sizeIdx < ArrayCount(mapSizes));
+            u64 newSize = mapSizes[newMap.sizeIdx];
+            newMap.slots.ptr = (StringMapSlot<t>*)calloc(newSize, sizeof(StringMapSlot<t>));
+            newMap.slots.len = newSize;
+            
+            // Rehash all slots
+            for(int i = 0; i < map->slots.len; ++i)
+            {
+                auto& slot = map->slots[idx];
+                if(slot.occupied)
+                    Append(&newMap, slot.key, slot.value);
+            }
+            
+            //free(map->slots.ptr);
+            *map = newMap;
+        }
+        else
+        {
+            // Allocate string into string storage
+            auto& strStorage = map->stringStorage;
+            u64 oldLen = strStorage.len;
+            Resize(&strStorage, (int)(oldLen + key.len));
+            String newString = {.ptr=strStorage.ptr + oldLen, .len=key.len};
+            memcpy((void*)newString.ptr, (void*)key.ptr, newString.len); 
+            
+            map->slots[idx].occupied = true;
+            map->slots[idx].key = newString;
+            map->slots[idx].value = value;
+        }
     }
-#endif
 }
 
 template<typename t>
@@ -1311,39 +1375,51 @@ void Append(StringMap<t>* map, const char* key, const t& value)
 }
 
 template<typename t>
-bool Lookup(StringMap<t>* map, String key, t* outResult)
+LookupResult<t> Lookup(StringMap<t>* map, String key)
 {
-    return true;
+    u64 idx = LookupIdx(map, key);
+    // Not found
+    if(idx == -1) return {.res={}, .ok = false};
     
-    //TODO
-#if 0
-    int found = -1;
-    for(int i = 0; i < map->keys.len; ++i)
+    t result = map->slots[idx].value;
+    return {.res=result, .ok = true};
+}
+
+template<typename t>
+LookupResult<t> Lookup(StringMap<t>* map, const char* key)
+{
+    return Lookup(map, ToLenStr(key));
+}
+
+template<typename t>
+u64 LookupIdx(StringMap<t>* map, String key)
+{
+    if(key.len < 0) return -1;
+    
+    u64 hash = SipHash(key);
+    u64 idx = hash % map->slots.len;
+    
+    StringMapSlot<t>& slot = map->slots[idx];
+    int probeIndex = 1;
+    while(slot.occupied && slot.key != key)
     {
-        if(key == map->keys[i])
-        {
-            found = i;
-            break;
-        }
+        // Quadratic probing
+        idx = (hash + probeIndex * probeIndex) % map->slots.len;
+        slot = map->slots[idx];
+        ++probeIndex;
     }
     
-    if(found == -1) return false;
+    bool found = slot.occupied;
+    if(!found) return -1;
     
-    *outResult = map->values[found];
-    return true;
-#endif
+    return idx;
 }
 
 template<typename t>
 void Free(StringMap<t>* map)
 {
     Free(&map->stringStorage);
-    Free(&map->keys);
-    Free(&map->values);
-    
-    ArenaFreeAll(&map->stringArena);
-    // TODO
-    //ArenaReleaseMem(&map->stringArena);
+    free(&map->slots.ptr);
 }
 
 #ifdef _WIN32

@@ -294,8 +294,8 @@ MeshHandle GetMeshByPath(const char* path)
     auto& sys = assetSystem;
     
     MeshHandle mesh;
-    bool found = Lookup(&sys.pathToMesh, ToLenStr(path), &mesh);
-    if(!found)
+    auto res = Lookup(&sys.pathToMesh, ToLenStr(path));
+    if(!res.ok)
     {
         Append(&sys.meshes, {});
         mesh.idx = sys.meshes.len - 1;
@@ -304,7 +304,7 @@ MeshHandle GetMeshByPath(const char* path)
         Append(&sys.pathToMesh, newStr, mesh);
     }
     
-    return mesh;
+    return res.res;
 }
 
 ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
@@ -312,10 +312,11 @@ ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
     auto& sys = assetSystem;
     
     String str = ToLenStr(path);
-    ShaderHandle shader;
-    bool found = Lookup(&sys.pathToShader, str, &shader);
-    if(!found)
+    auto res = Lookup(&sys.pathToShader, str);
+    if(!res.ok)
     {
+        ShaderHandle shader;
+        
         Append(&sys.shaders, {});
         shader.idx = sys.shaders.len - 1;
         LoadShader(&sys.shaders[shader.idx], str, kind);
@@ -323,7 +324,7 @@ ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
         Append(&sys.pathToShader, newStr, shader);
     }
     
-    return shader;
+    return res.res;
 }
 
 MaterialHandle GetMaterialByPath(const char* path)
@@ -331,10 +332,11 @@ MaterialHandle GetMaterialByPath(const char* path)
     auto& sys = assetSystem;
     
     String str = ToLenStr(path);
-    MaterialHandle material;
-    bool found = Lookup(&sys.pathToMaterial, str, &material);
-    if(!found)
+    auto res = Lookup(&sys.pathToMaterial, str);
+    if(!res.ok)
     {
+        MaterialHandle material;
+        
         Append(&sys.materials, {});
         material.idx = sys.materials.len - 1;
         LoadMaterial(&sys.materials[material.idx], str);
@@ -342,7 +344,7 @@ MaterialHandle GetMaterialByPath(const char* path)
         Append(&sys.pathToMaterial, newStr, material);
     }
     
-    return material;
+    return res.res;
 }
 
 PipelineHandle GetPipelineByPath(const char* vert, const char* pixel)
