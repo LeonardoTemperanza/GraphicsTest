@@ -396,25 +396,6 @@ Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 
 
 ////
-// Utility macros for linked lists.
-// The reason these are macros is because templates
-// generate lots of dumb functions, and you can't really
-// use intrusive linked-lists, you have to have a struct
-// exclusively with the purpose of holding a pointer and
-// some state (which is not really relevant to the list part)
-// DLL = Doubly Linked List, SLL = Singly Linked List
-
-#if 0
-#define DLLPushBack(f, l, n) (((f)==0? \
-(f)=(l)=(n):\
-(l)->next=(n),(l)=(n)),\
-(n)->next=(n)->prev=0) \
-
-//#define DLLPushFront(f, l, n) ...
-//#define DLLRemove(
-#endif
-
-////
 // Length strings utils
 
 // This is like a "string view" of sorts. It doesn't actually
