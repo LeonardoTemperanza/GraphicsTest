@@ -107,7 +107,7 @@ enum DxcCompilationKind
     ToSpirv
 };
 
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ID3D12ShaderReflection* outReflection);
+String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ComPtr<ID3D12ShaderReflection>& outReflection);
 String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
 String CompileToOpenglSpirv(ShaderKind shaderKind, String glslSource, Arena* dst, bool* ok);
 String CompileToMetalIR(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
@@ -197,17 +197,27 @@ int main(int argCount, char** args)
             String vulkanSpirv = {0};
             String glslSource = {0};
             
+            ComPtr<ID3D12ShaderReflection> reflection;
+            
             // D3D12
             if(ok)
-                dxil = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToDxil, nullptr);
+                dxil = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToDxil, reflection);
             
             // Vulkan
             if(ok)
-                vulkanSpirv = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToSpirv, nullptr);
+                vulkanSpirv = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToSpirv, reflection);
             
             // OpenGL
             if(ok)
                 glslSource = CompileToGLSL(kind, vulkanSpirv, scratch, &ok);
+            
+            if(ok)
+            {
+                D3D12_SHADER_DESC shaderDesc;
+                
+                // Test reflection stuff
+                reflection->GetDesc(&shaderDesc);
+            }
             
             // Build binary file
             if(ok)
@@ -355,7 +365,7 @@ void SetWorkingDirRelativeToExe(const char* path)
 }
 
 // Return the slice of includers as well?
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ID3D12ShaderReflection* outReflection)
+String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ComPtr<ID3D12ShaderReflection>& outReflection)
 {
     String binary = {0};
     if(hlslSource.len <= 0) return binary;
@@ -427,7 +437,18 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     }
     
     // Compilation successful
-    D3DReflect();
+    
+    ComPtr<IDxcBlob> reflectionBlob;
+    hr = compileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&reflectionBlob), nullptr);
+    assert(SUCCEEDED(hr));
+    
+    DxcBuffer reflectionBuffer;
+    reflectionBuffer.Ptr = reflectionBlob->GetBufferPointer();
+    reflectionBuffer.Size = reflectionBlob->GetBufferSize();
+    reflectionBuffer.Encoding = 0;
+    
+    hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(outReflection.GetAddressOf()));
+    assert(SUCCEEDED(hr));
     
     if(compileTo == ToSpirv)
         printf("HLSL->SPIRV OK - ");
@@ -510,12 +531,4 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
     
     binary = ArenaPushString(dst, source);
     return binary;
-}
-
-// Use glslangvalidator c++ api
-String CompileToOpenglSpirv(ShaderKind shaderKind, String glslSource, Arena* dst, bool* ok)
-{
-    TODO;
-    String null = {0};
-    return null;
 }
