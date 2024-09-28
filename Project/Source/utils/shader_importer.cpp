@@ -10,6 +10,7 @@
 #include <wrl/client.h>
 #include <comdef.h>
 #include "dxc_include/dxcapi.h"
+#include "dxc_include/D3d12shader.h"
 
 using namespace Microsoft::WRL;
 
@@ -106,7 +107,7 @@ enum DxcCompilationKind
     ToSpirv
 };
 
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo);
+String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ID3D12ShaderReflection* outReflection);
 String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
 String CompileToOpenglSpirv(ShaderKind shaderKind, String glslSource, Arena* dst, bool* ok);
 String CompileToMetalIR(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
@@ -198,11 +199,11 @@ int main(int argCount, char** args)
             
             // D3D12
             if(ok)
-                dxil = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToDxil);
+                dxil = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToDxil, nullptr);
             
             // Vulkan
             if(ok)
-                vulkanSpirv = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToSpirv);
+                vulkanSpirv = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToSpirv, nullptr);
             
             // OpenGL
             if(ok)
@@ -354,7 +355,7 @@ void SetWorkingDirRelativeToExe(const char* path)
 }
 
 // Return the slice of includers as well?
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo)
+String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ID3D12ShaderReflection* outReflection)
 {
     String binary = {0};
     if(hlslSource.len <= 0) return binary;
@@ -424,6 +425,9 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
         *ok = false;
         return binary;
     }
+    
+    // Compilation successful
+    D3DReflect();
     
     if(compileTo == ToSpirv)
         printf("HLSL->SPIRV OK - ");
