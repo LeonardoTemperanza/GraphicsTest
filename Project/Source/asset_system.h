@@ -45,20 +45,39 @@ struct MaterialHandle
     operator Material();
 };
 
+enum AssetKind
+{
+    Asset_None = 0,
+    Asset_Mesh,
+    Asset_Texture,
+    Asset_Shader,
+    Asset_Material,
+    
+    Asset_Count
+};
+
+struct AssetMetadata
+{
+    AssetKind kind;
+    String path;
+};
+
 struct AssetSystem
 {
     // NOTE: Index 0 of each asset array
     // is reserved for the default asset
     // of that type. This means that a
     // handle of 0 is always valid
-    // This contains all resources which
-    // need to be looked up, and which have
-    // an individual lifetime.
+    
+    // Assets
     Array<R_Mesh>    meshes;
     Array<R_Texture> textures;
     Array<R_Shader>  shaders;
-    Array<Pipeline>  pipelines;
     Array<Material>  materials;
+    
+    // Resources
+    Array<Pipeline> pipelines;
+    // array of samplers as well?
     
     // Acceleration structures to speed up
     // some of the queries
@@ -66,6 +85,9 @@ struct AssetSystem
     StringMap<TextureHandle>  pathToTexture;
     StringMap<ShaderHandle>   pathToShader;
     StringMap<MaterialHandle> pathToMaterial;
+    
+    // Metadata
+    Array<AssetMetadata> metadata[Asset_Count];
 };
 
 struct Material
@@ -115,6 +137,8 @@ MaterialHandle GetMaterialByPath(const char* path);
 
 PipelineHandle GetPipelineByPath(const char* vert, const char* pixel);
 PipelineHandle GetPipelineByHandles(ShaderHandle vert, ShaderHandle pixel);
+
+AssetMetadata GetMetadata(u32 handle, AssetKind kind);
 
 // Scene serialization
 struct EntityManager;

@@ -622,6 +622,7 @@ Quat lerp(Quat q1, Quat q2, float t)
     return normalize(res);
 }
 
+// Angle in radians
 Quat AngleAxis(Vec3 axis, float angle)
 {
     if(dot(axis, axis) == 0.0f)
@@ -793,20 +794,7 @@ Vec3 QuatToEulerRad(Quat q)
 
 Quat EulerRadToQuat(Vec3 euler)
 {
-    float cy = std::cos(euler.z * 0.5f);
-    float sy = std::sin(euler.z * 0.5f);
-    float cp = std::cos(euler.y * 0.5f);
-    float sp = std::sin(euler.y * 0.5f);
-    float cr = std::cos(euler.x * 0.5f);
-    float sr = std::sin(euler.x * 0.5f);
-    
-    Quat q;
-    q.w = cr * cp * cy + sr * sp * sy;
-    q.x = sr * cp * cy - cr * sp * sy;
-    q.y = cr * sp * cy + sr * cp * sy;
-    q.z = cr * cp * sy - sr * sp * cy;
-    
-    return q;
+    return normalize(AngleAxis(Vec3::up, euler.x) * AngleAxis(Vec3::right, euler.y) * AngleAxis(Vec3::forward, euler.z));
 }
 
 Vec3 EulerRadToDeg(Vec3 euler)
@@ -1379,8 +1367,7 @@ LookupResult<t> Lookup(StringMap<t>* map, String key)
     // Not found
     if(idx == -1) return {.res={}, .ok = false};
     
-    t result = map->slots[idx].value;
-    return {.res=result, .ok = true};
+    return {.res=&map->slots[idx].value, .ok = true};
 }
 
 template<typename t>
@@ -1411,6 +1398,85 @@ u64 LookupIdx(StringMap<t>* map, String key)
     if(!found) return -1;
     
     return idx;
+}
+
+template<typename k, typename v>
+v*Append(HashMap<k, v>* map, k key, const v& value)
+{
+    // TODO TODO TODO @speed
+    // This is just O(n) instead of O(1)
+    
+    int found = -1;
+    for(int i = 0; i < map->keys.len; ++i)
+    {
+        if(memcmp(&key, &map->keys[i], sizeof(k)) == 0)
+        {
+            found = i;
+            break;
+        }
+    }
+    
+    if(found == -1)  // Not found
+    {
+        Append(&map->keys, key);
+        Append(&map->values, value);
+        return &map->values[map->values.len - 1];
+    }
+    else
+    {
+        map->values[found] = value;
+        return &map->values[found];
+    }
+}
+
+template<typename k, typename v>
+LookupResult<v> Lookup(HashMap<k, v>* map, k key)
+{
+    // TODO TODO TODO @speed
+    // This is just O(n) instead of O(1)
+    
+    int found = -1;
+    for(int i = 0; i < map->keys.len; ++i)
+    {
+        if(memcmp(&key, &map->keys[i], sizeof(k)) == 0)
+        {
+            found = i;
+            break;
+        }
+    }
+    
+    if(found == -1) return {{}, false};
+    return {&map->values[found], true};
+}
+
+template<typename k, typename v>
+void Remove(HashMap<k, v>* map, k key)
+{
+    int found = -1;
+    for(int i = 0; i < map->keys.len; ++i)
+    {
+        if(memcmp(&key, &map->keys[i], sizeof(k)) == 0)
+        {
+            found = i;
+            break;
+        }
+    }
+    
+    if(found != -1)  // Found something
+    {
+        auto lastIdx = map->keys.len - 1;
+        map->keys[lastIdx] = map->keys[found];
+        map->values[lastIdx] = map->values[found];
+        Pop(&map->keys);
+        Pop(&map->values);
+    }
+}
+
+template<typename k, typename v>
+void Free(HashMap<k, v>* map)
+{
+    Free(&map->keys);
+    Free(&map->values);
 }
 
 template<typename t>

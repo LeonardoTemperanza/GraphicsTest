@@ -367,7 +367,7 @@ Quat operator *(Quat a, Quat b);
 Quat normalize(Quat q);
 float magnitude(Quat q);
 Quat inverse(Quat q);
-Quat AngleAxis(Vec3 axis, float angle);
+Quat AngleAxis(Vec3 axis, float angle);  // Angle in radians
 Quat RotateTowards(Quat current, Quat target, float delta);
 Quat FromToRotation(Vec3 from, Vec3 to);
 
@@ -410,10 +410,10 @@ struct String
     
 #ifdef BoundsChecking
     // For reading the value
-    inline char operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    inline char operator [](int64_t idx) const { assert(idx >= 0 && idx < len); return ptr[idx]; };
 #else
     // For reading the value
-    inline char operator [](int idx) const { return ptr[idx]; };
+    inline char operator [](int64_t idx) const { return ptr[idx]; };
 #endif
 };
 
@@ -442,14 +442,14 @@ struct Slice
     
 #ifdef BoundsChecking
     // For reading the value
-    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    inline t  operator [](int64_t idx) const { assert(idx >= 0 && idx < len); return ptr[idx]; };
     // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
+    inline t& operator [](int64_t idx) { assert(idx >= 0 && idx < len); return ptr[idx]; };
 #else
     // For reading the value
-    inline t  operator [](u64 idx) const { return ptr[idx]; };
+    inline t  operator [](int64_t idx) const { return ptr[idx]; };
     // For writing to the value (this returns a left-value)
-    inline t& operator [](u64 idx) { return ptr[idx]; };
+    inline t& operator [](int64_t idx) { return ptr[idx]; };
 #endif
 };
 
@@ -465,9 +465,9 @@ struct Array
     
 #ifdef BoundsChecking
     // For reading the value
-    inline t  operator [](int idx) const { assert(idx < length); return ptr[idx]; };
+    inline t  operator [](int idx) const { assert(idx < len); return ptr[idx]; };
     // For writing to the value (this returns a left-value)
-    inline t& operator [](int idx) { assert(idx < length); return ptr[idx]; };
+    inline t& operator [](int idx) { assert(idx < len); return ptr[idx]; };
 #else
     // For reading the value
     inline t  operator [](int idx) const { return ptr[idx]; };
@@ -475,10 +475,6 @@ struct Array
     inline t& operator [](int idx) { return ptr[idx]; };
 #endif
 };
-
-// This should actually be its own type with
-// functions that null terminate automatically
-typedef Array<char> DynString;
 
 template<typename t>
 void UseArena(Array<t>* array);
@@ -500,37 +496,7 @@ template<typename t>
 void Free(Array<t>* array);
 
 // Dynamically growing string table.
-// This structure does not own the strings,
-// those need to be separately allocated
-#include <unordered_map>
-
-struct StringHash
-{
-    std::size_t operator()(const String& s) const
-    {
-        // Using the simple FNV-1a hash function
-        
-        std::size_t hash = 0xcbf29ce484222325; // FNV-1a offset basis
-        const char* data = s.ptr;
-        
-        for (int64_t i = 0; i < s.len; ++i)
-        {
-            hash ^= (std::size_t)data[i];
-            hash *= 0x100000001b3; // FNV-1a prime
-        }
-        
-        return hash;
-    }
-};
-
-struct StringEqual
-{
-    bool operator()(const String& s1, const String& s2) const
-    {
-        return s1 == s2;
-    }
-};
-
+// This structure allocates its own strings
 #define StringMapMaxLoadFactor 0.8f
 template<typename t>
 struct StringMapSlot
@@ -553,7 +519,7 @@ struct StringMap
 template<typename t>
 struct LookupResult
 {
-    t res;
+    t* res;
     bool ok;
 };
 
@@ -570,6 +536,24 @@ template<typename t>
 u64 LookupIdx(StringMap<t>* map, String key);  // Returns -1 if not found
 template<typename t>
 void Free(StringMap<t>* map);
+
+// Dynamically growing table of generic key and values
+// Keys are assumed to be small.
+template<typename k, typename v>
+struct HashMap
+{
+    Array<k> keys;
+    Array<v> values;
+};
+
+template<typename k, typename v>
+v* Append(HashMap<k, v>* map, k key, const v& value);
+template<typename k, typename v>
+LookupResult<v> Lookup(HashMap<k, v>* map, k key);
+template<typename k, typename v>
+void Remove(HashMap<k, v>* map, k key);
+template<typename k, typename v>
+void Free(HashMap<k, v>* map);
 
 ////
 // Memory allocation
@@ -707,28 +691,6 @@ ArenaTemp GetScratchArena(Arena** conflicts, uint64_t conflictCount);  // Grabs 
 ArenaTemp GetScratchArena(int idx);
 
 #define ReleaseScratch(scratch) ArenaTempEnd(scratch);
-
-////
-// Error handling
-
-enum LogKind
-{
-    Log_Error = 0,
-    Log_Warning,
-    Log_Message,
-};
-
-struct LogError
-{
-    LogKind kind;
-    char* log;
-    // This is wasted space but simplifies the API,
-    // instead of the Arena* and LogError* you only
-    // need to pass a LogError and it will contain the
-    // appropriate arena.
-    Arena* owner;
-    LogError* next;
-};
 
 ////
 // String construction utils

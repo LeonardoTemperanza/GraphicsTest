@@ -3,7 +3,7 @@
 #include "parser.h"
 
 static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
-static AssetSystem assetSystem = {};
+static AssetSystem assetManager = {};
 
 Material DefaultMaterial()
 {
@@ -15,11 +15,11 @@ Material DefaultMaterial()
 }
 
 // Implicit casts
-MeshHandle::operator R_Mesh()       { return assetSystem.meshes[idx];    }
-TextureHandle::operator R_Texture() { return assetSystem.textures[idx];  }
-ShaderHandle::operator R_Shader()   { return assetSystem.shaders[idx];   }
-PipelineHandle::operator Pipeline() { return assetSystem.pipelines[idx]; }
-MaterialHandle::operator Material() { return assetSystem.materials[idx]; }
+MeshHandle::operator R_Mesh()       { return assetManager.meshes[idx];    }
+TextureHandle::operator R_Texture() { return assetManager.textures[idx];  }
+ShaderHandle::operator R_Shader()   { return assetManager.shaders[idx];   }
+PipelineHandle::operator Pipeline() { return assetManager.pipelines[idx]; }
+MaterialHandle::operator Material() { return assetManager.materials[idx]; }
 
 #if 0
 R_Texture LoadTexture(String path, bool* outSuccess)
@@ -112,23 +112,23 @@ void InitAssetSystem()
 
 void ReserveSlotForDefaultAssets()
 {
-    auto& sys = assetSystem;
+    auto& man = assetManager;
     
-    assert(sys.meshes.len == 0);
-    Append(&sys.meshes, R_MakeDefaultMesh());
+    assert(man.meshes.len == 0);
+    Append(&man.meshes, R_MakeDefaultMesh());
     
-    assert(sys.textures.len == 0);
-    //Append(&sys.textures, R_MakeDefaultTexture());
+    assert(man.textures.len == 0);
+    //Append(&man.textures, R_MakeDefaultTexture());
     
-    assert(sys.shaders.len == 0);
-    Append(&sys.shaders, R_MakeDefaultShader(ShaderKind_Vertex));
-    Append(&sys.shaders, R_MakeDefaultShader(ShaderKind_Pixel));
+    assert(man.shaders.len == 0);
+    Append(&man.shaders, R_MakeDefaultShader(ShaderKind_Vertex));
+    Append(&man.shaders, R_MakeDefaultShader(ShaderKind_Pixel));
     
-    assert(sys.pipelines.len == 0);
-    R_Shader shaders[] = {sys.shaders[0], sys.shaders[1]};
+    assert(man.pipelines.len == 0);
+    R_Shader shaders[] = {man.shaders[0], man.shaders[1]};
     R_Pipeline obj = R_CreatePipeline(ArrToSlice(shaders));
     Pipeline defaultPipeline = {.vert = 0, .pixel = 1, .obj = obj};
-    Append(&sys.pipelines, defaultPipeline);
+    Append(&man.pipelines, defaultPipeline);
 }
 
 void UseMaterial(Material mat)
@@ -283,69 +283,69 @@ void LoadCubemap(R_Texture* cubemap, String path)
 void LoadMesh(const char* path)
 {
     String str = ToLenStr(path);
-    Append(&assetSystem.meshes, {});
+    Append(&assetManager.meshes, {});
     String newStr = ArenaPushString(&sceneArena, path);
-    Append(&assetSystem.pathToMesh, newStr, {(u32)assetSystem.meshes.len - 1});
-    LoadMesh(&assetSystem.meshes[assetSystem.meshes.len - 1], str);
+    Append(&assetManager.pathToMesh, newStr, {(u32)assetManager.meshes.len - 1});
+    LoadMesh(&assetManager.meshes[assetManager.meshes.len - 1], str);
 }
 
 MeshHandle GetMeshByPath(const char* path)
 {
-    auto& sys = assetSystem;
+    auto& man = assetManager;
     
-    auto res = Lookup(&sys.pathToMesh, ToLenStr(path));
+    auto res = Lookup(&man.pathToMesh, ToLenStr(path));
     if(!res.ok)
     {
         MeshHandle mesh;
-        Append(&sys.meshes, {});
-        mesh.idx = sys.meshes.len - 1;
-        LoadMesh(&sys.meshes[mesh.idx], ToLenStr(path));
+        Append(&man.meshes, {});
+        mesh.idx = man.meshes.len - 1;
+        LoadMesh(&man.meshes[mesh.idx], ToLenStr(path));
         String newStr = ArenaPushString(&sceneArena, path);
-        Append(&sys.pathToMesh, newStr, mesh);
+        Append(&man.pathToMesh, newStr, mesh);
         return mesh;
     }
     
-    return res.res;
+    return *res.res;
 }
 
 ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
 {
-    auto& sys = assetSystem;
+    auto& man = assetManager;
     
     String str = ToLenStr(path);
-    auto res = Lookup(&sys.pathToShader, str);
+    auto res = Lookup(&man.pathToShader, str);
     if(!res.ok)
     {
         ShaderHandle shader;
-        Append(&sys.shaders, {});
-        shader.idx = sys.shaders.len - 1;
-        LoadShader(&sys.shaders[shader.idx], str, kind);
+        Append(&man.shaders, {});
+        shader.idx = man.shaders.len - 1;
+        LoadShader(&man.shaders[shader.idx], str, kind);
         String newStr = ArenaPushString(&sceneArena, path);
-        Append(&sys.pathToShader, newStr, shader);
+        Append(&man.pathToShader, newStr, shader);
         return shader;
     }
     
-    return res.res;
+    return *res.res;
 }
 
 MaterialHandle GetMaterialByPath(const char* path)
 {
-    auto& sys = assetSystem;
+    auto& man = assetManager;
     
     String str = ToLenStr(path);
-    auto res = Lookup(&sys.pathToMaterial, str);
+    auto res = Lookup(&man.pathToMaterial, str);
     if(!res.ok)
     {
         MaterialHandle material;
-        Append(&sys.materials, {});
-        material.idx = sys.materials.len - 1;
-        LoadMaterial(&sys.materials[material.idx], str);
+        Append(&man.materials, {});
+        material.idx = man.materials.len - 1;
+        LoadMaterial(&man.materials[material.idx], str);
         String newStr = ArenaPushString(&sceneArena, path);
-        Append(&sys.pathToMaterial, newStr, material);
+        Append(&man.pathToMaterial, newStr, material);
         return material;
     }
     
-    return res.res;
+    return *res.res;
 }
 
 PipelineHandle GetPipelineByPath(const char* vert, const char* pixel)
@@ -357,13 +357,13 @@ PipelineHandle GetPipelineByPath(const char* vert, const char* pixel)
 
 PipelineHandle GetPipelineByHandles(ShaderHandle vert, ShaderHandle pixel)
 {
-    auto& sys = assetSystem;
+    auto& man = assetManager;
     
     // @speed This lookup could maybe be faster. Probably does not matter
     int found = -1;
-    for(int i = 0; i < sys.pipelines.len; ++i)
+    for(int i = 0; i < man.pipelines.len; ++i)
     {
-        auto& pipeline = sys.pipelines[i];
+        auto& pipeline = man.pipelines[i];
         if(pipeline.vert.idx == vert.idx && pipeline.pixel.idx == vert.idx)
         {
             found = i;
@@ -379,10 +379,18 @@ PipelineHandle GetPipelineByHandles(ShaderHandle vert, ShaderHandle pixel)
     pipeline.vert  = vert;
     pipeline.pixel = pixel;
     
-    Append(&sys.pipelines, pipeline);
+    Append(&man.pipelines, pipeline);
     PipelineHandle res = {};
-    res.idx = sys.pipelines.len - 1;
+    res.idx = man.pipelines.len - 1;
     return res;
+}
+
+AssetMetadata GetMetadata(u32 handle, AssetKind kind)
+{
+#ifdef BoundsChecking
+    assert(kind < Asset_Count && kind >= 0);
+#endif
+    return assetManager.metadata[kind][handle];
 }
 
 void LoadShader(R_Shader* shader, String path, ShaderKind kind)
@@ -544,7 +552,7 @@ void SerializeScene(EntityManager* man, const char* path)
     }
 }
 
-void UnloadScene(EntityManager* man)
+void UnloadScene(EntityManager* entMan)
 {
     
 }

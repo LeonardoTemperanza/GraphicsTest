@@ -55,8 +55,7 @@ struct Editor
     
     // Gizmo and custom UI state
     
-    // @tmp Use something else later, like stb map or simply an array
-    std::unordered_map<ImGuiID, Widget> widgetTable;
+    HashMap<ImGuiID, Widget> widgetTable;
 };
 
 // TODO: @tmp This is mostly taken from the dear imgui example
@@ -88,7 +87,7 @@ void ClearLog();
 // We're also calling printf every time we log.
 // this is in part to enable the compiler warnings
 // we get when getting the format specifier wrong.
-#define Log(fmt, ...) do { EditorLog(fmt, __VA_ARGS__); printf(fmt, __VA_ARGS__); } while(0)
+#define Log(fmt, ...) do { EditorLog(fmt, __VA_ARGS__); printf(fmt "\n", __VA_ARGS__); } while(0)
 void EditorLog(const char* fmt, ...);
 void ExecuteCommand(const char* command);
 int TextEditCallback(ImGuiInputTextCallbackData* data);
@@ -102,10 +101,14 @@ void ShowStructControl(MetaStruct metaStruct, Editor* editor, void* address);
 // Dear Imgui helpers for basic types
 void ShowVec3Control(const char* strId, Vec3* value, float columnWidth, float sensitivity);
 void ShowQuatControl(const char* strId, Editor* editor, Quat* value, float columnWidth, float sensitivity);
-bool ShowDynInputText(const char* label, DynString* str, ImGuiInputTextFlags flags = 0);
 
-// Info to be stored in the widget table
-// where we store widget specific data persistently
+// NOTE: Sometimes we want to store some permanent
+// data that is specifically tied to a particular
+// instance of a widget. ImGui doesn't let us attach
+// arbitrary data to any widget (rightly so), so instead
+// we have our own hash data structure which is parallel
+// to imgui's. This is why we have a hash table of this Widget
+// structure.
 
 enum WidgetRender
 {
@@ -121,6 +124,9 @@ struct Widget
     u64 lastUsedFrame;
     
     // Any state that might be used by any widget
+    
+    // Text inputs
+    char text[512];
     
     // Quaternion euler angle drag UI
     Vec3 eulerAngles;
@@ -143,9 +149,15 @@ struct Widget
     Vec3 widgetScale;  // Used for scale gizmo, when pulling on one or more axes
 };
 
-void RemoveUnusedWidgets(Editor* editor);
-// Returns whether it was present or not
-bool AddWidgetIfNotPresent(Editor* editor, ImGuiID id, Widget initialState);
+void RemoveUnusedWidgets(HashMap<ImGuiID, Widget>* table);
+// Returns the state that was already in the table or the newly added one
+// newly added ones are zero initialized
+struct GetOrAddWidgetReturn
+{
+    Widget* widget;
+    bool found;
+};
+GetOrAddWidgetReturn GetOrAddWidget(HashMap<ImGuiID, Widget>* table, ImGuiID id);
 
 // Immediate mode gizmos
 

@@ -253,8 +253,8 @@ Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst)
             case Uniform_UInt:  size = 4;  align = 4;  break;
             case Uniform_Float: size = 4;  align = 4;  break;
             case Uniform_Vec3:  size = 12; align = 16; break;
-            case Uniform_Vec4:  size = 16; align = 16;  break;
-            case Uniform_Mat4:  size = 64; align = 16;  break;
+            case Uniform_Vec4:  size = 16; align = 16; break;
+            case Uniform_Mat4:  size = 64; align = 16; break;
         }
         
         // NOTE TODO: This relies on the fact that arena allocation is always
@@ -287,4 +287,13 @@ void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float c
     Vec3 dir = normalize(diff);
     R_DrawCylinder(ori, dir, baseRadius, length);
     R_DrawCone(dst, dir, coneRadius, coneLength);
+}
+
+void R_SetToDefaultState()
+{
+    // Default renderer settings
+    
+    R_DepthTest(true);
+    R_CullFace(true);
+    R_AlphaBlending(true);
 }

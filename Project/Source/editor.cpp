@@ -159,7 +159,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
     ImGuiIO& imguiIo = ImGui::GetIO();
     
     // Prune widgets which weren't used last frame
-    RemoveUnusedWidgets(e);
+    RemoveUnusedWidgets(&e->widgetTable);
     
     // Hide mouse cursor if right clicking on main window
     if(input.virtualKeys[Keycode_RMouse])
@@ -455,10 +455,10 @@ R_SetFramebuffer(e->selectedFramebuffer);
         // specifically for the overlay stuff, but right now it's probably fine
         R_ClearDepth();
         
-        auto& widgetTable = e->widgetTable;
-        for(auto it = widgetTable.begin(); it != widgetTable.end(); ++it)
+        auto& table = e->widgetTable;
+        for(int i = 0; i < table.keys.len; ++i)
         {
-            Widget* w = &it->second;
+            Widget* w = &table.values[i];
             
             // TODO: Instead of doing this weird screen to world transformation
             // we should just stick to screen coordinates and do the hit detection
@@ -473,7 +473,7 @@ R_SetFramebuffer(e->selectedFramebuffer);
             Vec4 green   = {0, 1, 0, 1};
             Vec4 blue    = {0, 0, 1, 1};
             Vec4 yellow  = {1, 1, 0, 1};
-            switch(it->second.renderMode)
+            switch(w->renderMode)
             {
                 case WidgetRender_None: break;
                 case WidgetRender_Translate:
@@ -1116,6 +1116,7 @@ void ShowEntityControl(Editor* e, Entity* entity)
     EntityManager* man = e->man;
     
     ImGui::PushID(GetId(man, entity));
+    ImGuiID id = ImGui::GetID("");
     
     // Show base entity
     ShowStructControl(metaEntity, e, entity);
@@ -1137,6 +1138,20 @@ void ShowEntityControl(Editor* e, Entity* entity)
     }
     
     // Control the asset paths for mesh and material
+#if 0
+    auto res = GetOrAddWidget(e, id);
+    if(!res.found)
+    {
+        // Initialize the widget with the path corresponding to the
+        // asset handle
+    }
+    
+    Widget widget = {};
+    //memcpy(widget.text, );
+    //widget = AddWidgetIfNotPresent(e, id, widget);
+    ImGui::InputText("Mesh", widget.text, ArrayCount(widget.text));
+#endif
+    
     //ShowDynInputText("Mesh", &entity->mesh.path, ImGuiInputTextFlags_EnterReturnsTrue);
     //ShowDynInputText("Material", &entity->material.path);
     
@@ -1276,30 +1291,28 @@ void ShowQuatControl(const char* strId, Editor* e, Quat* value, float columnWidt
     // and then back in a consistent way, so the euler representation
     // needs to be kept between frames.
     
-    ImGuiID id = ImGui::GetID("");
-    Widget widget = {0};
-    widget.eulerAngles = EulerRadToDeg(QuatToEulerRad(*value));
+    ImGuiID id = ImGui::GetID(strId);
     
-    // Change -0.0f to 0.0f
-    // TODO: Apply other transformations to make
-    // the angles look nicer
-    for(int i = 0; i < 3; ++i)
+    auto res = GetOrAddWidget(&e->widgetTable, id);
+    if(!res.found)
     {
-        float* v = (float*)&widget.eulerAngles + i;
-        if(*v == -0.0f) *v = 0.0f;
+        // Get the rotation euler angles from the entity's transform
+        
+        res.widget->eulerAngles = EulerRadToDeg(QuatToEulerRad(*value));
+        
+        // Change -0.0f to 0.0f
+        // TODO: Apply other transformations to make
+        // the angles look nicer
+        for(int i = 0; i < 3; ++i)
+        {
+            float* v = (float*)&res.widget->eulerAngles + i;
+            if(*v == -0.0f) *v = 0.0f;
+        }
+        
+        Log("Not found!");
     }
     
-    AddWidgetIfNotPresent(e, id, widget);
-    auto& widgetTable = e->widgetTable;
-    if(!widgetTable.contains(id))
-    {
-        Widget widget = {0};
-        widgetTable[id] = widget;
-    }
-    
-    widgetTable[id].lastUsedFrame = Widget::frameCounter;
-    
-    Vec3* euler = &widgetTable[id].eulerAngles;
+    Vec3* euler = &res.widget->eulerAngles;
     ShowVec3Control(strId, euler, columnWidth, sensitivity);
     
     // Convert from euler angles to quaternion
@@ -1307,37 +1320,38 @@ void ShowQuatControl(const char* strId, Editor* e, Quat* value, float columnWidt
     *value = EulerRadToQuat(eulerRad);
 }
 
-void RemoveUnusedWidgets(Editor* e)
+void RemoveUnusedWidgets(HashMap<ImGuiID, Widget>* table)
 {
-    auto& widgetTable = e->widgetTable;
-    for(auto it = widgetTable.begin(); it != widgetTable.end();)
+    ScratchArena scratch;
+    Array<ImGuiID> unused = {};
+    UseArena(&unused, scratch);
+    
+    for(int i = 0; i < table->values.len; ++i)
     {
-        bool removeThis = false;
-        
-        if(it->second.lastUsedFrame < Widget::frameCounter)
-            removeThis = true;
-        
-        if(removeThis)
-            it = widgetTable.erase(it);
-        else
-            it++;
+        if(table->values[i].lastUsedFrame < Widget::frameCounter)
+            Append(&unused, table->keys[i]);
     }
+    
+    for(int i = 0; i < unused.len; ++i)
+        Remove(table, unused[i]);
     
     ++Widget::frameCounter;
 }
 
-bool AddWidgetIfNotPresent(Editor* e, ImGuiID id, Widget initialState)
+GetOrAddWidgetReturn GetOrAddWidget(HashMap<ImGuiID, Widget>* table, ImGuiID id)
 {
-    bool res = true;
-    auto& widgetTable = e->widgetTable;
-    if(!widgetTable.contains(id))
+    auto lookup = Lookup(table, id);
+    if(!lookup.ok)
     {
-        res = false;
-        widgetTable[id] = initialState;
+        Widget* widget = Append(table, id, {});
+        widget->lastUsedFrame = Widget::frameCounter;
+        return {widget, false};
     }
-    
-    widgetTable[id].lastUsedFrame = Widget::frameCounter;
-    return res;
+    else
+    {
+        lookup.res->lastUsedFrame = Widget::frameCounter;
+        return {lookup.res, true};
+    }
 }
 
 // TODO: @tmp Quick function that we use for now. Will later be
@@ -1376,9 +1390,10 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
 bool TranslationGizmo(const char* strId, Editor* e, Vec3* pos)
 {
     ImGuiID id = ImGui::GetID(strId);
+    auto res = GetOrAddWidget(&e->widgetTable, id);
+    
     Widget initial = {0};
-    AddWidgetIfNotPresent(e, id, initial);
-    Widget& widget = e->widgetTable[id];
+    Widget& widget = res.found ? *res.widget : initial;
     widget.renderMode = WidgetRender_Translate;
     widget.widgetPos  = *pos;
     
@@ -1549,29 +1564,4 @@ float GetScreenspaceToWorldDistance(Editor* e, Vec3 pos)
     
     float pixelsPerUnit = height / screenHeightAtDistance;
     return 1.0f / pixelsPerUnit;
-}
-
-
-// Callback for enlarging my dynamic string when typing in an inputtext.
-int InputTextCallback(ImGuiInputTextCallbackData* data)
-{
-    DynString* str = (DynString*)data->UserData;
-    
-    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-    {
-        assert(data->Buf == str->ptr);
-        Resize(str, data->BufTextLen + 1);  // BufTextLen excludes the null terminator, while i include it
-        data->Buf = str->ptr;               // Reassign buffer pointer to point to the resized string
-    }
-    
-    return 0;
-}
-
-bool ShowDynInputText(const char* label, DynString* str, ImGuiInputTextFlags flags)
-{
-    if(!str->ptr) Append(str, '\0');
-    if(str->ptr[str->len - 1] != '\0') Append(str, '\0');
-    
-    flags |= ImGuiInputTextFlags_CallbackResize;
-    return ImGui::InputText(label, str->ptr, str->capacity, flags, InputTextCallback, (void*)str);
 }

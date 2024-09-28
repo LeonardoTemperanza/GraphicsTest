@@ -32,6 +32,7 @@ int main()
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     R_Init();
+    R_SetToDefaultState();
     defer { R_Cleanup(); };
     
     S_Init();

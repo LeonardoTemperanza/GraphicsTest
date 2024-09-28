@@ -76,6 +76,14 @@ R_UniformValue MakeUniformVec3(Vec3 value);
 R_UniformValue MakeUniformVec4(Vec4 value);
 R_UniformValue MakeUniformMat4(Mat4 value);
 
+// Types defined in the respective .h files:
+struct R_Mesh;
+struct R_Texture;
+struct R_Framebuffer;
+struct R_Shader;
+struct R_Pipeline;
+struct Renderer;
+
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
 #elif GFX_D3D12
@@ -87,6 +95,7 @@ R_UniformValue MakeUniformMat4(Mat4 value);
 // Cull back faces true
 // Alpha blending true
 void R_Init();
+void R_SetToDefaultState();
 void R_Cleanup();
 
 // Utils
