@@ -17,9 +17,10 @@ using namespace Microsoft::WRL;
 // Spirv cross includes
 #include "spirvcross_include/spirv_glsl.hpp"
 
-// NOTE: The shader binary works in the following way, there are magic bytes (shader), followed by the version number,
+// NOTE: The shader binary works in the following way, there are magic bytes ("shader"), followed by the version number,
 // followed by a header struct that describes the location of the various shaders (binary or not)
 
+// HLSL shader models to use when compiling
 const wchar_t* vertexTarget  = L"vs_6_0";
 const wchar_t* pixelTarget   = L"ps_6_0";
 const wchar_t* computeTarget = L"cs_6_0";
@@ -107,7 +108,8 @@ enum DxcCompilationKind
     ToSpirv
 };
 
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ComPtr<ID3D12ShaderReflection>& outReflection);
+String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo,
+                   ComPtr<ID3D12ShaderReflection>& outReflection);
 String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
 String CompileToOpenglSpirv(ShaderKind shaderKind, String glslSource, Arena* dst, bool* ok);
 String CompileToMetalIR(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
@@ -213,10 +215,28 @@ int main(int argCount, char** args)
             
             if(ok)
             {
-                D3D12_SHADER_DESC shaderDesc;
-                
                 // Test reflection stuff
+                D3D12_SHADER_DESC shaderDesc;
                 reflection->GetDesc(&shaderDesc);
+                
+                // Iterate over the constant buffer
+                for(int i = 0; i < shaderDesc.ConstantBuffers; ++i)
+                {
+                    ID3D12ShaderReflectionConstantBuffer* constBuffer = reflection->GetConstantBufferByIndex(i);
+                    D3D12_SHADER_BUFFER_DESC bufferDesc;
+                    constBuffer->GetDesc(&bufferDesc);
+                    
+                    printf("Constant Buffer %u: %s, Variables: %u\n", i, bufferDesc.Name, bufferDesc.Variables);
+                    
+                    for (UINT j = 0; j < bufferDesc.Variables; j++)
+                    {
+                        ID3D12ShaderReflectionVariable* variable = constBuffer->GetVariableByIndex(j);
+                        D3D12_SHADER_VARIABLE_DESC variableDesc;
+                        variable->GetDesc(&variableDesc);
+                        
+                        printf("  Variable %u: %s, Size: %u, Offset: %u\n", j, variableDesc.Name, variableDesc.Size, variableDesc.StartOffset);
+                    }
+                }
             }
             
             // Build binary file
@@ -438,17 +458,21 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     
     // Compilation successful
     
-    ComPtr<IDxcBlob> reflectionBlob;
-    hr = compileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&reflectionBlob), nullptr);
-    assert(SUCCEEDED(hr));
-    
-    DxcBuffer reflectionBuffer;
-    reflectionBuffer.Ptr = reflectionBlob->GetBufferPointer();
-    reflectionBuffer.Size = reflectionBlob->GetBufferSize();
-    reflectionBuffer.Encoding = 0;
-    
-    hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(outReflection.GetAddressOf()));
-    assert(SUCCEEDED(hr));
+    bool isReflectionSupported = compileTo == ToDxil;
+    if(isReflectionSupported)
+    {
+        ComPtr<IDxcBlob> reflectionBlob;
+        hr = compileResult->GetOutput(DXC_OUT_REFLECTION, IID_PPV_ARGS(&reflectionBlob), nullptr);
+        assert(SUCCEEDED(hr));
+        
+        DxcBuffer reflectionBuffer;
+        reflectionBuffer.Ptr = reflectionBlob->GetBufferPointer();
+        reflectionBuffer.Size = reflectionBlob->GetBufferSize();
+        reflectionBuffer.Encoding = 0;
+        
+        hr = utils->CreateReflection(&reflectionBuffer, IID_PPV_ARGS(outReflection.GetAddressOf()));
+        assert(SUCCEEDED(hr));
+    }
     
     if(compileTo == ToSpirv)
         printf("HLSL->SPIRV OK - ");
@@ -487,7 +511,10 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
     {
         compiler.build_dummy_sampler_for_combined_images();
     }
-    catch(...) {}
+    catch(const CompilerError& e)
+    {
+        printf("Error while building dummy samplers for combined images: %s\n", e.what());
+    }
     
     try
     {
@@ -511,7 +538,10 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
             compiler.set_decoration(remap.combined_id, spv::DecorationLocation, textureBinding);
         }
     }
-    catch(...) {}
+    catch(const CompilerError& e)
+    {
+        printf("Error while building combined image samplers: %s\n", e.what());
+    }
     
     const char* shaderKindStr = GetShaderKindString(shaderKind);
     
