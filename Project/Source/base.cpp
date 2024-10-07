@@ -1011,6 +1011,7 @@ void WriteToFile(String s, FILE* file)
 
 inline void UseArena(StringBuilder* builder, Arena* arena)
 {
+    assert(builder->str.len == 0);
     builder->arena = arena;
 }
 
@@ -1039,11 +1040,12 @@ void Append(StringBuilder* builder, String str)
     
     builder->str.len = newLen;
     
+    // NOTE: The alignment needs to be 8 here, for consistent binary encoding/decoding
     char* newPtr = nullptr;
     if(builder->arena)
-        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 1);
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 8);
     else
-        newPtr = (char*)realloc(builder->str.ptr, builder->str.capacity);
+        newPtr = (char*)_aligned_realloc(builder->str.ptr, builder->str.capacity, 8);
     
     builder->str.ptr = newPtr;
     memcpy(builder->str.ptr + oldLen, str.ptr, str.len);
@@ -1068,11 +1070,12 @@ void AppendFmt(StringBuilder* builder, const char* fmt, ...)
     
     builder->str.len = newLen;
     
+    // NOTE: The alignment needs to be 8 here, for consistent binary encoding/decoding
     char* newPtr = nullptr;
     if(builder->arena)
-        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 1);
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 8);
     else
-        newPtr = (char*)realloc(builder->str.ptr, builder->str.capacity);
+        newPtr = (char*)_aligned_realloc(builder->str.ptr, builder->str.capacity, 8);
     
     builder->str.ptr = newPtr;
     
@@ -1096,11 +1099,12 @@ void Put(StringBuilder* builder, t val)
     
     builder->str.len = newLen;
     
+    // NOTE: The alignment needs to be 8 here, for consistent binary encoding/decoding
     char* newPtr = nullptr;
     if(builder->arena)
-        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 1);
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 8);
     else
-        newPtr = (char*)realloc(builder->str.ptr, builder->str.capacity);
+        newPtr = (char*)_aligned_realloc(builder->str.ptr, builder->str.capacity, 8);
     
     builder->str.ptr = newPtr;
     
@@ -1124,7 +1128,11 @@ void FreeBuffers(StringBuilder* builder)
     // If using an arena, its user will free the contents
     // of the arena when necessary.
     if(!builder->arena)
-        free(old);
+    {
+        // NOTE: We used _aligned_realloc instead of simple realloc,
+        // so we need to call _aligned_free to properly free
+        _aligned_free(old);
+    }
 }
 
 inline String ToString(StringBuilder* builder)

@@ -41,6 +41,7 @@ struct ShaderBinaryHeader_v0
     // Metadata on the shader itself
     u8 shaderKind;
     
+    // NOTE: These 3 are actually unused and should be removed
     u32 numMatConstants;
     u32 matNames;
     u32 matOffsets;
@@ -54,7 +55,15 @@ struct ShaderBinaryHeader_v0
     u32 glslSize;
 };
 
-typedef ShaderBinaryHeader_v0 ShaderBinaryHeader;
+struct ShaderBinaryHeader_v1
+{
+    ShaderBinaryHeader_v0 v0;
+    
+    u32 d3d11Bytecode;
+    u32 d3d11BytecodeSize;
+};
+
+typedef ShaderBinaryHeader_v1 ShaderBinaryHeader;
 
 // Models
 

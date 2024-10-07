@@ -55,54 +55,6 @@ R_Texture LoadTexture(String path, bool* outSuccess)
     stbi_image_free((void*)stbImage.ptr);
     return res;
 }
-
-R_Shader LoadShader(String path, ShaderKind kind, bool* outSuccess)
-{
-    ScratchArena scratch;
-    
-    bool success = true;
-    String contents = LoadEntireFile(path, scratch, &success);
-    if(!success)
-    {
-        Log("Failed to load file '%s'\n", path);
-        *outSuccess = false;
-        return R_MakeDefaultShader(kind);
-    }
-    
-    char** cursor;
-    char* c = (char*)contents.ptr;
-    cursor = &c;
-    
-    String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
-    if(magicBytes != "shader")
-    {
-        Log("Attempted to load file '%s' as a shader, which it is not.", path);
-        *outSuccess = false;
-        return R_MakeDefaultShader(kind);
-    }
-    
-    u32 version = Next<u32>(cursor);
-    if(version != 0)
-    {
-        Log("Attempted to load file '%s' as a shader, but its version is unsupported.", path);
-        *outSuccess = false;
-        return R_MakeDefaultShader(kind);
-    }
-    
-    char* headerPtr = *cursor;
-    ShaderBinaryHeader_v0 header = Next<ShaderBinaryHeader_v0>(cursor);
-    if(header.shaderKind != kind)
-    {
-        Log("Attempted to load wrong type of shader '%s'", path);
-        *outSuccess = false;
-        return R_MakeDefaultShader(kind);
-    }
-    
-    String dxil        = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
-    String vulkanSpirv = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
-    String glsl        = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
-    return R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
-}
 #endif
 
 void InitAssetSystem()
@@ -413,34 +365,65 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
     if(magicBytes != "shader")
     {
+        Log("%.*s", StrPrintf(magicBytes));
         Log("Attempted to load file '%.*s' as a shader, which it is not.", StrPrintf(path));
         *shader = R_MakeDefaultShader(kind);
         return;
     }
     
     u32 version = Next<u32>(cursor);
-    if(version != 0)
+    if(version < 0 || version > 1)
     {
         Log("Attempted to load file '%.*s' as a shader, but its version is unsupported.", StrPrintf(path));
         *shader = R_MakeDefaultShader(kind);
         return;
     }
     
+    ShaderBinaryHeader_v0 header_v0 = {};
+    ShaderBinaryHeader_v1 header_v1 = {};
+    
     char* headerPtr = *cursor;
-    ShaderBinaryHeader_v0 header = Next<ShaderBinaryHeader_v0>(cursor);
-    if(header.shaderKind != kind)
+    switch(version)
+    {
+        case 0: header_v0 = Next<ShaderBinaryHeader_v0>(cursor); Log("v0"); break;
+        case 1: header_v1 = Next<ShaderBinaryHeader_v1>(cursor); Log("v1"); break;
+        default: assert(false);
+    }
+    
+    // Convert to the final version in an assembly line fashion
+    // (first 0 to 1, then 1 to 2, etc)
+    switch(version)
+    {
+        case 0:
+        {
+            header_v1.v0 = header_v0;
+            header_v1.d3d11Bytecode = 0;
+            header_v1.d3d11BytecodeSize = 0;
+            
+        }  // Fallthrough
+        case 1:
+        {
+            // Got to final version.
+            // No need to do anything here
+            break;
+        }
+        default: assert(false);
+    }
+    
+    auto& header = header_v1;
+    if(header.v0.shaderKind != kind)
     {
         const char* desiredKindStr = GetShaderKindString(kind);
-        const char* actualKindStr  = GetShaderKindString((ShaderKind)header.shaderKind);
+        const char* actualKindStr  = GetShaderKindString((ShaderKind)header.v0.shaderKind);
         Log("Attempted to load shader '%.*s' as a %s, but it's a %s", StrPrintf(path), desiredKindStr, actualKindStr);
         *shader = R_MakeDefaultShader(kind);
         return;
     }
     
-    String dxil        = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
-    String vulkanSpirv = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
-    String glsl        = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
-    *shader = R_CompileShader((ShaderKind)header.shaderKind, dxil, vulkanSpirv, glsl);
+    String dxil        = {.ptr=headerPtr+header.v0.dxil, .len=header.v0.dxilSize};
+    String vulkanSpirv = {.ptr=headerPtr+header.v0.vulkanSpirv, .len=header.v0.vulkanSpirvSize};
+    String glsl        = {.ptr=headerPtr+header.v0.glsl, .len=header.v0.glslSize};
+    *shader = R_CompileShader((ShaderKind)header.v0.shaderKind, dxil, vulkanSpirv, glsl);
 }
 
 void LoadMaterial(Material* material, String path)

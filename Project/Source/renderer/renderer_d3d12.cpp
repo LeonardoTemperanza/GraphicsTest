@@ -1,4 +1,6 @@
 
+// NOTE: Very outdated
+
 #include "renderer_d3d12.h"
 
 D3D11_Context Win32_GetD3D11Context();

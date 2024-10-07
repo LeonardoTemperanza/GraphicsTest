@@ -90,10 +90,7 @@ struct Renderer;
 #include "renderer_d3d12.h"
 #endif
 
-// Initializes the graphics API context. Things that should be specified by default:
-// Depth testing true
-// Cull back faces true
-// Alpha blending true
+// Initializes the graphics API context
 void R_Init();
 void R_SetToDefaultState();
 void R_Cleanup();

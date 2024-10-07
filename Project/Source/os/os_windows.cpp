@@ -2,7 +2,8 @@
 // NOTE: Some parts of the code are kind of messy,
 // but it's honestly inevitable when working with the
 // win32 api. Especially the window proc function and the
-// whole window resize debacle
+// whole window resize debacle. I would suggest to carefully
+// read the code before making any big changes.
 
 #include "os_generic.h"
 
