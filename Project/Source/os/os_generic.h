@@ -125,12 +125,17 @@ void OS_Init(const char* windowName);
 void OS_ShowWindow();
 void OS_GetWindowSize(int* width, int* height);
 void OS_GetClientAreaSize(int* width, int* height);
-void OS_SwapBuffers();
+// This is a workaround for win32 resizing.
 bool OS_NeedThisFrameBeforeNextIteration();
 // Return value = false means to quit the application,
 // true means the opposite 
 bool OS_HandleWindowEvents();
 void OS_Cleanup();
+
+// Opengl (some platforms have tight coupling with opengl)
+#ifdef GFX_OPENGL
+void OS_OpenglSwapBuffers();
+#endif
 
 // Input
 OS_InputState OS_PollInput();

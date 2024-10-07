@@ -87,8 +87,6 @@ struct OS_Context
     // NOTE: Used when not in full screen mode.
     // Stands for Desktop Window Manager
     bool usingDwm;
-    
-    OS_GraphicsLib usedGfxLib;
 };
 
 struct WGL_Context
@@ -133,101 +131,6 @@ XInputSetState_Signature(XInputSetState_Stub)
 static XInputSetState_Type* XInputSetState_ = XInputSetState_Stub;
 #define XInputSetState XInputSetState_
 
-// Credits to mmozeiko
-// https://gist.github.com/mmozeiko/ed2ad27f75edf9c26053ce332a1f6647
-void Win32_GetWGLFunctions()
-{
-    // To get WGL functions, we first need a valid
-    // OpenGL context. For that, we need to create
-    // a dummy window for a dummy OpenGL context
-    HWND dummy = CreateWindowEx(0, "STATIC", "Dummy", WS_OVERLAPPED,
-                                CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-                                nullptr, nullptr, nullptr, nullptr);
-    
-    assert(dummy && "Failed to create dummy window");
-    
-    HDC dc = GetDC(dummy);
-    assert(dc && "Failed to get device context for dummy window");
-    
-    PIXELFORMATDESCRIPTOR desc = {0};
-    desc.nSize      = sizeof(desc);
-    desc.nVersion   = 1;
-    desc.dwFlags    = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    desc.iPixelType = PFD_TYPE_RGBA;
-    desc.cColorBits = 24;
-    
-    // NOTE: Whyyyyyy does this take ~1sec on my machine???
-    // Seems to be a widespread driver problem that can't be fixed
-    int format = ChoosePixelFormat(dc, &desc);
-    if(!format)
-        OS_FatalError("Cannot choose OpenGL pixel format for dummy window.");
-    
-    int success = DescribePixelFormat(dc, format, sizeof(desc), &desc);
-    assert(success && "Failed to describe OpenGL pixel format");
-    
-    // Reason to create dummy window is that SetPixelFormat can be called only
-    // once for this window
-    if(!SetPixelFormat(dc, format, &desc))
-        OS_FatalError("Cannot set OpenGL pixel format for dummy window.");
-    
-    HGLRC rc = wglCreateContext(dc);
-    assert(rc && "Failed to create OpenGL context for dummy window.");
-    
-    success = wglMakeCurrent(dc, rc);
-    assert(success && "Failed to make current OpenGL context for dummy window.");
-    
-    // https://www.khronos.org/registry/OpenGL/extensions/ARB/WGL_ARB_extensions_string.txt
-    PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB = 
-    (PFNWGLGETEXTENSIONSSTRINGARBPROC)wglGetProcAddress("wglGetExtensionsStringARB");
-    
-    if(!wglGetExtensionsStringARB)
-        OS_FatalError("OpenGL does not support WGL_ARB_extensions_string extension!");
-    
-    const char* ext = wglGetExtensionsStringARB(dc);
-    assert(ext && "Failed to get OpenGL WGL extension string");
-    
-    // Get the only three extensions we need to create the context
-    const char* start = ext;
-    while(true)
-    {
-        while(*ext != '\0' && *ext != ' ') ++ext;
-        
-        size_t length = ext - start;
-        if(strncmp("WGL_ARB_pixel_format", start, length) == 0)
-        {
-            // https://www.khronos.org/registry/OpenGL/extensions/ARB/WGL_ARB_pixel_format.txt
-            wgl.wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)wglGetProcAddress("wglChoosePixelFormatARB");
-        }
-        else if(strncmp("WGL_ARB_create_context", start, length) == 0)
-        {
-            // https://www.khronos.org/registry/OpenGL/extensions/ARB/WGL_ARB_create_context.txt
-            wgl.wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)wglGetProcAddress("wglCreateContextAttribsARB");
-        }
-        else if(strncmp("WGL_EXT_swap_control", start, length) == 0)
-        {
-            // https://www.khronos.org/registry/OpenGL/extensions/EXT/WGL_EXT_swap_control.txt
-            wgl.wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
-        }
-        
-        if(*ext == '\0') break;
-        
-        ++ext;
-        start = ext;
-    }
-    
-    if(!wgl.wglChoosePixelFormatARB ||
-       !wgl.wglCreateContextAttribsARB ||
-       !wgl.wglSwapIntervalEXT)
-    {
-        OS_FatalError("OpenGL does not support required WGL extensions for modern context.");
-    }
-    
-    wglMakeCurrent(nullptr, nullptr);
-    wglDeleteContext(rc);
-    ReleaseDC(dummy, dc);
-    DestroyWindow(dummy);
-}
-
 static bool Win32_LoadXInput()
 {
     bool ok = true;
@@ -250,28 +153,6 @@ static bool Win32_LoadXInput()
     
     return ok;
 }
-
-#ifndef NDEBUG
-static void APIENTRY OpenGLDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
-                                         GLsizei length, const GLchar* message, const void* user)
-{
-    if(type == GL_DEBUG_TYPE_ERROR || type == GL_DEBUG_TYPE_PERFORMANCE)
-    {
-        Log("%s", message);
-        DebugMessage(message);
-        DebugMessage("\n");
-        
-        if(type == GL_DEBUG_TYPE_ERROR)
-        {
-            if(B_IsDebuggerPresent())
-            {
-                //assert(!"OpenGL error - check the callstack in debugger");
-            }
-            //OS_FatalError("OpenGL API usage error! Use debugger to examine call stack!");
-        }
-    }
-}
-#endif
 
 void Win32_BreakOutOfModalLoop()
 {
@@ -645,88 +526,6 @@ void* Win32_GetOpenGLProc(const char* name)
     return proc;
 }
 
-// TODO: right now this function only either returns true
-// or quits the program entirely. This is reasonable for now
-// but in the future we might try to use other graphics libraries
-// (vulkan, direct3d) if this one can't be used for some reason.
-bool Win32_SetupOpenGL()
-{
-    Win32_GetWGLFunctions();
-    
-    // Set pixel format for OpenGL context
-    {
-        int attrib[] =
-        {
-            WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-            WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-            WGL_DOUBLE_BUFFER_ARB,  GL_TRUE,
-            WGL_PIXEL_TYPE_ARB,     WGL_TYPE_RGBA_ARB,
-            WGL_COLOR_BITS_ARB,     24,
-            WGL_DEPTH_BITS_ARB,     24,
-            WGL_STENCIL_BITS_ARB,   8,
-            
-            // Uncomment for sRGB framebuffer, from WGL_ARB_framebuffer_sRGB extension
-            // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_framebuffer_sRGB.txt
-            //WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, GL_TRUE,
-            
-            // uncomment for multisampeld framebuffer, from WGL_ARB_multisample extension
-            // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_multisample.txt
-            WGL_SAMPLE_BUFFERS_ARB, 1,
-            WGL_SAMPLES_ARB,        4, // 4x MSAA
-            
-            0
-        };
-        
-        int format;
-        UINT formats;
-        int success = wgl.wglChoosePixelFormatARB(win32.windowDC, attrib, nullptr, 1, &format, &formats);
-        if(!success || formats == 0)
-            OS_FatalError("OpenGL does not support required pixel format.");
-        
-        PIXELFORMATDESCRIPTOR desc = { .nSize = sizeof(desc) };
-        success = DescribePixelFormat(win32.windowDC, format, sizeof(desc), &desc);
-        assert(success && "Failed to describe pixel format.");
-        
-        if(!SetPixelFormat(win32.windowDC, format, &desc))
-            OS_FatalError("Cannot set OpenGL selected pixel format.");
-    }
-    
-    // Create opengl context
-    {
-        int attrib[] =
-        {
-            WGL_CONTEXT_MAJOR_VERSION_ARB, 4,
-            WGL_CONTEXT_MINOR_VERSION_ARB, 6,
-            WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-#ifndef NDEBUG
-            WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB,
-#endif
-            0
-        };
-        
-        wgl.glContext = wgl.wglCreateContextAttribsARB(win32.windowDC, nullptr, attrib);
-        if(!wgl.glContext)
-            OS_FatalError("Cannot create modern OpenGL context. OpenGL 4.6 might not be supported on this architecture.");
-        
-        bool success = wglMakeCurrent(win32.windowDC, wgl.glContext);
-        assert(success && "Failed to make current OpenGL context");
-        
-        wgl.wglSwapIntervalEXT(1);
-    }
-    
-    // Load opengl functions
-    if(!gladLoadGLLoader((GLADloadproc)Win32_GetOpenGLProc))
-        OS_FatalError("Failed to load OpenGL.");
-    
-#ifndef NDEBUG
-    // Enable debug callback
-    glDebugMessageCallback(&OpenGLDebugCallback, NULL);
-    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-#endif
-    
-    return true;
-}
-
 bool Win32_SetupD3D11()
 {
     static const D3D_FEATURE_LEVEL featureLevels[] =
@@ -916,22 +715,6 @@ void OS_Init(const char* windowName)
     {
         bool ok = Win32_LoadXInput();
     }
-    
-    // Initialize any graphics library.
-    // On windows, it's preferred to use d3d11 over OpenGL because of buggy drivers.
-    {
-#ifdef GFX_OPENGL
-        bool ok = Win32_SetupOpenGL();
-        if(!ok) OS_FatalError("Could not set up OpenGL.");
-        win32.usedGfxLib = GfxLib_OpenGL;
-#elif defined(GFX_D3D11)
-        bool ok = Win32_SetupD3D11();
-        if(!ok) OS_FatalError("Could not set up Direct3D 11. Consider removing the 'FORCE_D3D11' flag");
-        win32.usedGfxLib = GfxLib_D3D11;
-#else
-#error "This code path does not support this graphics library!
-#endif
-    }
 }
 
 void OS_ShowWindow()
@@ -981,27 +764,26 @@ void OS_GetClientAreaSize(int* width, int* height)
     }
 }
 
-void OS_SwapBuffers()
+#ifdef GFX_OPENGL
+void OS_OpenglSwapBuffers()
 {
     assert(win32.init);
     if(!win32.window) return;
     
-    if(win32.usedGfxLib == GfxLib_OpenGL)
+    SwapBuffers(win32.windowDC);
+    if(win32.usingDwm)
     {
-        if(win32.usingDwm)
-        {
-            // NOTE: Opengl vsync does not work properly when using
-            // DWM (windowed mode)... So we have to call this
-            // function which does a separate vsync. Rumors suggest
-            // calling DwmFlush() immediately after SwapBuffers
-            // *might* work more consistently. I love windows!
-            SwapBuffers(win32.windowDC);
-            DwmFlush();
-        }
-        else
-            SwapBuffers(win32.windowDC);
+        // NOTE: Opengl vsync does not work properly when using
+        // DWM (windowed mode)... So we have to call this
+        // function which does a separate vsync. Rumors suggest
+        // calling DwmFlush() immediately after SwapBuffers
+        // *might* work more consistently. I love windows!
+        DwmFlush();
     }
+    else
+        SwapBuffers(win32.windowDC);
 }
+#endif
 
 bool OS_NeedThisFrameBeforeNextIteration()
 {
@@ -1319,33 +1101,6 @@ float OS_GetDPIScale()
     }
     
     return xdpi / 96.0f;
-}
-
-void OS_InitDearImgui()
-{
-    assert(win32.init);
-    
-    if(win32.usedGfxLib == GfxLib_OpenGL)
-    {
-        ImGui_ImplWin32_InitForOpenGL(win32.window);
-        ImGui_ImplOpenGL3_Init();
-    }
-    else
-        assert(false && "DearImgui initialization is not supported for this graphics API");
-}
-
-void OS_DearImguiBeginFrame()
-{
-    assert(win32.init);
-    
-    if(win32.usedGfxLib == GfxLib_OpenGL)
-    {
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-    }
-    else
-        assert(false && "This is not supported for this graphics API");
 }
 
 void OS_DearImguiShutdown()

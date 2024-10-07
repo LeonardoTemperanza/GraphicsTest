@@ -113,7 +113,7 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     inEditor = editor->inEditor;
 #endif
     
-    OS_DearImguiBeginFrame();
+    R_DearImguiBeginFrame();
     
     PollAndProcessInput(inEditor);
     

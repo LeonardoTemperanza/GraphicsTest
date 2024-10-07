@@ -149,6 +149,11 @@ R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
 int R_ReadIntPixelFromFramebuffer(int x, int y);
 Vec4 R_ReadPixelFromFramebuffer(int x, int y);
 
+// This is OS dependent. Equivalent of SwapBuffers in functionality
+void R_SubmitFrame();
+
 // Libraries
+void R_InitDearImgui();
+void R_DearImguiBeginFrame();
 void R_RenderDearImgui();
 void R_ShutdownDearImgui();

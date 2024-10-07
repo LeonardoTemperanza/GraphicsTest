@@ -43,7 +43,7 @@ int main()
     EntityManager entManager = InitEntityManager();
     defer { FreeEntities(&entManager); };
     
-    OS_InitDearImgui();
+    R_InitDearImgui();
     Editor editor = InitEditor(&entManager);
     
     OS_ShowWindow();
@@ -70,7 +70,7 @@ int main()
         
         // If the previous frame hasn't been fully rendered at this point,
         // then we stall the CPU until it is.
-        if(frameInFlight) OS_SwapBuffers();
+        if(frameInFlight) R_SubmitFrame();
         
         MainRender(&entManager, &editor, deltaTime, &frameArena);
         
@@ -79,7 +79,7 @@ int main()
         
         if(OS_NeedThisFrameBeforeNextIteration())
         {
-            OS_SwapBuffers();
+            R_SubmitFrame();
             frameInFlight = false;
         }
         else
