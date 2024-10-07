@@ -34,6 +34,9 @@ struct BasicMesh
     Slice<u32>  indices;
 };
 
+BasicMesh GenerateUnitCylinder();
+BasicMesh GenerateUnitCone();
+
 enum R_TextureKind
 {
     R_Tex2D = 0,
@@ -51,6 +54,9 @@ enum R_TextureFormat
     R_TexR8UI,
     R_TexR32I,
 };
+
+bool IsTextureFormatSigned(R_TextureFormat format);
+bool IsTextureFormatInteger(R_TextureFormat format);
 
 struct R_PerSceneData
 {
@@ -76,6 +82,8 @@ R_UniformValue MakeUniformVec3(Vec3 value);
 R_UniformValue MakeUniformVec4(Vec4 value);
 R_UniformValue MakeUniformMat4(Mat4 value);
 
+Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst);
+
 // Types defined in the respective .h files:
 struct R_Mesh;
 struct R_Texture;
@@ -84,15 +92,20 @@ struct R_Shader;
 struct R_Pipeline;
 struct Renderer;
 
+void R_SetToDefaultState();
+
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
-#elif GFX_D3D12
-#include "renderer_d3d12.h"
+#elif defined(GFX_D3D11)
+#include "renderer_d3d11.h"
+#else
+#error "Unsupported gfx api."
 #endif
+
+// From this point, these functions are all gfx api dependent
 
 // Initializes the graphics API context
 void R_Init();
-void R_SetToDefaultState();
 void R_Cleanup();
 
 // Utils
@@ -149,11 +162,11 @@ R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
 int R_ReadIntPixelFromFramebuffer(int x, int y);
 Vec4 R_ReadPixelFromFramebuffer(int x, int y);
 
-// This is OS dependent. Equivalent of SwapBuffers in functionality
+void R_WaitLastFrameAndBeginCurrentFrame();
 void R_SubmitFrame();
 
 // Libraries
-void R_InitDearImgui();
+void R_DearImguiInit();
 void R_DearImguiBeginFrame();
-void R_RenderDearImgui();
-void R_ShutdownDearImgui();
+void R_DearImguiRender();
+void R_DearImguiShutdown();

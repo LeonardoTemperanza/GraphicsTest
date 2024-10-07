@@ -153,3 +153,4 @@ float OS_GetDPIScale();
 
 // Libraries
 void OS_InitDearImgui();
+void OS_DearImguiBeginFrame();

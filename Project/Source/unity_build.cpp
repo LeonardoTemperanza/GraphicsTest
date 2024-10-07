@@ -1,6 +1,14 @@
 
 #define UnityBuild
 
+// Choose the gfx api for each platform
+#ifdef _WIN32
+#define GFX_D3D11
+//#define GFX_OPENGL
+#else
+#error "Unsupported platform."
+#endif
+
 #include "metaprogram_custom_keywords.h"
 
 // Misc preprocessor directives
@@ -37,8 +45,10 @@
 
 #ifdef GFX_OPENGL
 #include "imgui/backends/imgui_impl_opengl3.cpp"
+#elif defined(GFX_D3D11)
+#include "imgui/backends/imgui_impl_dx11.cpp"
 #else
-#error "TODO"
+#error "Unsupported platform."
 #endif
 
 #ifdef _WIN32
@@ -48,5 +58,5 @@
 #elif defined(__APPLE__)
 #error "Apple Operating systems not supported."
 #else
-#error "Unknown operating system."
+#error "Unsupported platform."
 #endif

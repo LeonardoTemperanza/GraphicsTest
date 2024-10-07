@@ -18,9 +18,7 @@ set source_files=..\Source\unity_build.cpp
 set lib_files=User32.lib opengl32.lib GDI32.lib D3D11.lib dxgi.lib dxguid.lib Dwmapi.lib Shcore.lib Ole32.lib
 set output_name=graphics_test.exe
 
-REM gfx_api could be one of: GFX_OPENGL, GFX_D3D12
-set gfx_api=/DGFX_OPENGL
-set common=/nologo /std:c++20 /FC /W3 /we4062 /we4714 /we6340 /we6284 /we6273 /D_CRT_SECURE_NO_WARNINGS %gfx_api% %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name%
+set common=/nologo /std:c++20 /FC /W3 /we4062 /we4714 /we6340 /we6284 /we6273 /D_CRT_SECURE_NO_WARNINGS %include_dirs% %source_files% /link %lib_dirs% %lib_files% /out:%output_name%
 
 REM Generate introspection info from the metaprogram
 cl /Zi /std:c++20 /nologo /FC ..\Source\metaprogram.cpp

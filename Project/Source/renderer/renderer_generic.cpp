@@ -3,6 +3,14 @@
 
 static Renderer renderer;
 
+#ifdef GFX_OPENGL
+#include "renderer/renderer_opengl.cpp"
+#elif defined(GFX_D3D11)
+#include "renderer/renderer_d3d11.cpp"
+#else
+#error "No gfx api selected from the implemented ones"
+#endif
+
 bool IsTextureFormatSigned(R_TextureFormat format)
 {
     switch(format)
@@ -272,13 +280,6 @@ Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst)
     
     return res;
 }
-
-#ifdef GFX_OPENGL
-#include "renderer/renderer_opengl.cpp"
-#endif
-#ifdef GFX_D3D11
-#include "renderer/renderer_d3d11.cpp"
-#endif
 
 void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength)
 {

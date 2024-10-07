@@ -113,7 +113,9 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     inEditor = editor->inEditor;
 #endif
     
-    R_DearImguiBeginFrame();
+    OS_DearImguiBeginFrame();
+    R_DearImguiBeginFrame();  // TODO: Does this need to be here?
+    ImGui::NewFrame();
     
     PollAndProcessInput(inEditor);
     
@@ -148,12 +150,14 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     OS_GetClientAreaSize(&width, &height);
     float aspectRatio = (float)width / (float)height;
     
+    R_WaitLastFrameAndBeginCurrentFrame();
+    
     if(width <= 0 || height <= 0)
     {
         // If these are not called anyway,
         // an assert fails.
         ImGui::Render();
-        R_RenderDearImgui();
+        R_DearImguiRender();
         return;
     }
     
@@ -239,7 +243,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     }
     
     ImGui::Render();  // Render UI on top of scene
-    R_RenderDearImgui();
+    R_DearImguiRender();
 }
 
 void UpdateEntities(EntityManager* man, float deltaTime)

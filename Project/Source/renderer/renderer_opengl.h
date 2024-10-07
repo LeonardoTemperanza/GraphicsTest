@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "base.h"
+
 struct R_Mesh
 {
     u32 vao;

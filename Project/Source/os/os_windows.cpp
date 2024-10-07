@@ -13,18 +13,9 @@
 
 // Opengl includes
 //#include <GL/gl.h>
+// TODO: Move this to the renderer
 #include "include/glad.h"
 #include "include/wglext.h"
-
-// D3D11 includes
-#pragma warning(push)  // These includes have tons of warnings so we're disabling them
-#pragma warning(disable : 4062)
-#pragma warning(disable : 4061)
-#include <d3d11.h>
-#include <dxgi1_3.h>
-#include <dxgidebug.h>
-#include <d3d11sdklayers.h>
-#pragma warning(pop)
 
 // Input
 #include <Xinput.h>
@@ -99,16 +90,8 @@ struct WGL_Context
     HGLRC glContext;
 };
 
-struct D3D11_Context
-{
-    IDXGISwapChain* swapchain;
-    ID3D11Device* device;
-    ID3D11DeviceContext* deviceContext;
-};
-
 static OS_Context win32;
 static WGL_Context wgl;
-static D3D11_Context d3d11;
 
 // Stubs and signatures
 // XInputGetState
@@ -524,109 +507,6 @@ void* Win32_GetOpenGLProc(const char* name)
     }
     
     return proc;
-}
-
-bool Win32_SetupD3D11()
-{
-    static const D3D_FEATURE_LEVEL featureLevels[] =
-    {
-        D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0
-    };
-    
-    // Create D3D11 device and context
-    UINT flags = 0;
-#ifndef NDEBUG
-    flags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-    
-    ID3D11DeviceContext* deviceContext;
-    ID3D11Device* device;
-    HRESULT res = D3D11CreateDevice(nullptr,
-                                    D3D_DRIVER_TYPE_HARDWARE,
-                                    nullptr,
-                                    flags,
-                                    featureLevels,
-                                    ArrayCount(featureLevels),
-                                    D3D11_SDK_VERSION,
-                                    &device,
-                                    nullptr,
-                                    &deviceContext);
-    
-    if(FAILED(res)) return false;
-    
-#ifndef NDEBUG
-    // For debug buils enable debug break on API errors
-    {
-        ID3D11InfoQueue* info;
-        device->QueryInterface(IID_ID3D11InfoQueue, (void**)&info);
-        info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-        info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, TRUE);
-        info->Release();
-    }
-    
-    // Enable debug break for DXGI
-    {
-        IDXGIInfoQueue* dxgiInfo;
-        res = DXGIGetDebugInterface1(0, IID_IDXGIInfoQueue, (void**)&dxgiInfo);
-        assert(SUCCEEDED(res));
-        dxgiInfo->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-        dxgiInfo->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
-        dxgiInfo->Release();
-    }
-#endif
-    
-    // Create DXGI swapchain
-    IDXGISwapChain1* swapchain;
-    {
-        // Get DXGI device from D3D11 device
-        IDXGIDevice* dxgiDevice;
-        HRESULT res = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgiDevice);
-        assert(SUCCEEDED(res));
-        
-        // Get DXGI adapter from DXGI device
-        IDXGIAdapter* dxgiAdapter;
-        res = dxgiDevice->GetAdapter(&dxgiAdapter);
-        assert(SUCCEEDED(res));
-        
-        // Get DXGI factory from DXGI adapter
-        IDXGIFactory2* factory;
-        res = dxgiAdapter->GetParent(IID_IDXGIFactory2, (void**)&factory);
-        assert(SUCCEEDED(res));
-        
-        DXGI_SWAP_CHAIN_DESC1 swapchainDesc =
-        {
-            .Width = 0,
-            .Height = 0,
-            .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
-            .SampleDesc = { 1, 0 },
-            .BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
-            .BufferCount = 2,
-            .Scaling = DXGI_SCALING_NONE,
-            .SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD
-        };
-        
-        res = factory->CreateSwapChainForHwnd((IUnknown*)device, win32.window, &swapchainDesc, nullptr, nullptr, &swapchain);
-        assert(SUCCEEDED(res));
-        
-        // Disable Alt+Enter changing monitor resolution to match window size
-        factory->MakeWindowAssociation(win32.window, DXGI_MWA_NO_ALT_ENTER);
-        
-        factory->Release();
-        dxgiAdapter->Release();
-        dxgiDevice->Release();
-    }
-    
-    d3d11.device = device;
-    d3d11.deviceContext = deviceContext;
-    d3d11.swapchain = swapchain;
-    
-    return true;
-}
-
-D3D11_Context Win32_GetD3D11Context()
-{
-    return d3d11;
 }
 
 // Handles the DPI stuff. This depends on the
@@ -1101,6 +981,22 @@ float OS_GetDPIScale()
     }
     
     return xdpi / 96.0f;
+}
+
+void OS_DearImguiInit()
+{
+    assert(win32.init);
+#ifdef GFX_OPENGL
+    ImGui_ImplWin32_InitForOpenGL(win32.window);
+#else
+    ImGui_ImplWin32_Init(win32.window);
+#endif
+}
+
+void OS_DearImguiBeginFrame()
+{
+    assert(win32.init);
+    ImGui_ImplWin32_NewFrame();
 }
 
 void OS_DearImguiShutdown()
