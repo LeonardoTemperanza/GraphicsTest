@@ -2,6 +2,13 @@
 #include "asset_system.h"
 #include "parser.h"
 
+// NOTE: I think the overall design should be this:
+// when a user gets an asset in any way, that should be valid
+// for the entire duration of the current frame. Only in a frame
+// boundary, these can get swapped. If the user needs to hold on to
+// an asset for more than one frame, it needs to use an AssetHandle.
+// When using an AssetHandle, you also get hot reloading for free.
+
 static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
 static AssetSystem assetManager = {};
 
@@ -67,14 +74,14 @@ void ReserveSlotForDefaultAssets()
     auto& man = assetManager;
     
     assert(man.meshes.len == 0);
-    Append(&man.meshes, R_MakeDefaultMesh());
+    Append(&man.meshes, R_CreateDefaultMesh());
     
     assert(man.textures.len == 0);
     //Append(&man.textures, R_MakeDefaultTexture());
     
     assert(man.shaders.len == 0);
-    Append(&man.shaders, R_MakeDefaultShader(ShaderKind_Vertex));
-    Append(&man.shaders, R_MakeDefaultShader(ShaderKind_Pixel));
+    Append(&man.shaders, R_CreateDefaultShader(ShaderKind_Vertex));
+    Append(&man.shaders, R_CreateDefaultShader(ShaderKind_Pixel));
     
     assert(man.pipelines.len == 0);
     R_Shader shaders[] = {man.shaders[0], man.shaders[1]};
@@ -107,7 +114,7 @@ void LoadMesh(R_Mesh* mesh, String path)
     if(!success)
     {
         Log("Failed to load file '%.*s'", StrPrintf(path));
-        *mesh = R_MakeDefaultMesh();
+        *mesh = R_CreateDefaultMesh();
         return;
     }
     
@@ -119,7 +126,7 @@ void LoadMesh(R_Mesh* mesh, String path)
     if(magicBytes != "mesh")
     {
         Log("Attempted to load file '%.*s' as a mesh, which it is not.", StrPrintf(path));
-        *mesh = R_MakeDefaultMesh();
+        *mesh = R_CreateDefaultMesh();
         return;
     }
     
@@ -127,7 +134,7 @@ void LoadMesh(R_Mesh* mesh, String path)
     if(version != 0)
     {
         Log("Attempted to load file '%.*s' as a mesh, but its version is unsupported.", StrPrintf(path));
-        *mesh = R_MakeDefaultMesh();
+        *mesh = R_CreateDefaultMesh();
         return;
     }
     
@@ -137,7 +144,7 @@ void LoadMesh(R_Mesh* mesh, String path)
     if(header.isSkinned)
     {
         Log("Skinned meshes are not yet supported.");
-        *mesh = R_MakeDefaultMesh();
+        *mesh = R_CreateDefaultMesh();
         return;
     }
     
@@ -354,7 +361,7 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     if(!success)
     {
         Log("Failed to load file '%.*s'\n", StrPrintf(path));
-        *shader = R_MakeDefaultShader(kind);
+        *shader = R_CreateDefaultShader(kind);
         return;
     }
     
@@ -367,7 +374,7 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     {
         Log("%.*s", StrPrintf(magicBytes));
         Log("Attempted to load file '%.*s' as a shader, which it is not.", StrPrintf(path));
-        *shader = R_MakeDefaultShader(kind);
+        *shader = R_CreateDefaultShader(kind);
         return;
     }
     
@@ -375,7 +382,7 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     if(version < 0 || version > 1)
     {
         Log("Attempted to load file '%.*s' as a shader, but its version is unsupported.", StrPrintf(path));
-        *shader = R_MakeDefaultShader(kind);
+        *shader = R_CreateDefaultShader(kind);
         return;
     }
     
@@ -416,14 +423,16 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
         const char* desiredKindStr = GetShaderKindString(kind);
         const char* actualKindStr  = GetShaderKindString((ShaderKind)header.v0.shaderKind);
         Log("Attempted to load shader '%.*s' as a %s, but it's a %s", StrPrintf(path), desiredKindStr, actualKindStr);
-        *shader = R_MakeDefaultShader(kind);
+        *shader = R_CreateDefaultShader(kind);
         return;
     }
     
-    String dxil        = {.ptr=headerPtr+header.v0.dxil, .len=header.v0.dxilSize};
-    String vulkanSpirv = {.ptr=headerPtr+header.v0.vulkanSpirv, .len=header.v0.vulkanSpirvSize};
-    String glsl        = {.ptr=headerPtr+header.v0.glsl, .len=header.v0.glslSize};
-    *shader = R_CompileShader((ShaderKind)header.v0.shaderKind, dxil, vulkanSpirv, glsl);
+    ShaderInput input = {};
+    input.dxil          = {.ptr=headerPtr+header.v0.dxil, .len=header.v0.dxilSize};
+    input.vulkanSpirv   = {.ptr=headerPtr+header.v0.vulkanSpirv, .len=header.v0.vulkanSpirvSize};
+    input.glsl          = {.ptr=headerPtr+header.v0.glsl, .len=header.v0.glslSize};
+    input.d3d11Bytecode = {.ptr=headerPtr+header.d3d11Bytecode, .len=header.d3d11BytecodeSize};
+    *shader = R_CompileShader((ShaderKind)header.v0.shaderKind, input);
 }
 
 void LoadMaterial(Material* material, String path)

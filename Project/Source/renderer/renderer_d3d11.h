@@ -3,9 +3,12 @@
 
 #include "base.h"
 
+struct ID3D11Buffer;
 struct R_Mesh
 {
-    u32 test;
+    ID3D11Buffer* vertBuf;
+    ID3D11Buffer* indexBuf;
+    u32 numIndices;
 };
 
 struct R_Texture
@@ -19,14 +22,25 @@ struct R_Framebuffer
     // Textures
 };
 
+struct ID3D11VertexShader;
+struct ID3D11PixelShader;
+struct ID3D11ComputeShader;
 struct R_Shader
 {
-    u32 a;
+    ShaderKind kind;
+    
+    union
+    {
+        ID3D11VertexShader* vertShader;
+        ID3D11PixelShader* pixelShader;
+        ID3D11ComputeShader* computeShader;
+    };
 };
 
 struct R_Pipeline
 {
-    u32 a;
+    ID3D11VertexShader* vertShader;
+    ID3D11PixelShader* pixelShader;
 };
 
 struct ID3D11Device;
@@ -40,7 +54,12 @@ struct Renderer
     ID3D11Device* device;
     ID3D11DeviceContext* deviceContext;
     IDXGISwapChain2* swapchain;
-    HANDLE swapchainWaitableObject;  // This lets us wait until the last frame has been presented
+    // This lets us wait until the last frame has been presented,
+    // which is good because it lets us reduce latency
+    HANDLE swapchainWaitableObject;
     
     ID3D11RenderTargetView* rtv;
+    
+    // Buffers used for immediate mode rendering style
+    ID3D11Buffer* quadVerts;
 };
