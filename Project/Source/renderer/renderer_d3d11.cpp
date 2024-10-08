@@ -138,6 +138,52 @@ void R_Init()
     
     // TODO: Initialization of buffers for immediate mode style rendering
     //ID3D11Buffer* 
+    
+    // Create commonly used input layouts
+    // Static mesh
+    {
+        // NOTE: For some reason, D3D11 needs a shader bytecode when creating 
+        
+        String vertShader = StrLit("struct VSInput                  "
+                                   "{                               "
+                                   "    float3 position : POSITION; "
+                                   "    float3 normal   : NORMAL;   "
+                                   "    float2 texCoord : TEXCOORD; "
+                                   "    float3 tangent  : TANGENT;  "
+                                   "};                              "
+                                   "struct VSOutput { float4 position : SV_POSITION; };"
+                                   "VSOutput main(VSInput input)                       "
+                                   "{ VSOutput output;                                 "
+                                   " output.position = float4(input.position, 1.0f);   "
+                                   " return output; } ");
+        
+        ID3DBlob* shader = nullptr;
+        ID3DBlob* errorBlob = nullptr;
+        HRESULT hr = D3DCompile(vertShader.ptr, vertShader.len,
+                                "DefaultVertShader",
+                                nullptr,  // Optional defines
+                                nullptr,  // Include handler (non needed)
+                                "main",
+                                "vs_5_0",
+                                0,  // Compilation Flags
+                                0,  // Effect compilation flags
+                                &shader,
+                                &errorBlob);
+        assert(SUCCEEDED(hr) && "Fictitious shader compilation failed!");
+        defer { shader->Release(); };
+        
+        D3D11_INPUT_ELEMENT_DESC inputLayoutDesc[] =
+        {
+            { "POSITION",  0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "NORMAL",    0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",  0, DXGI_FORMAT_R32G32_FLOAT,    0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TANGENT",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        };
+        
+        device->CreateInputLayout(inputLayoutDesc, ArrayCount(inputLayoutDesc),
+                                  shader->GetBufferPointer(), shader->GetBufferSize(), 
+                                  &r.staticMeshInputLayout);
+    }
 }
 
 void R_Cleanup()
@@ -156,18 +202,6 @@ R_Mesh R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)
     
     R_Mesh res = {};
     res.numIndices = (u32)indices.len;
-    
-    auto vec3Format = DXGI_FORMAT_R32G32B32_FLOAT;
-    auto vec2Format = DXGI_FORMAT_R32G32_FLOAT;
-    auto floatFormat = DXGI_FORMAT_R32_FLOAT;
-    
-    D3D11_INPUT_ELEMENT_DESC layout[] =
-    {
-        { "POSITION", 0, vec3Format, 0, offsetof(Vertex, pos),      D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "NORMAL",   0, vec3Format, 0, offsetof(Vertex, normal),   D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, vec2Format, 0, offsetof(Vertex, texCoord), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TANGENT",  0, vec3Format, 0, offsetof(Vertex, tangent),  D3D11_INPUT_PER_VERTEX_DATA, 0 },
-    };
     
     // Vertex buffer
     {
@@ -220,45 +254,112 @@ R_Texture R_UploadCubemap(String top, String bottom, String left, String right, 
 
 R_Shader R_CreateDefaultShader(ShaderKind kind)
 {
-    String vertShader = StrLit(R""""(
-                                                                                                                                                                                                                                                                                                                                                                                          struct VSInput
-                                                                                                                                                                                                                                                                                                                                                               {
-                                                                                                                                                                                                                                                                                                                                    float3 position : POSITION;
-                                                                                                                                                                                                                                                                                                         }
-                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                   struct VSOutput
-                                                                                                                                                                                                                        {
-                                                                                                                                                                                             float4 position : SV_POSITION;
-                                                                                                                                                                  }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  VSOutput VSMain(VSInput input)
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            VSOutput output;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 output.position = float4(input.position, 1.0f);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      return output;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                           }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                )"""");
+    auto& r = renderer;
     
-    String pixelShader = StrLit(R""""(
-                                                                                                                                                                                                                                                                                                                                                #version 460 core
-                                                                                                                                                                                                                                                                                                                    out vec4 fragColor;
-                                                                                                                                                                                                                                                                                        void main()
-                                                                                                                                                                                                                                                            {
-                                                                                                                                                                                                                                fragColor = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-                                                                                                                                                                                                    }
-                                                                                                                                                                        )"""");
+    String vertShader = StrLit("struct VSInput  { float3 position : POSITION; };   "
+                               "struct VSOutput { float4 position : SV_POSITION; };"
+                               "VSOutput main(VSInput input)                       "
+                               "{ VSOutput output;                                 "
+                               " output.position = float4(input.position, 1.0f);   "
+                               " return output; } ");
     
-    String computeShader = StrLit(R""""(
-                                                                                                                                                                                                                                                #version 460 core
-                                                                                                                                                                                                                  layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-                                                                                                                                                                                    void main() { }
-                                                                                                                                                      )"""");
+    String pixelShader = StrLit("float4 main() : SV_TARGET                 "
+                                "{ return float4(1.0f, 0.0f, 1.0f, 1.0f); }");
     
-    // TODO: Maybe remove the d3dcompiler dependency with precompiled shaders and injected into the app binary?
+    String computeShader = StrLit("[numthreads(8, 8, 1)]                           "
+                                  "void main(uint3 DTid : SV_DispatchThreadID) { } ");
     
-    // TODO: continue working from here
+    R_Shader res = {};
+    res.kind = kind;
     
-    return {};
+    switch(kind)
+    {
+        case ShaderKind_None: break;
+        case ShaderKind_Count: break;
+        case ShaderKind_Vertex:
+        {
+            ID3DBlob* shader = nullptr;
+            ID3DBlob* errorBlob = nullptr;
+            HRESULT hr = D3DCompile(vertShader.ptr, vertShader.len,
+                                    "DefaultVertShader",
+                                    nullptr,  // Optional defines
+                                    nullptr,  // Include handler (non needed)
+                                    "main",
+                                    "vs_5_0",
+                                    0,  // Compilation Flags
+                                    0,  // Effect compilation flags
+                                    &shader,
+                                    &errorBlob);
+            
+            if(FAILED(hr) && errorBlob)
+            {
+                Log("Default vertex shader compilation failed: %s", (char*)errorBlob->GetBufferPointer());
+                errorBlob->Release();
+                return res;
+            }
+            
+            r.device->CreateVertexShader(shader->GetBufferPointer(), shader->GetBufferSize(), nullptr, &res.vertShader);
+            
+            shader->Release();
+            break;
+        }
+        case ShaderKind_Pixel:
+        {
+            ID3DBlob* shader = nullptr;
+            ID3DBlob* errorBlob = nullptr;
+            HRESULT hr = D3DCompile(pixelShader.ptr, pixelShader.len,
+                                    "DefaultPixelShader",
+                                    nullptr,  // Optional defines
+                                    nullptr,  // Include handler (non needed)
+                                    "main",
+                                    "ps_5_0",
+                                    0,  // Compilation Flags
+                                    0,  // Effect compilation flags
+                                    &shader,
+                                    &errorBlob);
+            
+            if(FAILED(hr) && errorBlob)
+            {
+                Log("Default pixel shader compilation failed: %s", (char*)errorBlob->GetBufferPointer());
+                errorBlob->Release();
+                return res;
+            }
+            
+            r.device->CreatePixelShader(shader->GetBufferPointer(), shader->GetBufferSize(), nullptr, &res.pixelShader);
+            
+            shader->Release();
+            break;
+        }
+        case ShaderKind_Compute:
+        {
+            ID3DBlob* shader = nullptr;
+            ID3DBlob* errorBlob = nullptr;
+            HRESULT hr = D3DCompile(computeShader.ptr, computeShader.len,
+                                    "DefaultComputeShader",
+                                    nullptr,  // Optional defines
+                                    nullptr,  // Include handler (non needed)
+                                    "main",
+                                    "cs_5_0",
+                                    0,  // Compilation Flags
+                                    0,  // Effect compilation flags
+                                    &shader,
+                                    &errorBlob);
+            
+            if(FAILED(hr) && errorBlob)
+            {
+                Log("Default compute shader compilation failed: %s", (char*)errorBlob->GetBufferPointer());
+                errorBlob->Release();
+                return res;
+            }
+            
+            r.device->CreateComputeShader(shader->GetBufferPointer(), shader->GetBufferSize(), nullptr, &res.computeShader);
+            
+            shader->Release();
+            break;
+        }
+    }
+    
+    return res;
 }
 
 R_Mesh R_CreateDefaultMesh()
@@ -344,6 +445,8 @@ void R_DrawMesh(R_Mesh mesh)
     
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
+    r.deviceContext->IASetInputLayout(r.staticMeshInputLayout);
+    r.deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     r.deviceContext->IASetVertexBuffers(0, 1, &mesh.vertBuf, &stride, &offset);
     r.deviceContext->IASetIndexBuffer(mesh.indexBuf, DXGI_FORMAT_R32_UINT, 0);
     r.deviceContext->DrawIndexed(mesh.numIndices, 0, 0);
@@ -404,6 +507,8 @@ void R_SetFramebuffer(R_Framebuffer framebuffer)
 
 void R_SetTexture(R_Texture texture, u32 slot)
 {
+    auto& r = renderer;
+    
     
 }
 

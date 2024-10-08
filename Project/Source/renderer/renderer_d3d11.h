@@ -11,9 +11,10 @@ struct R_Mesh
     u32 numIndices;
 };
 
+struct ID3D11ShaderResourceView;
 struct R_Texture
 {
-    u32 test;
+    ID3D11ShaderResourceView* view;
 };
 
 struct R_Framebuffer
@@ -48,6 +49,7 @@ struct ID3D11DeviceContext;
 struct IDXGISwapChain2;
 struct ID3D11RasterizerState;
 struct ID3D11RenderTargetView;
+struct ID3D11InputLayout;
 
 struct Renderer
 {
@@ -62,4 +64,7 @@ struct Renderer
     
     // Buffers used for immediate mode rendering style
     ID3D11Buffer* quadVerts;
+    
+    // Commonly used input layouts
+    ID3D11InputLayout* staticMeshInputLayout;
 };
