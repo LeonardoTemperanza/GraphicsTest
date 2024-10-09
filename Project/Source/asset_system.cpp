@@ -15,7 +15,7 @@ static AssetSystem assetManager = {};
 Material DefaultMaterial()
 {
     Material mat = {};
-    mat.pipeline = {};
+    mat.pixelShader = {};
     mat.uniforms = {};
     mat.textures = {};
     return mat;
@@ -25,44 +25,7 @@ Material DefaultMaterial()
 MeshHandle::operator R_Mesh()       { return assetManager.meshes[idx];    }
 TextureHandle::operator R_Texture() { return assetManager.textures[idx];  }
 ShaderHandle::operator R_Shader()   { return assetManager.shaders[idx];   }
-PipelineHandle::operator Pipeline() { return assetManager.pipelines[idx]; }
 MaterialHandle::operator Material() { return assetManager.materials[idx]; }
-
-#if 0
-R_Texture LoadTexture(String path, bool* outSuccess)
-{
-    ScratchArena scratch;
-    
-    bool success = true;
-    String contents = LoadEntireFile(path, scratch, &success);
-    if(!success)
-    {
-        Log("Failed to load texture '%.*s'", StrPrintf(path));
-        *outSuccess = false;
-        
-        // TODO: default texture
-        TODO;
-    }
-    
-    String stbImage = {0};
-    int width, height, numChannels;
-    stbImage.ptr = (char*)stbi_load_from_memory((const stbi_uc*)contents.ptr, (int)contents.len, &width, &height, &numChannels, 0);
-    stbImage.len = width * height * numChannels;
-    if(!stbImage.ptr)
-    {
-        Log("Failed to load texture '%s'", path);
-        u8 fallback[] = {255, 0, 255};
-        String s = {.ptr=(const char*)fallback, .len=sizeof(fallback)};
-        R_Texture res = R_UploadTexture(s, 1, 1, 3);
-        *outSuccess = false;
-        return res;
-    }
-    
-    R_Texture res = R_UploadTexture(stbImage, width, height, numChannels);
-    stbi_image_free((void*)stbImage.ptr);
-    return res;
-}
-#endif
 
 void InitAssetSystem()
 {
@@ -86,14 +49,11 @@ void ReserveSlotForDefaultAssets()
     assert(man.pipelines.len == 0);
     R_Shader shaders[] = {man.shaders[0], man.shaders[1]};
     R_Pipeline obj = R_CreatePipeline(ArrToSlice(shaders));
-    Pipeline defaultPipeline = {.vert = 0, .pixel = 1, .obj = obj};
-    Append(&man.pipelines, defaultPipeline);
 }
 
 void UseMaterial(Material mat)
 {
-    Pipeline pipeline = mat.pipeline;
-    R_SetPipeline(pipeline.obj);
+    R_SetPixelShader(mat.pixelShader);
     R_SetUniforms(ToSlice(&mat.uniforms));
     
     for(int i = 0; i < mat.textures.len; ++i)
@@ -248,6 +208,42 @@ void LoadMesh(const char* path)
     LoadMesh(&assetManager.meshes[assetManager.meshes.len - 1], str);
 }
 
+R_Texture CreateDefaultTexture()
+{
+    u8 texData[] = {255, 0, 255};
+    String s = {.ptr=(const char*)texData, .len=sizeof(texData)};
+    return R_UploadTexture(s, 1, 1, 3);
+}
+
+void LoadTexture(R_Texture* texture, String path)
+{
+    ScratchArena scratch;
+    
+    bool success = true;
+    String contents = LoadEntireFile(path, scratch, &success);
+    if(!success)
+    {
+        Log("Failed to load texture '%.*s'", StrPrintf(path));
+        *texture = CreateDefaultTexture();
+        return;
+    }
+    
+    String stbImage = {0};
+    int width, height, numChannels;
+    stbImage.ptr = (char*)stbi_load_from_memory((const stbi_uc*)contents.ptr, (int)contents.len, &width, &height, &numChannels, 0);
+    stbImage.len = width * height * numChannels;
+    if(!stbImage.ptr)
+    {
+        Log("Failed to load texture '%.*s'", StrPrintf(path));
+        *texture = CreateDefaultTexture();
+        return;
+    }
+    
+    *texture = R_UploadTexture(stbImage, width, height, numChannels);
+    stbi_image_free((void*)stbImage.ptr);
+    return;
+}
+
 MeshHandle GetMeshByPath(const char* path)
 {
     auto& man = assetManager;
@@ -262,6 +258,24 @@ MeshHandle GetMeshByPath(const char* path)
         String newStr = ArenaPushString(&sceneArena, path);
         Append(&man.pathToMesh, newStr, mesh);
         return mesh;
+    }
+    
+    return *res.res;
+}
+
+TextureHandle GetTextureByPath(const char* path)
+{
+    auto& man = assetManager;
+    auto res = Lookup(&man.pathToTexture, ToLenStr(path));
+    if(!res.ok)
+    {
+        TextureHandle texture;
+        Append(&man.textures, {});
+        texture.idx = man.textures.len - 1;
+        LoadTexture(&man.textures[texture.idx], ToLenStr(path));
+        String newStr = ArenaPushString(&sceneArena, path);
+        Append(&man.pathToTexture, newStr, texture);
+        return texture;
     }
     
     return *res.res;
@@ -305,43 +319,6 @@ MaterialHandle GetMaterialByPath(const char* path)
     }
     
     return *res.res;
-}
-
-PipelineHandle GetPipelineByPath(const char* vert, const char* pixel)
-{
-    ShaderHandle vertHandle  = GetShaderByPath(vert, ShaderKind_Vertex);
-    ShaderHandle pixelHandle = GetShaderByPath(pixel, ShaderKind_Pixel);
-    return GetPipelineByHandles(vertHandle, pixelHandle);
-}
-
-PipelineHandle GetPipelineByHandles(ShaderHandle vert, ShaderHandle pixel)
-{
-    auto& man = assetManager;
-    
-    // @speed This lookup could maybe be faster. Probably does not matter
-    int found = -1;
-    for(int i = 0; i < man.pipelines.len; ++i)
-    {
-        auto& pipeline = man.pipelines[i];
-        if(pipeline.vert.idx == vert.idx && pipeline.pixel.idx == vert.idx)
-        {
-            found = i;
-            break;
-        }
-    }
-    
-    if(found != -1) return {(u32)found};
-    
-    R_Shader shaders[] = {vert, pixel};
-    Pipeline pipeline = {};
-    pipeline.obj = R_CreatePipeline(ArrToSlice(shaders));
-    pipeline.vert  = vert;
-    pipeline.pixel = pixel;
-    
-    Append(&man.pipelines, pipeline);
-    PipelineHandle res = {};
-    res.idx = man.pipelines.len - 1;
-    return res;
 }
 
 AssetMetadata GetMetadata(u32 handle, AssetKind kind)
@@ -527,7 +504,7 @@ void LoadMaterial(Material* material, String path)
         else
             pixelHandle = GetShaderByPath(pixelShaderPath, ShaderKind_Pixel);
         
-        material->pipeline = GetPipelineByHandles(vertHandle, pixelHandle);
+        material->pixelShader = pixelHandle;
     }
 }
 

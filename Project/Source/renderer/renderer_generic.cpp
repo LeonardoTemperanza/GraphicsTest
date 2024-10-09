@@ -48,23 +48,17 @@ bool IsTextureFormatInteger(R_TextureFormat format)
 // Generate some basic meshes
 
 // Generate unit cylinder with radius=1.0 and height=1.0
-BasicMesh GenerateUnitCylinder()
+R_Mesh GenerateUnitCylinderMesh()
 {
     constexpr int numPointsBase = 25;
     constexpr int numVerts = numPointsBase * 2;
     constexpr int numTris = (numPointsBase - 2) * 2 + numPointsBase * 2;
     constexpr int numIndices = numTris * 3;
     static Vec3 verts[numVerts];
-    static u32 indices[numIndices];
-    static bool cached = false;
+    static s32 indices[numIndices];
     
     const float height = 1.0f;
     const float radius = 1.0f;
-    
-    BasicMesh res = {0};
-    res.verts   = {.ptr=verts,   .len=numPointsBase * 2};
-    res.indices = {.ptr=indices, .len=numIndices};
-    if(cached) return res;
     
     // Vertices
     
@@ -131,29 +125,23 @@ BasicMesh GenerateUnitCylinder()
     }
     
     assert(curIdx == numIndices);
-    cached = true;
-    return res;
+    
+    return R_UploadBasicMesh(ArrToSlice(verts), {}, ArrToSlice(indices));
 }
 
 // Generate unit cone with radius=1.0f and height=1.0
 // (it points up)
-BasicMesh GenerateUnitCone()
+R_Mesh GenerateUnitConeMesh()
 {
     constexpr int numPointsBase = 25;
     constexpr int numVerts = numPointsBase + 1;
     constexpr int numTris = numPointsBase - 2 + numPointsBase;
     constexpr int numIndices = numTris * 3;
-    static Vec3 verts[numVerts];
-    static u32 indices[numIndices];
-    static bool cached = false;
+    Vec3 verts[numVerts];
+    s32 indices[numIndices];
     
     const float height = 1.0f;
     const float radius = 1.0f;
-    
-    BasicMesh res = {0};
-    res.verts   = {.ptr=verts,   .len=numPointsBase * 2};
-    res.indices = {.ptr=indices, .len=numIndices};
-    if(cached) return res;
     
     // Vertices
     
@@ -193,8 +181,8 @@ BasicMesh GenerateUnitCone()
     }
     
     assert(curIdx == numIndices);
-    cached = true;
-    return res;
+    
+    return R_UploadBasicMesh(ArrToSlice(verts), {}, ArrToSlice(indices));
 }
 
 R_UniformValue MakeUniformFloat(float value)

@@ -1,4 +1,7 @@
 
+// NOTE: This backend's development is on pause, so there are some missing
+// functionalities. I'm currently focusing on the DX11 backend for many reasons.
+
 #pragma once
 
 #include "base.h"

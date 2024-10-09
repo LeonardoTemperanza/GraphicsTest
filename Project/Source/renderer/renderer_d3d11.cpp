@@ -18,6 +18,42 @@
 // Dear imgui
 #include "imgui/backends/imgui_impl_dx11.h"
 
+// D3D utility functions
+ID3D11SamplerState* D3D11_CreateSampler(D3D11_FILTER filter,
+                                        D3D11_TEXTURE_ADDRESS_MODE wrapU, D3D11_TEXTURE_ADDRESS_MODE wrapV,
+                                        float mipLODBias = 0.1f,
+                                        UINT maxAnisotropy = 1,
+                                        D3D11_COMPARISON_FUNC compareFunc = D3D11_COMPARISON_ALWAYS)
+{
+    auto& r = renderer;
+    
+    ID3D11SamplerState* res = nullptr;
+    
+    // Create a res description
+    D3D11_SAMPLER_DESC samplerDesc = {};
+    samplerDesc.Filter         = filter;
+    samplerDesc.AddressU       = wrapU;
+    samplerDesc.AddressV       = wrapV;
+    samplerDesc.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.MipLODBias     = mipLODBias;  // Mipmap bias
+    samplerDesc.MaxAnisotropy  = maxAnisotropy;  // Anisotropic filtering level
+    samplerDesc.ComparisonFunc = compareFunc; // Comparison function for shadow mapping, etc.
+    
+    // Default border color (can be modified if needed)
+    samplerDesc.BorderColor[0] = 0.0f;
+    samplerDesc.BorderColor[1] = 0.0f;
+    samplerDesc.BorderColor[2] = 0.0f;
+    samplerDesc.BorderColor[3] = 0.0f;
+    
+    samplerDesc.MinLOD = 0.0f;  // Minimum LOD
+    samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;  // Maximum LOD (allow all mip levels)
+    
+    // Create the sampler state object
+    HRESULT hr = r.device->CreateSamplerState(&samplerDesc, &res);
+    assert(SUCCEEDED(hr));
+    return res;
+}
+
 void R_Init()
 {
     auto& r = renderer;
@@ -34,8 +70,6 @@ void R_Init()
     flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
     
-    ID3D11DeviceContext* deviceContext;
-    ID3D11Device* device;
     HRESULT res = D3D11CreateDevice(nullptr,
                                     D3D_DRIVER_TYPE_HARDWARE,
                                     nullptr,
@@ -43,9 +77,9 @@ void R_Init()
                                     featureLevels,
                                     ArrayCount(featureLevels),
                                     D3D11_SDK_VERSION,
-                                    &device,
+                                    &r.device,
                                     nullptr,
-                                    &deviceContext);
+                                    &r.deviceContext);
     
     assert(SUCCEEDED(res));
     
@@ -53,7 +87,7 @@ void R_Init()
     // For debug builds enable debug break on API errors
     {
         ID3D11InfoQueue* info;
-        device->QueryInterface(IID_ID3D11InfoQueue, (void**)&info);
+        r.device->QueryInterface(IID_ID3D11InfoQueue, (void**)&info);
         info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, TRUE);
         info->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, TRUE);
         info->Release();
@@ -77,7 +111,7 @@ void R_Init()
         
         // Get DXGI device from D3D11 device
         IDXGIDevice* dxgiDevice;
-        HRESULT res = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgiDevice);
+        HRESULT res = r.device->QueryInterface(IID_IDXGIDevice, (void**)&dxgiDevice);
         assert(SUCCEEDED(res));
         
         // Get DXGI adapter from DXGI device
@@ -103,7 +137,7 @@ void R_Init()
             .Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT
         };
         
-        res = factory->CreateSwapChainForHwnd((IUnknown*)device, win32.window, &swapchainDesc, nullptr, nullptr, &swapchain1);
+        res = factory->CreateSwapChainForHwnd((IUnknown*)r.device, win32.window, &swapchainDesc, nullptr, nullptr, &swapchain1);
         assert(SUCCEEDED(res));
         
         swapchain1->QueryInterface(IID_IDXGISwapChain2, (void**)&swapchain);
@@ -117,45 +151,44 @@ void R_Init()
     }
     
     // Create Render Target View from swapchain
-    ID3D11RenderTargetView* rtv;
     {
         ID3D11Texture2D* backBuffer = nullptr;
         res = swapchain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backBuffer);
         assert(SUCCEEDED(res));
         
-        res = device->CreateRenderTargetView(backBuffer, nullptr, &rtv);
+        res = r.device->CreateRenderTargetView(backBuffer, nullptr, &r.rtv);
         assert(SUCCEEDED(res));
         
         backBuffer->Release();  // We don't need the back buffer anymore
     }
     
-    r.device = device;
-    r.deviceContext = deviceContext;
     r.swapchain = swapchain;
     r.swapchainWaitableObject = swapchain->GetFrameLatencyWaitableObject();
     assert(r.swapchainWaitableObject);
-    r.rtv = rtv;
     
-    // TODO: Initialization of buffers for immediate mode style rendering
-    //ID3D11Buffer* 
+    // TODO: Create depth buffer and other necessary things for main framebuffer
+    {
+        
+    }
     
     // Create commonly used input layouts
     // Static mesh
     {
         // NOTE: For some reason, D3D11 needs a shader bytecode when creating 
+        // an input layout. So we just compile a ficitious shader just for this.
         
-        String vertShader = StrLit("struct VSInput                  "
-                                   "{                               "
-                                   "    float3 position : POSITION; "
-                                   "    float3 normal   : NORMAL;   "
-                                   "    float2 texCoord : TEXCOORD; "
-                                   "    float3 tangent  : TANGENT;  "
-                                   "};                              "
+        String vertShader = StrLit("struct VSInput                                     "
+                                   "{                                                  "
+                                   "    float3 position : POSITION;                    "
+                                   "    float3 normal   : NORMAL;                      "
+                                   "    float2 texCoord : TEXCOORD;                    "
+                                   "    float3 tangent  : TANGENT;                     "
+                                   "};                                                 "
                                    "struct VSOutput { float4 position : SV_POSITION; };"
                                    "VSOutput main(VSInput input)                       "
                                    "{ VSOutput output;                                 "
                                    " output.position = float4(input.position, 1.0f);   "
-                                   " return output; } ");
+                                   " return output; }                                  ");
         
         ID3DBlob* shader = nullptr;
         ID3DBlob* errorBlob = nullptr;
@@ -180,9 +213,29 @@ void R_Init()
             { "TANGENT",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 }
         };
         
-        device->CreateInputLayout(inputLayoutDesc, ArrayCount(inputLayoutDesc),
-                                  shader->GetBufferPointer(), shader->GetBufferSize(), 
-                                  &r.staticMeshInputLayout);
+        r.device->CreateInputLayout(inputLayoutDesc, ArrayCount(inputLayoutDesc),
+                                    shader->GetBufferPointer(), shader->GetBufferSize(), 
+                                    &r.staticMeshInputLayout);
+        
+    }
+    
+    // TODO: Skinned mesh
+    {
+        
+    }
+    
+    // TODO: Basic mesh
+    {
+        
+    }
+    
+    // TODO: Initialization of buffers for immediate mode style rendering
+    //ID3D11Buffer* 
+    
+    // TODO: Create commonly used samplers
+    {
+        r.samplers[R_SamplerDefault];
+        r.samplers[R_SamplerShadow];
     }
 }
 
@@ -241,9 +294,69 @@ R_Mesh R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices)
     return {};
 }
 
-R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
+R_Mesh R_UploadBasicMesh(Slice<Vec3> verts, Slice<Vec3> normals, Slice<s32> indices)
 {
     return {};
+}
+
+R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
+{
+    auto& r = renderer;
+    assert(numChannels >= 1 && numChannels <= 4);
+    
+    R_Texture res = {};
+    res.kind = R_Tex2D;
+    
+    DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    switch(numChannels)
+    {
+        case 1:  format = DXGI_FORMAT_R8_UNORM;       break;
+        case 2:  format = DXGI_FORMAT_R8G8_UNORM;     break;
+        case 3:  format = DXGI_FORMAT_R8G8B8A8_UNORM; break; // DirectX typically pads to 4 channels
+        case 4:  format = DXGI_FORMAT_R8G8B8A8_UNORM; break;
+        default: assert(false && "Unsupported channel count."); break;
+    }
+    
+    D3D11_TEXTURE2D_DESC texDesc = {};
+    texDesc.Width  = width;
+    texDesc.Height = height;
+    texDesc.MipLevels = 0;  // Let D3D generate mipmaps
+    texDesc.ArraySize = 1;
+    texDesc.Format = format;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.Usage = D3D11_USAGE_DEFAULT;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET | D3D11_BIND_UNORDERED_ACCESS;
+    texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
+    
+    // Create the texture and upload data to GPU
+    {
+        D3D11_SUBRESOURCE_DATA initData = {};
+        initData.pSysMem = blob.ptr;
+        initData.SysMemPitch = width * numChannels;
+        
+        HRESULT hr = r.device->CreateTexture2D(&texDesc, nullptr, &res.tex);
+        assert(SUCCEEDED(hr));
+        
+        // Upload texture data to mipmap 0
+        r.deviceContext->UpdateSubresource(res.tex, 0, nullptr, blob.ptr, width * numChannels, 0);
+    }
+    
+    // Create a Shader Resource View
+    {
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = texDesc.Format;
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = -1; // Use all available mipmap levels
+        
+        HRESULT hr = r.device->CreateShaderResourceView(res.tex, &srvDesc, &res.view);
+        assert(SUCCEEDED(hr));
+    }
+    
+    // Generate mipmaps
+    r.deviceContext->GenerateMips(res.view);
+    
+    return res;
 }
 
 R_Texture R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
@@ -488,11 +601,18 @@ void R_SetViewport(int width, int height)
     
 }
 
-void R_SetPipeline(R_Pipeline pipeline)
+void R_SetVertexShader(R_Shader shader)
 {
     auto& r = renderer;
-    r.deviceContext->VSSetShader(pipeline.vertShader,  nullptr, 0);
-    r.deviceContext->PSSetShader(pipeline.pixelShader, nullptr, 0);
+    assert(shader.kind == ShaderKind_Vertex);
+    r.deviceContext->VSSetShader(shader.vertShader,  nullptr, 0);
+}
+
+void R_SetPixelShader(R_Shader shader)
+{
+    auto& r = renderer;
+    assert(shader.kind == ShaderKind_Pixel);
+    r.deviceContext->PSSetShader(shader.pixelShader, nullptr, 0);
 }
 
 void R_SetUniforms(Slice<R_UniformValue> desc)
@@ -508,8 +628,6 @@ void R_SetFramebuffer(R_Framebuffer framebuffer)
 void R_SetTexture(R_Texture texture, u32 slot)
 {
     auto& r = renderer;
-    
-    
 }
 
 void R_SetPerSceneData()
@@ -545,7 +663,8 @@ void R_ClearDepth()
 
 void R_DepthTest(bool enable)
 {
-    
+    //auto& r = renderer;
+    //r.deviceContext->RSSetState();
 }
 
 void R_CullFace(bool enable)
@@ -609,6 +728,13 @@ void R_WaitLastFrameAndBeginCurrentFrame()
     }
     
     r.deviceContext->OMSetRenderTargets(1, &r.rtv, nullptr);
+}
+
+void R_ResizeMainFramebufferIfNecessary(int width, int heigth)
+{
+    auto& r = renderer;
+    
+    
 }
 
 void R_SubmitFrame()

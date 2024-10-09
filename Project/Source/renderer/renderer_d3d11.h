@@ -12,9 +12,19 @@ struct R_Mesh
 };
 
 struct ID3D11ShaderResourceView;
+struct ID3D11Texture2D;
 struct R_Texture
 {
+    R_TextureKind kind;
+    
+    ID3D11Texture2D* tex;
     ID3D11ShaderResourceView* view;
+};
+
+struct ID3D11SamplerState;
+struct R_Sampler
+{
+    ID3D11SamplerState* sampler;
 };
 
 struct R_Framebuffer
@@ -67,4 +77,7 @@ struct Renderer
     
     // Commonly used input layouts
     ID3D11InputLayout* staticMeshInputLayout;
+    
+    // Commonly used samplers
+    ID3D11SamplerState* samplers[R_SamplerCount];
 };

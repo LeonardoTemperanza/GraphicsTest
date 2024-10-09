@@ -69,7 +69,7 @@ struct Camera
 {
     Entity* base;
     
-    CameraParams params;
+    R_CameraParams params;
 };
 
 introspect()
@@ -126,6 +126,12 @@ struct EntityManager
     Slice<Slice<Entity*>> liveChildrenPerEntity;
     
     Array<PointLight> framePointLights;
+};
+
+struct GraphicsResources
+{
+    R_Sampler linearSampler;
+    R_Sampler shadowSampler;
 };
 
 struct Editor;

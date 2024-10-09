@@ -83,6 +83,7 @@ struct AssetSystem
     // some of the queries
     StringMap<MeshHandle>     pathToMesh;
     StringMap<TextureHandle>  pathToTexture;
+    StringMap<TextureHandle>  pathToCubemap;
     StringMap<ShaderHandle>   pathToShader;
     StringMap<MaterialHandle> pathToMaterial;
     
@@ -92,17 +93,10 @@ struct AssetSystem
 
 struct Material
 {
-    PipelineHandle pipeline;
+    ShaderHandle pixelShader;
     
     Array<R_UniformValue> uniforms;
     Array<TextureHandle> textures;
-};
-
-struct Pipeline
-{
-    ShaderHandle vert;
-    ShaderHandle pixel;
-    R_Pipeline obj;
 };
 
 void InitAssetSystem();
@@ -123,6 +117,7 @@ void LoadTexture(R_Texture* texture, String path);
 void LoadShader(R_Shader* shader, String path, ShaderKind kind);
 void LoadPipeline(R_Pipeline* pipeline, String path);
 void LoadMaterial(Material* material, String path);
+void LoadCubemap(R_Texture* cubemap, String path);
 
 void LoadMesh(const char* path);
 void LoadTexture(const char* path);
@@ -130,13 +125,17 @@ void LoadShader(const char* path, ShaderKind kind);
 void LoadPipeline(const char* path);
 void LoadMaterial(const char* path);
 
+// Asset lookup by path
+
+// @cleanup These functions should be named "Search..." instead of "Get..." (or maybe "LazyLoad..."),
+// because the former better communicates the fact that it's a potentially expensive operation
 MeshHandle     GetMeshByPath(const char* path);
 TextureHandle  GetTextureByPath(const char* path);
 ShaderHandle   GetShaderByPath(const char* path, ShaderKind kind);
 MaterialHandle GetMaterialByPath(const char* path);
+// TODO: Hey! Missing cubemap function here!
 
-PipelineHandle GetPipelineByPath(const char* vert, const char* pixel);
-PipelineHandle GetPipelineByHandles(ShaderHandle vert, ShaderHandle pixel);
+// Common resource lookup
 
 AssetMetadata GetMetadata(u32 handle, AssetKind kind);
 

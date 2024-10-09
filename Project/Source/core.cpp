@@ -174,7 +174,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         Camera* cam = GetDerived<Camera>(man, man->mainCamera);
         Vec3 camPos = {0};
         Quat camRot = Quat::identity;
-        CameraParams camParams = {.nearClip=0.1f, .farClip=1000.0f};
+        R_CameraParams camParams = {.nearClip=0.1f, .farClip=1000.0f};
         
         if(inEditor)
         {
@@ -215,6 +215,9 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     
     // Render entities in the scene
     {
+        ShaderHandle vertShader = GetShaderByPath("CompiledShaders/model2proj.shader", ShaderKind_Vertex);
+        R_SetVertexShader(vertShader);
+        
         for_live_entities(man, ent)
         {
             Mat4 model = ComputeWorldTransform(man, ent);

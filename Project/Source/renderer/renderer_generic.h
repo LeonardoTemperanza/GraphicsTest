@@ -4,9 +4,9 @@
 #include "base.h"
 #include "serialization.h"
 
-enum ShaderKind;
-enum UniformType;
+// First we define the backend independent types
 
+enum UniformType;
 struct R_UniformValue
 {
     UniformType type;
@@ -21,21 +21,29 @@ struct R_UniformValue
     } value;
 };
 
-struct CameraParams
+struct R_CameraParams
 {
     float nearClip;
     float farClip;
     float fov;  // Horizontal, and in degrees
 };
 
-struct BasicMesh
+enum R_MeshKind
+{
+    R_BasicMesh = 0,
+    R_StaticMesh,
+    R_SkinnedMesh
+};
+
+struct R_BasicMesh
 {
     Slice<Vec3> verts;
     Slice<u32>  indices;
 };
 
-BasicMesh GenerateUnitCylinder();
-BasicMesh GenerateUnitCone();
+struct R_Mesh;
+R_Mesh R_GenerateUnitCylinderMesh();
+R_Mesh R_GenerateUnitConeMesh();
 
 enum R_TextureKind
 {
@@ -57,6 +65,18 @@ enum R_TextureFormat
 
 bool IsTextureFormatSigned(R_TextureFormat format);
 bool IsTextureFormatInteger(R_TextureFormat format);
+
+// NOTE: For now we just have a select number of samplers
+// for now i think it's fine. I don't think we'll need that many, but we'll see
+// We're not trying to build a completely generic interface here, we're trying
+// to build an abstraction that is useful for this specific usecase.
+enum R_SamplerKind
+{
+    R_SamplerDefault,
+    R_SamplerShadow,
+    
+    R_SamplerCount
+};
 
 struct R_PerSceneData
 {
@@ -87,10 +107,10 @@ Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst);
 // Types defined in the respective .h files:
 struct R_Mesh;
 struct R_Texture;
+struct R_Sampler;
 struct R_Framebuffer;
 struct R_Shader;
 struct R_Pipeline;
-struct Renderer;
 
 void R_SetToDefaultState();
 
@@ -124,6 +144,7 @@ Mat4 R_ConvertView2ProjMatrix(Mat4 mat);
 // CPU <-> GPU transfers
 R_Mesh        R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
 R_Mesh        R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
+R_Mesh        R_UploadBasicMesh(Slice<Vec3> verts, Slice<Vec3> normals, Slice<s32> indices);
 R_Texture     R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
 R_Texture     R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
                               u32 height, u8 numChannels);
@@ -150,7 +171,8 @@ void R_DrawFullscreenQuad();
 
 // Setting state
 void R_SetViewport(int width, int height);
-void R_SetPipeline(R_Pipeline pipeline);
+void R_SetVertexShader(R_Shader shader);
+void R_SetPixelShader(R_Shader shader);
 void R_SetUniforms(Slice<R_UniformValue> desc);
 void R_SetFramebuffer(R_Framebuffer framebuffer);
 void R_SetTexture(R_Texture texture, u32 slot);
@@ -171,8 +193,10 @@ R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
 // Read to CPU, (0, 0) is bottom left and (width, height) top right
 int R_ReadIntPixelFromFramebuffer(int x, int y);
 Vec4 R_ReadPixelFromFramebuffer(int x, int y);
+R_Sampler GetSampler(R_SamplerKind kind);
 
 void R_WaitLastFrameAndBeginCurrentFrame();
+void R_ResizeMainFramebufferIfNecessary();
 void R_SubmitFrame();
 
 // Libraries
