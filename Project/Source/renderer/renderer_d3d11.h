@@ -57,8 +57,11 @@ struct R_Pipeline
 struct ID3D11Device;
 struct ID3D11DeviceContext;
 struct IDXGISwapChain2;
+struct ID3D11BlendState;
 struct ID3D11RasterizerState;
+struct ID3D11DepthStencilState;
 struct ID3D11RenderTargetView;
+struct ID3D11DepthStencilView;
 struct ID3D11InputLayout;
 
 struct Renderer
@@ -70,7 +73,14 @@ struct Renderer
     // which is good because it lets us reduce latency
     HANDLE swapchainWaitableObject;
     
+    // States
+    ID3D11BlendState* blendState;
+    ID3D11RasterizerState* rasterizerState;
+    ID3D11DepthStencilState* depthState;
+    
+    // Swapchain views
     ID3D11RenderTargetView* rtv;
+    ID3D11DepthStencilView* dsv;
     
     // Buffers used for immediate mode rendering style
     ID3D11Buffer* quadVerts;

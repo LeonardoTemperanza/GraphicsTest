@@ -552,7 +552,6 @@ const wchar_t* D3D12_GetHLSLTarget(ShaderKind kind)
         default:                 target = L"";                 break;
         case ShaderKind_Vertex:  target = d3d12_vertexTarget;  break;
         case ShaderKind_Pixel:   target = d3d12_pixelTarget;   break;
-        case ShaderKind_Compute: target = d3d12_computeTarget; break;
     }
     
     return target;
@@ -566,7 +565,6 @@ const char* D3D11_GetHLSLTarget(ShaderKind kind)
         default:                 target = "";                  break;
         case ShaderKind_Vertex:  target = d3d11_vertexTarget;  break;
         case ShaderKind_Pixel:   target = d3d11_pixelTarget;   break;
-        case ShaderKind_Compute: target = d3d11_computeTarget; break;
     }
     
     return target;

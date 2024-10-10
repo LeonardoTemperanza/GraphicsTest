@@ -14,16 +14,18 @@ struct Vert2Pixel
 
 Texture2D<float4> diffuseMap : register(t0);
 Texture2D<float4> normalMap : register(t1);
-SamplerState linearSampler : register(s0);
 
-bool useDiffuseMap : register(b0);
-bool useNormalMap : register(b1);
+struct Material
+{
+    Texture2D<float4> diffuseMap;
+    Texture2D<float4> normalMap;
+};
 
 float4 pixelMain(Vert2Pixel input) : SV_TARGET
 {
     // Sanitize input
-    input.normal    = normalize(input.normal);
-    input.tangent   = normalize(input.tangent);
+    input.normal     = normalize(input.normal);
+    input.tangent    = normalize(input.tangent);
     float3 bitangent = normalize(cross(input.normal, input.tangent));
     
     // Light params
@@ -34,12 +36,12 @@ float4 pixelMain(Vert2Pixel input) : SV_TARGET
     float3 lightSpecularColor = float3(0.2f, 0.2f, 0.2f);
     
     // Compute normal
-    float3 normalSample = useNormalMap ? normalize(normalMap.Sample(linearSampler, input.uv).xyz * 2.0f - 1.0f) : float3(0.0f, 0.0f, 1.0f);
+    float3 normalSample = normalize(normalMap.Sample(linearSampler, input.uv).xyz * 2.0f - 1.0f);
     float3x3 tbn = float3x3(input.tangent, bitangent, input.normal);
     float3 normal = mul(normalSample, tbn);
     
     // Sample textures
-    float4 diffuseSample = useDiffuseMap ? diffuseMap.Sample(linearSampler, input.uv) : (float4)(1.0f);
+    float4 diffuseSample = diffuseMap.Sample(linearSampler, input.uv);
     
     float3 viewDir = normalize(viewPos - input.worldPos);
     

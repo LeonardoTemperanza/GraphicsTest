@@ -147,10 +147,11 @@ void LoadCubemap(R_Texture* cubemap, String path)
     
     for(int i = 0; i < 6; ++i)
     {
+        // TODO: Support channels with fewer than 4 channels
         int prevWidth = width;
         int prevHeight = height;
         int prevNumChannels = numChannels;
-        textures[i].ptr = (char*)stbi_load(paths[i], &width, &height, &numChannels, 0);
+        textures[i].ptr = (char*)stbi_load(paths[i], &width, &height, &numChannels, 4);
         if(!textures[i].ptr)
         {
             Log("Could not load texture '%s' for cubemap", paths[i]);
@@ -228,9 +229,10 @@ void LoadTexture(R_Texture* texture, String path)
         return;
     }
     
+    // TODO: Support textures with fewer than 4 channels
     String stbImage = {0};
     int width, height, numChannels;
-    stbImage.ptr = (char*)stbi_load_from_memory((const stbi_uc*)contents.ptr, (int)contents.len, &width, &height, &numChannels, 0);
+    stbImage.ptr = (char*)stbi_load_from_memory((const stbi_uc*)contents.ptr, (int)contents.len, &width, &height, &numChannels, 4);
     stbImage.len = width * height * numChannels;
     if(!stbImage.ptr)
     {

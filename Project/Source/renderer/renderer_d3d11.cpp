@@ -105,7 +105,6 @@ void R_Init()
 #endif
     
     // Create DXGI swapchain
-    IDXGISwapChain2* swapchain = nullptr;
     {
         IDXGISwapChain1* swapchain1 = nullptr;
         
@@ -140,7 +139,9 @@ void R_Init()
         res = factory->CreateSwapChainForHwnd((IUnknown*)r.device, win32.window, &swapchainDesc, nullptr, nullptr, &swapchain1);
         assert(SUCCEEDED(res));
         
-        swapchain1->QueryInterface(IID_IDXGISwapChain2, (void**)&swapchain);
+        swapchain1->QueryInterface(IID_IDXGISwapChain2, (void**)&r.swapchain);
+        r.swapchainWaitableObject = r.swapchain->GetFrameLatencyWaitableObject();
+        assert(r.swapchainWaitableObject);
         
         // Disable Alt+Enter changing monitor resolution to match window size
         factory->MakeWindowAssociation(win32.window, DXGI_MWA_NO_ALT_ENTER);
@@ -150,23 +151,69 @@ void R_Init()
         dxgiDevice->Release();
     }
     
+    // TODO: Instead of creating all the states here we can just pass nullptr to OMSetXXX
+    // Create blend state
+    {
+        D3D11_BLEND_DESC desc = {};
+        desc.RenderTarget[0] =
+        {
+            .BlendEnable = TRUE,
+            .SrcBlend = D3D11_BLEND_SRC_ALPHA,
+            .DestBlend = D3D11_BLEND_INV_SRC_ALPHA,
+            .BlendOp = D3D11_BLEND_OP_ADD,
+            .SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA,
+            .DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA,
+            .BlendOpAlpha = D3D11_BLEND_OP_ADD,
+            .RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL,
+        };
+        
+        r.device->CreateBlendState(&desc, &r.blendState);
+        r.deviceContext->OMSetBlendState(r.blendState, nullptr, ~0U);
+    }
+    
+    // Create rasterizer state
+    {
+        D3D11_RASTERIZER_DESC desc =
+        {
+            .FillMode = D3D11_FILL_SOLID,
+            .CullMode = D3D11_CULL_BACK,
+            .FrontCounterClockwise = true,
+            .DepthClipEnable = true,
+        };
+        
+        r.device->CreateRasterizerState(&desc, &r.rasterizerState);
+        r.deviceContext->RSSetState(r.rasterizerState);
+    }
+    
+    // Create depth state
+    {
+        D3D11_DEPTH_STENCIL_DESC desc =
+        {
+            .DepthEnable = true,
+            .DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL,
+            .DepthFunc = D3D11_COMPARISON_LESS,
+            .StencilEnable = false,
+            .StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK,
+            .StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK,
+            // .FrontFace = ... 
+            // .BackFace = ...
+        };
+        
+        r.device->CreateDepthStencilState(&desc, &r.depthState);
+        r.deviceContext->OMSetDepthStencilState(r.depthState, 0);
+    }
+    
     // Create Render Target View from swapchain
     {
         ID3D11Texture2D* backBuffer = nullptr;
-        res = swapchain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backBuffer);
+        res = r.swapchain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backBuffer);
         assert(SUCCEEDED(res));
         
         res = r.device->CreateRenderTargetView(backBuffer, nullptr, &r.rtv);
         assert(SUCCEEDED(res));
-        
-        backBuffer->Release();  // We don't need the back buffer anymore
     }
     
-    r.swapchain = swapchain;
-    r.swapchainWaitableObject = swapchain->GetFrameLatencyWaitableObject();
-    assert(r.swapchainWaitableObject);
-    
-    // TODO: Create depth buffer and other necessary things for main framebuffer
+    // Create depth stencil buffer
     {
         int width, height;
         OS_GetClientAreaSize(&width, &height);
@@ -188,13 +235,10 @@ void R_Init()
         HRESULT hr = r.device->CreateTexture2D(&depthStencilDesc, nullptr, &depthStencilBuffer);
         assert(SUCCEEDED(hr));
         
-        ID3D11DepthStencilView* depthStencilView;
-        hr = r.device->CreateDepthStencilView(depthStencilBuffer, nullptr, &depthStencilView);
+        hr = r.device->CreateDepthStencilView(depthStencilBuffer, nullptr, &r.dsv);
         assert(SUCCEEDED(hr));
-        depthStencilBuffer->Release();
-        
-        // Bind the DSV
-        r.deviceContext->OMSetRenderTargets(1, &r.rtv, depthStencilView);
+        // @leak ?
+        //depthStencilBuffer->Release();
     }
     
     // Create commonly used input layouts
@@ -310,6 +354,15 @@ void R_Cleanup()
 
 Mat4 R_ConvertView2ProjMatrix(Mat4 mat)
 {
+    // I calculate the matrix for [-1, 1] in all axes with x pointing right,
+    // y pointing up, z pointing into the screen. DX is the same thing except it has
+    // range [0, 1] in the z axis, so we need to halve our value
+    
+    // TODO: WHY DOES THIS WORK FOR D3D11? I THOUGHT ITS COORDINATE SYSTEM WAS LEFT-HANDED??!?
+    mat.m13 *= -1;
+    mat.m23 *= -1;
+    mat.m33 *= -1;
+    mat.m43 = 1;
     return mat;
 }
 
@@ -398,8 +451,7 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
         HRESULT hr = r.device->CreateTexture2D(&texDesc, nullptr, &res.tex);
         assert(SUCCEEDED(hr));
         
-        // Upload texture data to mipmap 0
-        r.deviceContext->UpdateSubresource(res.tex, 0, nullptr, blob.ptr, width * numChannels, 0);
+        r.deviceContext->UpdateSubresource(res.tex, 0, nullptr, blob.ptr, width * 4, 0);
     }
     
     // Create a Shader Resource View
@@ -504,33 +556,6 @@ R_Shader R_CreateDefaultShader(ShaderKind kind)
             shader->Release();
             break;
         }
-        case ShaderKind_Compute:
-        {
-            ID3DBlob* shader = nullptr;
-            ID3DBlob* errorBlob = nullptr;
-            HRESULT hr = D3DCompile(computeShader.ptr, computeShader.len,
-                                    "DefaultComputeShader",
-                                    nullptr,  // Optional defines
-                                    nullptr,  // Include handler (non needed)
-                                    "main",
-                                    "cs_5_0",
-                                    0,  // Compilation Flags
-                                    0,  // Effect compilation flags
-                                    &shader,
-                                    &errorBlob);
-            
-            if(FAILED(hr) && errorBlob)
-            {
-                Log("Default compute shader compilation failed: %s", (char*)errorBlob->GetBufferPointer());
-                errorBlob->Release();
-                return res;
-            }
-            
-            r.device->CreateComputeShader(shader->GetBufferPointer(), shader->GetBufferSize(), nullptr, &res.computeShader);
-            
-            shader->Release();
-            break;
-        }
     }
     
     return res;
@@ -561,10 +586,6 @@ R_Shader R_CompileShader(ShaderKind kind, ShaderInput input)
             r.device->CreatePixelShader(input.d3d11Bytecode.ptr, input.d3d11Bytecode.len, nullptr, &res.pixelShader);
             break;
         }
-        case ShaderKind_Compute:
-        {
-            r.device->CreateComputeShader(input.d3d11Bytecode.ptr, input.d3d11Bytecode.len, nullptr, &res.computeShader);
-        }
     }
     
     return res;
@@ -589,7 +610,6 @@ R_Pipeline R_CreatePipeline(Slice<R_Shader> shaders)
                 res.pixelShader = shaders[i].pixelShader;
                 break;
             }
-            case ShaderKind_Compute: break;
         }
     }
     
@@ -716,11 +736,6 @@ void R_SetTexture(R_Texture texture, ShaderKind kind, u32 slot)
             r.deviceContext->PSSetShaderResources(slot, 1, &texture.view);
             break;
         }
-        case ShaderKind_Compute:
-        {
-            r.deviceContext->CSSetShaderResources(slot, 1, &texture.view);
-            break;
-        }
     }
 }
 
@@ -742,11 +757,6 @@ void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, u32 slot)
         case ShaderKind_Pixel:
         {
             r.deviceContext->PSSetSamplers(slot, 1, &r.samplers[samplerKind]);
-            break;
-        }
-        case ShaderKind_Compute:
-        {
-            r.deviceContext->CSSetSamplers(slot, 1, &r.samplers[samplerKind]);
             break;
         }
     }
@@ -821,6 +831,7 @@ void R_ClearFrame(Vec4 color)
 {
     auto& r = renderer;
     r.deviceContext->ClearRenderTargetView(r.rtv, (float*)&color);
+    r.deviceContext->ClearDepthStencilView(r.dsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 }
 
 void R_ClearFrameInt(int r, int g, int b, int a)
@@ -830,7 +841,8 @@ void R_ClearFrameInt(int r, int g, int b, int a)
 
 void R_ClearDepth()
 {
-    
+    auto& r = renderer;
+    r.deviceContext->ClearDepthStencilView(r.dsv, D3D11_CLEAR_DEPTH, 1.0f, 0);
 }
 
 void R_DepthTest(bool enable)
@@ -899,14 +911,19 @@ void R_WaitLastFrameAndBeginCurrentFrame()
         }
     }
     
-    r.deviceContext->OMSetRenderTargets(1, &r.rtv, nullptr);
+    // Present call unbinds the render targets, so we need to rebind it
+    r.deviceContext->OMSetRenderTargets(1, &r.rtv, r.dsv);
 }
 
-void R_ResizeMainFramebufferIfNecessary(int width, int heigth)
+void R_ResizeSwapchainIfNecessary(int width, int heigth)
 {
     auto& r = renderer;
     
-    
+    // Call:
+    // deviceContext->ClearState();
+    // rtv->Release();
+    // get the backbuffer from the swapchain and release the backbuffer texture
+    // swapchain->ResizeBuffers();
 }
 
 void R_SubmitFrame()

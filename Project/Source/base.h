@@ -392,6 +392,11 @@ float NormalizeDegAngle(float angle);
 Vec3 NormalizeRadAngles(Vec3 angles);
 float NormalizeRadAngle(float angle);
 
+// NOTE: The coordinate system used here for clip space is one
+// where we have range [-1, 1] in all axes with x pointing right,
+// y pointing up, z pointing into the screen. (Left handed coordinate system)
+// These functions can be used for other coordinate systems but the result needs
+// to be converted first.
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
 Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 
 

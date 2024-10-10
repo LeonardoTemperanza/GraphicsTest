@@ -15,7 +15,6 @@ enum ShaderKind
     ShaderKind_None    = 0,
     ShaderKind_Vertex  = 1,
     ShaderKind_Pixel   = 2,
-    ShaderKind_Compute = 3,
     
     ShaderKind_Count,
 };
@@ -99,7 +98,6 @@ inline const char* GetShaderKindString(ShaderKind kind)
         default:                 return "unknown";
         case ShaderKind_Vertex:  return "vertex";
         case ShaderKind_Pixel:   return "pixel";
-        case ShaderKind_Compute: return "compute";
     }
     
     return "unknown";

@@ -136,6 +136,10 @@ struct ShaderInput
 void R_Init();
 void R_Cleanup();
 
+void R_ResizeSwapchainIfNecessary();  // Must be called after R_WaitLastFrameAndBeginCurrentFrame
+void R_WaitLastFrameAndBeginCurrentFrame();
+void R_SubmitFrame();
+
 // Utils
 // Convert the view to projection matrix based on the API's
 // clip space coordinate system
@@ -195,10 +199,6 @@ R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
 int R_ReadIntPixelFromFramebuffer(int x, int y);
 Vec4 R_ReadPixelFromFramebuffer(int x, int y);
 R_Sampler GetSampler(R_SamplerKind kind);
-
-void R_WaitLastFrameAndBeginCurrentFrame();
-void R_ResizeMainFramebufferIfNecessary();
-void R_SubmitFrame();
 
 // Libraries
 void R_DearImguiInit();

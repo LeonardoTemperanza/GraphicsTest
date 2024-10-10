@@ -5,6 +5,8 @@
 
 #pragma header
 
+#define PerSceneRegister b0
+
 cbuffer PerScene : register(b0)
 {
     
