@@ -197,6 +197,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         R_SetPerFrameData(World2ViewMatrix(camPos, camRot), R_ConvertView2ProjMatrix(view2Proj), camPos);
     }
     
+#if 0
     // Render skybox
     {
         /*R_SetPipeline(pipeline);
@@ -212,9 +213,12 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         R_DepthTest(true);
         R_CullFace(true);
     }
+#endif
     
     // Render entities in the scene
     {
+        R_SetSampler(R_SamplerDefault, ShaderKind_Pixel, 0);
+        
         ShaderHandle vertShader = GetShaderByPath("CompiledShaders/model2proj.shader", ShaderKind_Vertex);
         R_SetVertexShader(vertShader);
         
@@ -228,6 +232,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         }
     }
     
+#if 0
     // Render and finalize editor
     if(inEditor)
     {
@@ -244,6 +249,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
             editor->inEditor = true;
         }
     }
+#endif
     
     ImGui::Render();  // Render UI on top of scene
     R_DearImguiRender();

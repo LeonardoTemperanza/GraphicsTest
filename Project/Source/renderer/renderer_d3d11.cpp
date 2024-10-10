@@ -168,7 +168,33 @@ void R_Init()
     
     // TODO: Create depth buffer and other necessary things for main framebuffer
     {
+        int width, height;
+        OS_GetClientAreaSize(&width, &height);
         
+        D3D11_TEXTURE2D_DESC depthStencilDesc = {};
+        depthStencilDesc.Width = width;
+        depthStencilDesc.Height = height;
+        depthStencilDesc.MipLevels = 1;
+        depthStencilDesc.ArraySize = 1;
+        depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;  // 24 bit depth, 8 bit stencil
+        depthStencilDesc.SampleDesc.Count = 1;
+        depthStencilDesc.SampleDesc.Quality = 0;
+        depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+        depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        depthStencilDesc.CPUAccessFlags = 0;
+        depthStencilDesc.MiscFlags = 0;
+        
+        ID3D11Texture2D* depthStencilBuffer;
+        HRESULT hr = r.device->CreateTexture2D(&depthStencilDesc, nullptr, &depthStencilBuffer);
+        assert(SUCCEEDED(hr));
+        
+        ID3D11DepthStencilView* depthStencilView;
+        hr = r.device->CreateDepthStencilView(depthStencilBuffer, nullptr, &depthStencilView);
+        assert(SUCCEEDED(hr));
+        depthStencilBuffer->Release();
+        
+        // Bind the DSV
+        r.deviceContext->OMSetRenderTargets(1, &r.rtv, depthStencilView);
     }
     
     // Create commonly used input layouts
@@ -230,12 +256,50 @@ void R_Init()
     }
     
     // TODO: Initialization of buffers for immediate mode style rendering
-    //ID3D11Buffer* 
     
-    // TODO: Create commonly used samplers
+    // Create commonly used samplers
     {
-        r.samplers[R_SamplerDefault];
-        r.samplers[R_SamplerShadow];
+        r.samplers[R_SamplerDefault] = D3D11_CreateSampler(D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+                                                           D3D11_TEXTURE_ADDRESS_WRAP,
+                                                           D3D11_TEXTURE_ADDRESS_WRAP);
+        // TODO: Shadow sampler
+        //r.samplers[R_SamplerShadow];
+    }
+    
+    // Create and bind constant buffers
+    {
+        constexpr int perFrameBindPoint = 1;
+        constexpr int perObjBindPoint = 2;
+        
+        // Per Frame
+        {
+            D3D11_BUFFER_DESC bufferDesc = {};
+            bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+            bufferDesc.ByteWidth = 144;  // TODO: Put actual size of cbuffer here
+            bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+            bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            
+            HRESULT hr = r.device->CreateBuffer(&bufferDesc, nullptr, &r.perFrameBuf);
+            assert(SUCCEEDED(hr));
+            
+            r.deviceContext->VSSetConstantBuffers(perFrameBindPoint, 1, &r.perFrameBuf);
+            r.deviceContext->PSSetConstantBuffers(perFrameBindPoint, 1, &r.perFrameBuf);
+        }
+        
+        // Per obj
+        {
+            D3D11_BUFFER_DESC bufferDesc = {};
+            bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+            bufferDesc.ByteWidth = 144;  // TODO: Put actual size of cbuffer here
+            bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+            bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+            
+            HRESULT hr = r.device->CreateBuffer(&bufferDesc, nullptr, &r.perObjBuf);
+            assert(SUCCEEDED(hr));
+            
+            r.deviceContext->VSSetConstantBuffers(perObjBindPoint, 1, &r.perObjBuf);
+            r.deviceContext->PSSetConstantBuffers(perObjBindPoint, 1, &r.perObjBuf);
+        }
     }
 }
 
@@ -303,6 +367,7 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
 {
     auto& r = renderer;
     assert(numChannels >= 1 && numChannels <= 4);
+    assert(blob.ptr);
     
     R_Texture res = {};
     res.kind = R_Tex2D;
@@ -312,7 +377,7 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
     {
         case 1:  format = DXGI_FORMAT_R8_UNORM;       break;
         case 2:  format = DXGI_FORMAT_R8G8_UNORM;     break;
-        case 3:  format = DXGI_FORMAT_R8G8B8A8_UNORM; break; // DirectX typically pads to 4 channels
+        case 3:  format = DXGI_FORMAT_R8G8B8_UNORM;   break;
         case 4:  format = DXGI_FORMAT_R8G8B8A8_UNORM; break;
         default: assert(false && "Unsupported channel count."); break;
     }
@@ -325,15 +390,11 @@ R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
     texDesc.Format = format;
     texDesc.SampleDesc.Count = 1;
     texDesc.Usage = D3D11_USAGE_DEFAULT;
-    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET | D3D11_BIND_UNORDERED_ACCESS;
+    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
     texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
     
     // Create the texture and upload data to GPU
     {
-        D3D11_SUBRESOURCE_DATA initData = {};
-        initData.pSysMem = blob.ptr;
-        initData.SysMemPitch = width * numChannels;
-        
         HRESULT hr = r.device->CreateTexture2D(&texDesc, nullptr, &res.tex);
         assert(SUCCEEDED(hr));
         
@@ -598,7 +659,17 @@ void R_DrawFullscreenQuad()
 
 void R_SetViewport(int width, int height)
 {
+    auto& r = renderer;
     
+    D3D11_VIEWPORT viewport = {};
+    viewport.TopLeftX = 0;
+    viewport.TopLeftY = 0;
+    viewport.Width    = (float)width;
+    viewport.Height   = (float)height;
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+    
+    r.deviceContext->RSSetViewports(1, &viewport);
 }
 
 void R_SetVertexShader(R_Shader shader)
@@ -625,9 +696,60 @@ void R_SetFramebuffer(R_Framebuffer framebuffer)
     
 }
 
-void R_SetTexture(R_Texture texture, u32 slot)
+void R_SetTexture(R_Texture texture, ShaderKind kind, u32 slot)
 {
     auto& r = renderer;
+    assert(texture.view);
+    
+    // TODO: @speed @cleanup Just make different functions here
+    switch(kind)
+    {
+        case ShaderKind_None: break;
+        case ShaderKind_Count: break;
+        case ShaderKind_Vertex:
+        {
+            r.deviceContext->VSSetShaderResources(slot, 1, &texture.view);
+            break;
+        }
+        case ShaderKind_Pixel:
+        {
+            r.deviceContext->PSSetShaderResources(slot, 1, &texture.view);
+            break;
+        }
+        case ShaderKind_Compute:
+        {
+            r.deviceContext->CSSetShaderResources(slot, 1, &texture.view);
+            break;
+        }
+    }
+}
+
+void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, u32 slot)
+{
+    auto& r = renderer;
+    assert(samplerKind >= 0 && samplerKind < R_SamplerCount);
+    
+    // TODO: @speed @cleanup Just make different functions here
+    switch(kind)
+    {
+        case ShaderKind_None: break;
+        case ShaderKind_Count: break;
+        case ShaderKind_Vertex:
+        {
+            r.deviceContext->VSSetSamplers(slot, 1, &r.samplers[samplerKind]);
+            break;
+        }
+        case ShaderKind_Pixel:
+        {
+            r.deviceContext->PSSetSamplers(slot, 1, &r.samplers[samplerKind]);
+            break;
+        }
+        case ShaderKind_Compute:
+        {
+            r.deviceContext->CSSetSamplers(slot, 1, &r.samplers[samplerKind]);
+            break;
+        }
+    }
 }
 
 void R_SetPerSceneData()
@@ -637,12 +759,62 @@ void R_SetPerSceneData()
 
 void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos)
 {
+    auto& r = renderer;
     
+    struct alignas(16) PerFrameDataStd140
+    {
+        Mat4 world2View;
+        Mat4 view2Proj;
+        Vec3 viewPos;
+        float padding;
+    } perFrameStd140;
+    
+    // Fill in the struct with the correct layout
+    perFrameStd140.world2View = world2View;
+    perFrameStd140.view2Proj  = view2Proj;
+    perFrameStd140.viewPos    = viewPos;
+    perFrameStd140.padding    = 0.0f;
+    
+    // Write the new data
+    D3D11_MAPPED_SUBRESOURCE mappedResource = {};
+    HRESULT hr = r.deviceContext->Map(r.perFrameBuf, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    assert(SUCCEEDED(hr));
+    
+    memcpy(mappedResource.pData, &perFrameStd140, sizeof(PerFrameDataStd140));
+    
+    r.deviceContext->Unmap(r.perFrameBuf, 0);
 }
 
 void R_SetPerObjData(Mat4 model2World, Mat3 normalMat)
 {
+    auto& r = renderer;
     
+    struct alignas(16) PerObjDataStd140
+    {
+        Mat4 model2World;
+        float normalMat[3][4];
+    } perObjStd140;
+    
+    // Fill in the struct with the correct layout
+    perObjStd140.model2World = model2World;
+    
+    // @speed
+    for(int i = 0; i < 3; ++i)
+    {
+        for(int j = 0; j < 3; ++j)
+        {
+            perObjStd140.normalMat[i][j] = normalMat.m[i][j];
+        }
+    }
+    
+    // Write the new data
+    D3D11_MAPPED_SUBRESOURCE mappedResource = {};
+    HRESULT hr = r.deviceContext->Map(r.perObjBuf, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    assert(SUCCEEDED(hr));
+    
+    memcpy(mappedResource.pData, &perObjStd140, sizeof(PerObjDataStd140));
+    
+    r.deviceContext->Unmap(r.perObjBuf, 0);
 }
 
 void R_ClearFrame(Vec4 color)
@@ -663,7 +835,7 @@ void R_ClearDepth()
 
 void R_DepthTest(bool enable)
 {
-    //auto& r = renderer;
+    auto& r = renderer;
     //r.deviceContext->RSSetState();
 }
 

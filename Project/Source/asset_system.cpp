@@ -57,7 +57,7 @@ void UseMaterial(Material mat)
     R_SetUniforms(ToSlice(&mat.uniforms));
     
     for(int i = 0; i < mat.textures.len; ++i)
-        R_SetTexture(mat.textures[i], i);
+        R_SetTexture(mat.textures[i], ShaderKind_Pixel, i);
 }
 
 void HotReloadAssets()
@@ -475,7 +475,14 @@ void LoadMaterial(Material* material, String path)
                 ConsumeNextLine(&handler);
                 String path = ArenaPushString(&sceneArena, texLine.text);
                 // TODO
-                //Append(&material->textures, path);
+                StringBuilder builder = {};
+                UseArena(&builder, scratch);
+                Append(&builder, texLine.text);
+                NullTerminate(&builder);
+                String nullTermStr = ToString(&builder);
+                
+                TextureHandle handle = GetTextureByPath(nullTermStr.ptr);
+                Append(&material->textures, handle);
             }
         }
         else if(line.text == ":/uniforms")

@@ -80,4 +80,9 @@ struct Renderer
     
     // Commonly used samplers
     ID3D11SamplerState* samplers[R_SamplerCount];
+    
+    // Constant buffers
+    ID3D11Buffer* perSceneBuf;
+    ID3D11Buffer* perFrameBuf;
+    ID3D11Buffer* perObjBuf;
 };

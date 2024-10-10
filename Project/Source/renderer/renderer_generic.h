@@ -175,7 +175,8 @@ void R_SetVertexShader(R_Shader shader);
 void R_SetPixelShader(R_Shader shader);
 void R_SetUniforms(Slice<R_UniformValue> desc);
 void R_SetFramebuffer(R_Framebuffer framebuffer);
-void R_SetTexture(R_Texture texture, u32 slot);
+void R_SetTexture(R_Texture texture, ShaderKind kind, u32 slot);
+void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, u32 slot);
 
 void R_SetPerSceneData();
 void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos);
