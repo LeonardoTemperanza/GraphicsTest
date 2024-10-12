@@ -1,7 +1,7 @@
 
 #pragma vs main
 
-#include "common.hlsl"
+#include "common.hlsli"
 
 struct Vertex2Pixel
 {

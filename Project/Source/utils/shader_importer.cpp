@@ -68,7 +68,7 @@ enum DxcCompilationKind
 
 String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo,
                    ComPtr<ID3D12ShaderReflection>& outReflection);
-String CompileHLSLForD3D11(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
+String CompileHLSLForD3D11(const char* name, ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
 String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
 void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, ComPtr<ID3D12ShaderReflection>& reflection, const char* shaderPath, ShaderKind kind, int definedStages);
 
@@ -89,14 +89,18 @@ int main(int argCount, char** args)
     
     const char* shaderPath = args[1];
     String ext = GetPathExtension(shaderPath);
-    if(ext != "hlsl" && ext != "hlsli")
+    
+    if(ext == "hlsli")
+        return 0;
+    
+    if(ext != "hlsl")
     {
         fprintf(stderr, "File does not have the '.hlsl' or '.hlsli' extension, so it's assumed not to be a shader.\n");
         return 1;
     }
     
     // Read to the shader source directory
-    SetWorkingDirRelativeToExe("../../../Shaders/");
+    SetWorkingDirRelativeToExe("../../../Assets/Shaders/");
     
     bool ok = true;
     
@@ -132,12 +136,6 @@ int main(int argCount, char** args)
             stage.entry = pragmas[i].param;
             ++definedStages;
         }
-        else if(pragmas[i].name == "header")
-        {
-            // Shader which have #pragma header should not
-            // be compiled by themselves
-            return 0;
-        }
     }
     
     if(definedStages == 0)
@@ -161,9 +159,11 @@ int main(int argCount, char** args)
             
             ComPtr<ID3D12ShaderReflection> reflection;
             
+            printf("entry: %.*s\n", StrPrintf(stage.entry));
+            
             // D3D11
             if(ok)
-                d3d11Bytecode = CompileHLSLForD3D11(kind, shaderSource, stage.entry, scratch, &ok);
+                d3d11Bytecode = CompileHLSLForD3D11(shaderPath, kind, shaderSource, stage.entry, scratch, &ok);
             
             // D3D12
             if(ok)
@@ -288,7 +288,7 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     return binary;
 }
 
-String CompileHLSLForD3D11(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok)
+String CompileHLSLForD3D11(const char* path, ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok)
 {
     ScratchArena scratch(dst);
     
@@ -298,16 +298,16 @@ String CompileHLSLForD3D11(ShaderKind shaderKind, String hlslSource, String entr
     NullTerminate(&builder);
     String nullTermEntry = ToString(&builder); 
     
+    // TODO: Remove the pragma warnings
     DWORD shaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
     // TODO: Remove this on release build
     shaderFlags |= D3DCOMPILE_DEBUG;
     
     ID3DBlob* errorBlob = nullptr;
     ID3DBlob* bytecode  = nullptr;
-    // TODO: Add source name for better error messages
     HRESULT hr = D3DCompile(hlslSource.ptr,
                             hlslSource.len,
-                            nullptr,  // Optional shader name
+                            path,  // Optional shader name
                             nullptr,  // Optional defines
                             D3D_COMPILE_STANDARD_FILE_INCLUDE,  // Optional include handler
                             nullTermEntry.ptr,
@@ -497,12 +497,12 @@ void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String g
     WriteToFile(ToString(&builder), outFile);
     
     // Set it back
-    SetWorkingDirRelativeToExe("../../../Shaders/");
+    SetWorkingDirRelativeToExe("../../../Assets/Shaders/");
 }
 
 inline bool IsWhitespace(char c)
 {
-    return c == ' ' || c == '\t' || c == '\n';
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
 
 int EatAllWhitespace(char** at)
@@ -576,7 +576,9 @@ String NextString(char** at)
     
     char* start = *at;
     
-    while(**at != ' ' && **at != '\t' && **at != '\n' && **at != '\0') ++*at;
+    while(**at != ' ' && **at != '\t' && **at != '\n' && **at != '\r' && **at != '\0')
+        ++*at;
+    
     int stringLen = *at - start;
     
     return {.ptr=start, .len=stringLen};

@@ -1,7 +1,7 @@
 
 #pragma ps pixelMain
 
-#include "common.hlsl"
+#include "common.hlsli"
 
 struct Vert2Pixel
 {
@@ -14,6 +14,7 @@ struct Vert2Pixel
 
 Texture2D<float4> diffuseMap : register(t0);
 Texture2D<float4> normalMap  : register(t1);
+SamplerState linearSampler   : register(s0);
 
 float4 pixelMain(Vert2Pixel input) : SV_TARGET
 {

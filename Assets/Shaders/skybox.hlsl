@@ -2,7 +2,7 @@
 #pragma vs vertMain
 #pragma ps pixelMain
 
-#include "common.hlsl"
+#include "common.hlsli"
 
 struct Vert2Pixel
 {

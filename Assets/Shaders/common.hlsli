@@ -3,12 +3,13 @@
 // NOTE: This file is heavily bound to the renderer implementation
 // and so should mostly not be touched by non-programmers
 
-#pragma header
-
 // Parameters set in the material system
 #define MaterialSlot b3
 // Parameters set in code
 #define GlobalsSlot b4
+
+// Slots for texture/sampler/uniform binding.
+// NOTE: These need to be updated along with the ones in renderer_generic.h
 
 // Texture slots
 
@@ -61,32 +62,34 @@
 #define MaterialSampler9 s19
 
 // CBuffers
-#define PerSceneCBuf b0
-#define PerFrameCBuf b1
-#define PerObjCBuf   b2
+#define PerSceneCBuf      b0
+#define PerFrameCBuf      b1
+#define PerObjCBuf        b2
+// CBuffer of constants accessed through code
+#define CodeUniforms      b3
+// CBuffer used for material constants
+#define MaterialConstants b4
 
-#define CodeCBuffer
-#define MaterialConstants 
-
-cbuffer PerScene : register(b0)
+cbuffer PerScene : register(PerSceneCBuf)
 {
     
 };
 
 // TODO: PerView would probably be a better name
-cbuffer PerFrame : register(b1)
+cbuffer PerFrame : register(PerFrameCBuf)
 {
     float4x4 world2View;
     float4x4 view2Proj;
     float3 viewPos;
 };
 
-cbuffer PerObj : register(b2)
+cbuffer PerObj : register(PerObjCBuf)
 {
     float4x4 model2World;
     float3x3 normalMat;
 };
 
+// Vertex used in static meshes
 struct Vertex
 {
     float3 position : POSITION;
@@ -95,6 +98,7 @@ struct Vertex
     float3 tangent  : TANGENT;
 };
 
+// Vertex used in skinned meshes
 #define MaxBonesInfluence 5
 #define MaxBones 200 // Maximum number of bones in a skinned mesh
 struct SkinnedVertex
@@ -105,4 +109,12 @@ struct SkinnedVertex
     float3 tangent  : TANGENT;
     float blendWeights[MaxBonesInfluence] : BLENDWEIGHT;
     uint  blendIndices[MaxBonesInfluence] : BLENDINDICES;
+};
+
+// Shaders that don't use uv nor tangent can use this simplified
+// vertex type which supports even simpler mesh kinds
+struct BasicVertex
+{
+    float3 position : POSITION;
+    float3 normal   : NORMAL;
 };

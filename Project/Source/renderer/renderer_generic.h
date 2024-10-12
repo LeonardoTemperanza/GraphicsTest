@@ -122,6 +122,55 @@ struct ShaderInput
     String glsl;
 };
 
+// Slots for texture/sampler/uniform binding.
+// NOTE: These need to be updated along with the ones
+// in common.hlsli
+#define CodeTex0     0
+#define CodeTex1     1
+#define CodeTex2     2
+#define CodeTex3     3
+#define CodeTex4     4
+#define CodeTex5     5
+#define CodeTex6     6
+#define CodeTex7     7
+#define CodeTex8     8
+#define CodeTex9     9
+#define MaterialTex0 10
+#define MaterialTex1 11
+#define MaterialTex2 12
+#define MaterialTex3 13
+#define MaterialTex4 14
+#define MaterialTex5 15
+#define MaterialTex6 16
+#define MaterialTex7 17
+#define MaterialTex8 18
+#define MaterialTex9 19
+#define CodeSampler0     0
+#define CodeSampler1     1
+#define CodeSampler2     2
+#define CodeSampler3     3
+#define CodeSampler4     4
+#define CodeSampler5     5
+#define CodeSampler6     6
+#define CodeSampler7     7
+#define CodeSampler8     8
+#define CodeSampler9     9
+#define MaterialSampler0 10
+#define MaterialSampler1 11
+#define MaterialSampler2 12
+#define MaterialSampler3 3
+#define MaterialSampler4 14
+#define MaterialSampler5 15
+#define MaterialSampler6 16
+#define MaterialSampler7 17
+#define MaterialSampler8 18
+#define MaterialSampler9 19
+#define PerSceneCBuf      0
+#define PerFrameCBuf      1
+#define PerObjCBuf        2
+#define CodeUniforms      3
+#define MaterialConstants 4
+
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
 #elif defined(GFX_D3D11)
