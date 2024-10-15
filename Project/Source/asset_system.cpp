@@ -54,10 +54,10 @@ void ReserveSlotForDefaultAssets()
 void UseMaterial(Material mat)
 {
     R_SetPixelShader(mat.pixelShader);
-    R_SetUniforms(ToSlice(&mat.uniforms));
+    R_SetMaterialConstants(mat.pixelShader, ToSlice(&mat.uniforms));
     
     for(int i = 0; i < mat.textures.len; ++i)
-        R_SetTexture(mat.textures[i], ShaderKind_Pixel, i);
+        R_SetTexture(mat.textures[i], ShaderKind_Pixel, (TextureSlot)(MaterialTex0 + i));
 }
 
 void HotReloadAssets()
@@ -365,17 +365,11 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
         return;
     }
     
-    ShaderBinaryHeader_v0 header_v0 = {};
-    ShaderBinaryHeader_v1 header_v1 = {};
-    
     char* headerPtr = *cursor;
-    switch(version)
-    {
-        case 0: header_v0 = Next<ShaderBinaryHeader_v0>(cursor); Log("v0"); break;
-        case 1: header_v1 = Next<ShaderBinaryHeader_v1>(cursor); Log("v1"); break;
-        default: assert(false);
-    }
+    ShaderBinaryHeader_v0 header_v0 = {};
+    header_v0 = Next<ShaderBinaryHeader_v0>(cursor);
     
+#if 0
     // Convert to the final version in an assembly line fashion
     // (first 0 to 1, then 1 to 2, etc)
     switch(version)
@@ -395,23 +389,24 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
         }
         default: assert(false);
     }
+#endif
     
-    auto& header = header_v1;
-    if(header.v0.shaderKind != kind)
+    auto& header = header_v0;
+    if(header.shaderKind != kind)
     {
         const char* desiredKindStr = GetShaderKindString(kind);
-        const char* actualKindStr  = GetShaderKindString((ShaderKind)header.v0.shaderKind);
+        const char* actualKindStr  = GetShaderKindString((ShaderKind)header.shaderKind);
         Log("Attempted to load shader '%.*s' as a %s, but it's a %s", StrPrintf(path), desiredKindStr, actualKindStr);
         *shader = R_CreateDefaultShader(kind);
         return;
     }
     
     ShaderInput input = {};
-    input.dxil          = {.ptr=headerPtr+header.v0.dxil, .len=header.v0.dxilSize};
-    input.vulkanSpirv   = {.ptr=headerPtr+header.v0.vulkanSpirv, .len=header.v0.vulkanSpirvSize};
-    input.glsl          = {.ptr=headerPtr+header.v0.glsl, .len=header.v0.glslSize};
+    input.dxil          = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
+    input.vulkanSpirv   = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
+    input.glsl          = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
     input.d3d11Bytecode = {.ptr=headerPtr+header.d3d11Bytecode, .len=header.d3d11BytecodeSize};
-    *shader = R_CompileShader((ShaderKind)header.v0.shaderKind, input);
+    *shader = R_CreateShader((ShaderKind)header.shaderKind, input);
 }
 
 void LoadMaterial(Material* material, String path)
@@ -515,6 +510,12 @@ void LoadMaterial(Material* material, String path)
         
         material->pixelShader = pixelHandle;
     }
+    
+    // Check material correctness
+#ifdef Development
+    if(!R_CheckMaterial(material, path))
+        *material = DefaultMaterial();  // @leak Don't forget to destroy whatever was created here
+#endif
 }
 
 void SerializeScene(EntityManager* man, const char* path)

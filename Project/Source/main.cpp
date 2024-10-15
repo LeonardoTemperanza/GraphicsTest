@@ -56,8 +56,7 @@ int main()
     u64 endTicks    = 0;
     
     bool firstIter = true;
-    bool frameInFlight = false;
-    while(bool proceed = OS_HandleWindowEvents())
+    while(true)
     {
         // In the first iteration, we simply want to render
         // the initialized state.
@@ -70,22 +69,18 @@ int main()
         
         MainUpdate(&entManager, &editor, deltaTime, &frameArena);
         
-        // If the previous frame hasn't been fully rendered at this point,
-        // then we stall the CPU until it is.
-        if(frameInFlight) R_SubmitFrame();
+        R_WaitLastFrameAndBeginCurrentFrame();
+        
+        // Handle window events only now, because we only want to allow
+        // resizing after we've finished the last frame.
+        bool proceed = OS_HandleWindowEvents();
+        if(!proceed) break;
         
         MainRender(&entManager, &editor, deltaTime, &frameArena);
+        R_PresentFrame();
         
         ArenaFreeAll(&frameArena);
         firstIter = false;
-        
-        if(OS_NeedThisFrameBeforeNextIteration())
-        {
-            R_SubmitFrame();
-            frameInFlight = false;
-        }
-        else
-            frameInFlight = true;
     }
     
     return 0;

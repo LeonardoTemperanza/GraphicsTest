@@ -3,6 +3,22 @@
 
 #include "common.hlsli"
 
+cbuffer CodeConstants : register(CodeConstantsSlot)
+{
+    
+};
+
+SamplerState linearSampler : register(CodeSampler0);
+
+cbuffer MaterialConstants : register(MaterialConstantsSlot)
+{
+    float4 color;
+    float roughness;
+};
+
+Texture2D<float4> diffuseMap : register(MaterialTex0);
+Texture2D<float4> normalMap  : register(MaterialTex1);
+
 struct Vert2Pixel
 {
     float4 viewPos   : SV_POSITION;
@@ -11,10 +27,6 @@ struct Vert2Pixel
     float2 uv        : TEXCOORD0;
     float3 tangent   : TANGENT;
 };
-
-Texture2D<float4> diffuseMap : register(t0);
-Texture2D<float4> normalMap  : register(t1);
-SamplerState linearSampler   : register(s0);
 
 float4 pixelMain(Vert2Pixel input) : SV_TARGET
 {

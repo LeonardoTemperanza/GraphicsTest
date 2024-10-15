@@ -1,13 +1,18 @@
 
 #pragma ps main
 
+#include "common.hlsli"
+
 // This shader samples from a boolean texture and draws
 // the outline between the difference of 0 and not 0
 // pixels with some antialiasing
 
-Texture2D<int> intTex : register(t0);
+Texture2D<int> intTex : register(CodeTex0);
 
-float4 color : register(b0);
+cbuffer CodeConstants : register(CodeConstantsSlot)
+{
+    float4 color;
+}
 
 float4 main(float4 position: SV_POSITION) : SV_TARGET
 {

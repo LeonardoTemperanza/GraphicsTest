@@ -39,6 +39,14 @@ struct ID3D11ComputeShader;
 struct R_Shader
 {
     ShaderKind kind;
+    Array<ShaderValType> codeConstantTypes;
+    Array<ShaderValType> materialConstantTypes;
+    u32 materialTexturesCount;
+    u32 codeTexturesCount;
+    u32 codeSamplersCount;
+    
+    ID3D11Buffer* codeConstants;
+    ID3D11Buffer* materialConstants;
     
     union
     {

@@ -11,8 +11,11 @@ struct Vertex2Pixel
     float3 tangent   : TANGENT;
 };
 
-// @speed This can be a 4x3 matrix (there are lots of bones)
-uniform float4x4 boneTransforms[MaxBones];
+cbuffer CodeConstants : register(CodeConstantsSlot)
+{
+    // @speed This can be a 4x3 matrix (there are lots of bones)
+    float4x4 boneTransforms[MaxBones];
+};
 
 Vertex2Pixel main(SkinnedVertex vert)
 {

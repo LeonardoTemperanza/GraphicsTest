@@ -13,12 +13,31 @@
 
 #include "base.h"
 
-enum OS_GraphicsLib
+// Application management
+
+struct OS_FileSystemChange
 {
-    GfxLib_None = 0,
-    GfxLib_OpenGL,
-    GfxLib_D3D12
+    const char* file;
 };
+
+void OS_Init(const char* windowName);
+void OS_ShowWindow();
+void OS_GetWindowSize(int* width, int* height);
+void OS_GetClientAreaSize(int* width, int* height);
+// Return value = false means to quit the application,
+// true means the opposite 
+bool OS_HandleWindowEvents();
+void OS_StartFileWatcher(const char* path);
+void OS_StopFileWatcher(const char* path);
+void OS_ConsumeFileWatcherChanges(OS_FileSystemChange* outChanges, int maxChanges);
+void OS_Cleanup();
+
+// Opengl (some platforms have tight coupling with opengl)
+#ifdef GFX_OPENGL
+void OS_OpenglSwapBuffers();
+#endif
+
+// Input
 
 enum GamepadButtonField
 {
@@ -120,24 +139,6 @@ struct OS_InputState
     bool virtualKeys[Keycode_Count];
 };
 
-// Application management
-void OS_Init(const char* windowName);
-void OS_ShowWindow();
-void OS_GetWindowSize(int* width, int* height);
-void OS_GetClientAreaSize(int* width, int* height);
-// This is a workaround for win32 resizing.
-bool OS_NeedThisFrameBeforeNextIteration();
-// Return value = false means to quit the application,
-// true means the opposite 
-bool OS_HandleWindowEvents();
-void OS_Cleanup();
-
-// Opengl (some platforms have tight coupling with opengl)
-#ifdef GFX_OPENGL
-void OS_OpenglSwapBuffers();
-#endif
-
-// Input
 OS_InputState OS_PollInput();
 
 void OS_ShowCursor(bool show);

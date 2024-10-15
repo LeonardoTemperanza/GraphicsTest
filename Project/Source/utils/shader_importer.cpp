@@ -23,6 +23,10 @@ using namespace Microsoft::WRL;
 // Spirv cross includes
 #include "spirvcross_include/spirv_glsl.hpp"
 
+// NOTE: In this program we absolutely don't care about memory leaks
+// because it's a simple shortlived command line program. So don't fix them
+// as that will just waste time
+
 // NOTE: The shader binary works in the following way, there are magic bytes ("shader"), followed by the version number,
 // followed by a header struct that describes the location of the various shaders (binary or not)
 
@@ -70,7 +74,7 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
                    ComPtr<ID3D12ShaderReflection>& outReflection);
 String CompileHLSLForD3D11(const char* name, ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
 String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
-void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, ComPtr<ID3D12ShaderReflection>& reflection, const char* shaderPath, ShaderKind kind, int definedStages);
+void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, const char* shaderPath, ShaderKind kind, int definedStages);
 
 // Usage:
 // shader_importer.exe file_to_import.hlsl
@@ -146,7 +150,7 @@ int main(int argCount, char** args)
     
     for(int i = 0; i < ShaderKind_Count; ++i)
     {
-        ShaderKind kind = (ShaderKind)i;
+        ShaderKind shaderKind = (ShaderKind)i;
         auto& stage = result.stages[i];
         if(stage.defined)
         {
@@ -163,22 +167,63 @@ int main(int argCount, char** args)
             
             // D3D11
             if(ok)
-                d3d11Bytecode = CompileHLSLForD3D11(shaderPath, kind, shaderSource, stage.entry, scratch, &ok);
+            {
+                StringBuilder builder = {};
+                defer { FreeBuffers(&builder); };
+                Append(&builder, stage.entry);
+                NullTerminate(&builder);
+                String nullTermEntry = ToString(&builder); 
+                
+                // TODO: Remove the pragma warnings
+                DWORD shaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+                // TODO: Remove this on release build
+                shaderFlags |= D3DCOMPILE_DEBUG;
+                
+                ID3DBlob* errorBlob = nullptr;
+                ID3DBlob* bytecode  = nullptr;
+                HRESULT hr = D3DCompile(shaderSource.ptr,
+                                        shaderSource.len,
+                                        shaderPath,  // Optional shader name
+                                        nullptr,  // Optional defines
+                                        D3D_COMPILE_STANDARD_FILE_INCLUDE,  // Optional include handler
+                                        nullTermEntry.ptr,
+                                        D3D11_GetHLSLTarget(shaderKind),
+                                        shaderFlags, // Compilation flags
+                                        0,           // Effect compilation flags
+                                        &bytecode,
+                                        &errorBlob);
+                
+                if(FAILED(hr) && errorBlob)
+                {
+                    printf("HLSL->D3D11 Bytecode Failed - ");
+                    printf("%s shader compilation messages:\n", GetShaderKindString(shaderKind));
+                    printf("%s", (char*)errorBlob->GetBufferPointer());
+                    errorBlob->Release();
+                    ok = false;
+                    return {};
+                }
+                
+                assert(SUCCEEDED(hr));
+                
+                printf("HLSL->D3D11 OK - ");
+                printf("%s shader successfully compiled.\n", GetShaderKindString(shaderKind));
+                d3d11Bytecode = {.ptr=(const char*)bytecode->GetBufferPointer(), .len=(s64)bytecode->GetBufferSize()};
+            }
             
             // D3D12
             if(ok)
-                dxil = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToDxil, reflection);
+                dxil = CompileHLSL(shaderKind, shaderSource, stage.entry, scratch, &ok, ToDxil, reflection);
             
             // Vulkan
             if(ok)
-                vulkanSpirv = CompileHLSL(kind, shaderSource, stage.entry, scratch, &ok, ToSpirv, reflection);
+                vulkanSpirv = CompileHLSL(shaderKind, shaderSource, stage.entry, scratch, &ok, ToSpirv, reflection);
             
             // OpenGL
             if(ok)
-                glslSource = CompileToGLSL(kind, vulkanSpirv, scratch, &ok);
+                glslSource = CompileToGLSL(shaderKind, vulkanSpirv, scratch, &ok);
             
             if(ok)
-                BuildBinary(d3d11Bytecode, dxil, vulkanSpirv, glslSource, reflection, shaderPath, kind, definedStages);
+                BuildBinary(d3d11Bytecode, dxil, vulkanSpirv, glslSource, shaderPath, shaderKind, definedStages);
         }
     }
     
@@ -409,55 +454,32 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
     return binary;
 }
 
-void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, ComPtr<ID3D12ShaderReflection>& reflection, const char* shaderPath, ShaderKind kind, int definedStages)
+void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, const char* shaderPath, ShaderKind kind, int definedStages)
 {
     ScratchArena scratch;
     
     StringBuilder builder = {0};
     defer { FreeBuffers(&builder); } ;
     
-    constexpr u32 version = 1;
+    constexpr u32 version = 0;
     Append(&builder, "shader");   // Magic bytes
     Put(&builder, (u32)version);  // Version number
     
-    ShaderBinaryHeader_v1 header = {0};
-    header.v0.shaderKind  = kind;
-    header.v0.numMatConstants = 0;
-    header.v0.matNames = 0;
-    header.v0.matOffsets = 0;
+    ShaderBinaryHeader_v0 header = {0};
+    // Metadata
+    header.shaderKind = kind;
     
-#if 0
-    // Get reflection info
-    D3D12_SHADER_DESC shaderDesc;
-    reflection->GetDesc(&shaderDesc);
+    Array<ShaderType> codeConstantsTypes = {};
+    Array<ShaderType> materialConstantsTypes = {};
     
-    // Iterate over the constant buffer
-    for(int i = 0; i < shaderDesc.ConstantBuffers; ++i)
-    {
-        ID3D12ShaderReflectionConstantBuffer* constBuffer = reflection->GetConstantBufferByIndex(i);
-        D3D12_SHADER_BUFFER_DESC bufferDesc;
-        constBuffer->GetDesc(&bufferDesc);
-        
-        printf("Constant Buffer %u: %s, Variables: %u\n", i, bufferDesc.Name, bufferDesc.Variables);
-        
-        for (UINT j = 0; j < bufferDesc.Variables; j++)
-        {
-            ID3D12ShaderReflectionVariable* variable = constBuffer->GetVariableByIndex(j);
-            D3D12_SHADER_VARIABLE_DESC variableDesc;
-            variable->GetDesc(&variableDesc);
-            
-            printf("  Variable %u: %s, Size: %u, Offset: %u\n", j, variableDesc.Name, variableDesc.Size, variableDesc.StartOffset);
-        }
-    }
-#endif
-    
-    header.v0.dxil            = sizeof(ShaderBinaryHeader_v1);
-    header.v0.dxilSize        = dxil.len;
-    header.v0.vulkanSpirv     = header.v0.dxil + dxil.len;
-    header.v0.vulkanSpirvSize = vulkanSpirv.len;
-    header.v0.glsl            = header.v0.vulkanSpirv + vulkanSpirv.len;
-    header.v0.glslSize        = glsl.len;
-    header.d3d11Bytecode      = header.v0.glsl + glsl.len;
+    // Shader binaries
+    header.dxil            = sizeof(ShaderBinaryHeader_v0);
+    header.dxilSize        = dxil.len;
+    header.vulkanSpirv     = header.dxil + dxil.len;
+    header.vulkanSpirvSize = vulkanSpirv.len;
+    header.glsl            = header.vulkanSpirv + vulkanSpirv.len;
+    header.glslSize        = glsl.len;
+    header.d3d11Bytecode      = header.glsl + glsl.len;
     header.d3d11BytecodeSize  = d3d11Bytecode.len;
     Put(&builder, header);
     Append(&builder, dxil);

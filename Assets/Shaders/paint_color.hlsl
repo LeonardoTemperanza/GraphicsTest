@@ -1,7 +1,12 @@
 
 #pragma ps main
 
-float4 color;
+#include "common.hlsli"
+
+cbuffer CodeConstants : register(CodeConstantsSlot)
+{
+    float4 color;
+};
 
 float4 main() : SV_TARGET
 {

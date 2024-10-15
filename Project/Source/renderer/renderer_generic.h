@@ -6,10 +6,10 @@
 
 // First we define the backend independent types
 
-enum UniformType;
+enum ShaderValType;
 struct R_UniformValue
 {
-    UniformType type;
+    ShaderValType type;
     union
     {
         float f;
@@ -123,53 +123,64 @@ struct ShaderInput
 };
 
 // Slots for texture/sampler/uniform binding.
-// NOTE: These need to be updated along with the ones
+// NOTE: These need to be kept in sync with the ones
 // in common.hlsli
-#define CodeTex0     0
-#define CodeTex1     1
-#define CodeTex2     2
-#define CodeTex3     3
-#define CodeTex4     4
-#define CodeTex5     5
-#define CodeTex6     6
-#define CodeTex7     7
-#define CodeTex8     8
-#define CodeTex9     9
-#define MaterialTex0 10
-#define MaterialTex1 11
-#define MaterialTex2 12
-#define MaterialTex3 13
-#define MaterialTex4 14
-#define MaterialTex5 15
-#define MaterialTex6 16
-#define MaterialTex7 17
-#define MaterialTex8 18
-#define MaterialTex9 19
-#define CodeSampler0     0
-#define CodeSampler1     1
-#define CodeSampler2     2
-#define CodeSampler3     3
-#define CodeSampler4     4
-#define CodeSampler5     5
-#define CodeSampler6     6
-#define CodeSampler7     7
-#define CodeSampler8     8
-#define CodeSampler9     9
-#define MaterialSampler0 10
-#define MaterialSampler1 11
-#define MaterialSampler2 12
-#define MaterialSampler3 3
-#define MaterialSampler4 14
-#define MaterialSampler5 15
-#define MaterialSampler6 16
-#define MaterialSampler7 17
-#define MaterialSampler8 18
-#define MaterialSampler9 19
-#define PerSceneCBuf      0
-#define PerFrameCBuf      1
-#define PerObjCBuf        2
-#define CodeUniforms      3
-#define MaterialConstants 4
+enum TextureSlot
+{
+    CodeTex0     = 0,
+    CodeTex1     = 1,
+    CodeTex2     = 2,
+    CodeTex3     = 3,
+    CodeTex4     = 4,
+    CodeTex5     = 5,
+    CodeTex6     = 6,
+    CodeTex7     = 7,
+    CodeTex8     = 8,
+    CodeTex9     = 9,
+    MaterialTex0 = 10,
+    MaterialTex1 = 11,
+    MaterialTex2 = 12,
+    MaterialTex3 = 13,
+    MaterialTex4 = 14,
+    MaterialTex5 = 15,
+    MaterialTex6 = 16,
+    MaterialTex7 = 17,
+    MaterialTex8 = 18,
+    MaterialTex9 = 19,
+};
+
+enum SamplerSlot
+{
+    CodeSampler0     = 0,
+    CodeSampler1     = 1,
+    CodeSampler2     = 2,
+    CodeSampler3     = 3,
+    CodeSampler4     = 4,
+    CodeSampler5     = 5,
+    CodeSampler6     = 6,
+    CodeSampler7     = 7,
+    CodeSampler8     = 8,
+    CodeSampler9     = 9,
+    MaterialSampler0 = 10,
+    MaterialSampler1 = 11,
+    MaterialSampler2 = 12,
+    MaterialSampler3 = 13,
+    MaterialSampler4 = 14,
+    MaterialSampler5 = 15,
+    MaterialSampler6 = 16,
+    MaterialSampler7 = 17,
+    MaterialSampler8 = 18,
+    MaterialSampler9 = 19,
+};
+
+enum CBufferSlot
+{
+    PerSceneCBuf      = 0,
+    PerFrameCBuf      = 1,
+    PerObjCBuf        = 2,
+    CodeConstants     = 3,
+    MaterialConstants = 4,
+};
 
 #ifdef GFX_OPENGL
 #include "renderer_opengl.h"
@@ -187,7 +198,7 @@ void R_Cleanup();
 
 void R_ResizeSwapchainIfNecessary();  // Must be called after R_WaitLastFrameAndBeginCurrentFrame
 void R_WaitLastFrameAndBeginCurrentFrame();
-void R_SubmitFrame();
+void R_PresentFrame();
 
 // Utils
 // Convert the view to projection matrix based on the API's
@@ -203,15 +214,17 @@ R_Texture     R_UploadCubemap(String top, String bottom, String left, String rig
                               u32 height, u8 numChannels);
 R_Shader      R_CreateDefaultShader(ShaderKind kind);
 R_Mesh        R_CreateDefaultMesh();
-R_Shader      R_CompileShader(ShaderKind kind, ShaderInput input);
+R_Shader      R_CreateShader(ShaderKind kind, ShaderInput input);
 R_Pipeline    R_CreatePipeline(Slice<R_Shader> shaders);
 R_Framebuffer R_DefaultFramebuffer();
 R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depth, bool stencil);
 void          R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height);  // Only resizes if necessary
 
+// TODO: Resource destruction
+//void DestroyMesh(R_Mesh* mesh);
+//void DestroyTexture(R_Texture* tex);
+
 // Drawing
-// TODO: Mhmmm... this is kind of weird because it's different from any other resource.
-// Should we just have a "R_SetMesh" and "R_DrawCall" ?
 void R_DrawMesh(R_Mesh mesh);
 void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength);
 void R_DrawSphere(Vec3 center, float radius);
@@ -226,14 +239,18 @@ void R_DrawFullscreenQuad();
 void R_SetViewport(int width, int height);
 void R_SetVertexShader(R_Shader shader);
 void R_SetPixelShader(R_Shader shader);
-void R_SetUniforms(Slice<R_UniformValue> desc);
 void R_SetFramebuffer(R_Framebuffer framebuffer);
-void R_SetTexture(R_Texture texture, ShaderKind kind, u32 slot);
-void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, u32 slot);
+void R_SetTexture(R_Texture texture, ShaderKind kind, TextureSlot slot);
+void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, SamplerSlot slot);
 
 void R_SetPerSceneData();
 void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos);
 void R_SetPerObjData(Mat4 model2World, Mat3 normalMat);
+#define R_SetCodeConstants(shader, desc) R_SetCodeConstants_(desc, __FILE__, __LINE__)
+void R_SetCodeConstants_(R_Shader shader, Slice<R_UniformValue> desc, const char* callFile, int callLine);
+struct Material;
+bool R_CheckMaterial(Material* mat, String matName);
+void R_SetMaterialConstants(R_Shader shader, Slice<R_UniformValue> desc);
 
 void R_ClearFrame(Vec4 color);
 void R_ClearFrameInt(int r, int g, int b, int a);

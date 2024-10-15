@@ -566,7 +566,94 @@ R_Mesh R_CreateDefaultMesh()
     return {};
 }
 
-R_Shader R_CompileShader(ShaderKind kind, ShaderInput input)
+// TODO: This stuff should really be moved to the shader importer
+Array<ShaderValType> D3D11_GetVarTypesInCBuffer(ID3D11ShaderReflectionConstantBuffer* cbuf)
+{
+    assert(cbuf);
+    
+    Array<ShaderValType> res = {};
+    
+    D3D11_SHADER_BUFFER_DESC bufferDesc;
+    HRESULT hr = cbuf->GetDesc(&bufferDesc);
+    assert(SUCCEEDED(hr));
+    
+    for(UINT i = 0; i < bufferDesc.Variables; ++i)
+    {
+        auto variable = cbuf->GetVariableByIndex(i);
+        
+        // Get variable description
+        D3D11_SHADER_VARIABLE_DESC varDesc;
+        variable->GetDesc(&varDesc);
+        
+        // Get variable type description
+        ID3D11ShaderReflectionType* type = variable->GetType();
+        D3D11_SHADER_TYPE_DESC typeDesc;
+        HRESULT hr = type->GetDesc(&typeDesc);
+        assert(hr);
+        
+        ShaderValType toAppend = Uniform_None;
+        switch(typeDesc.Class)
+        {
+            default: Log("Unrecognized type in %s cbuffer", bufferDesc.Name); break;
+            case D3D_SVC_SCALAR:
+            {
+                switch(typeDesc.Type)
+                {
+                    default: Log("Unrecognized type in %s cbuffer", bufferDesc.Name); break;
+                    case D3D_SVT_FLOAT: toAppend = Uniform_Float; break;
+                    case D3D_SVT_UINT:  toAppend = Uniform_UInt;  break;
+                    case D3D_SVT_INT:   toAppend = Uniform_Int; break;
+                }
+                
+                break;
+            }
+            case D3D_SVC_VECTOR:
+            {
+                assert(typeDesc.Rows == 1);
+                
+                if(typeDesc.Type != D3D_SVT_FLOAT)
+                {
+                    Log("Unrecognized type in %s cbuffer", bufferDesc.Name);
+                    break;
+                }
+                
+                switch(typeDesc.Columns)
+                {
+                    default: Log("Unrecognized type in %s cbuffer", bufferDesc.Name);
+                    case 3: toAppend = Uniform_Vec3; break;
+                    case 4: toAppend = Uniform_Vec4; break;
+                }
+                break;
+            }
+        }
+        
+        Append(&res, toAppend);
+    }
+    
+    return res;
+}
+
+ID3D11Buffer* D3D11_CreateBufferForCBuf(ID3D11ShaderReflectionConstantBuffer* cbuf)
+{
+    auto& r = renderer;
+    
+    D3D11_SHADER_BUFFER_DESC reflBufferDesc;
+    HRESULT hr = cbuf->GetDesc(&reflBufferDesc);
+    assert(SUCCEEDED(hr));
+    
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    bufferDesc.ByteWidth = reflBufferDesc.Size;
+    bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    
+    ID3D11Buffer* res = nullptr;
+    hr = r.device->CreateBuffer(&bufferDesc, nullptr, &res);
+    assert(SUCCEEDED(hr));
+    return res;
+}
+
+R_Shader R_CreateShader(ShaderKind kind, ShaderInput input)
 {
     auto& r = renderer;
     
@@ -585,6 +672,72 @@ R_Shader R_CompileShader(ShaderKind kind, ShaderInput input)
         {
             r.device->CreatePixelShader(input.d3d11Bytecode.ptr, input.d3d11Bytecode.len, nullptr, &res.pixelShader);
             break;
+        }
+    }
+    
+    // TODO: This stuff should really be moved to the importer
+    ID3D11ShaderReflection* reflection = nullptr;
+    HRESULT hr = D3DReflect(input.d3d11Bytecode.ptr, input.d3d11Bytecode.len, IID_ID3D11ShaderReflection, (void**)&reflection);
+    assert(SUCCEEDED(hr));
+    
+    D3D11_SHADER_DESC shaderDesc;
+    hr = reflection->GetDesc(&shaderDesc);
+    
+    // Get material and code constants
+    ID3D11ShaderReflectionConstantBuffer* materialCBuf = nullptr;
+    ID3D11ShaderReflectionConstantBuffer* codeCBuf = nullptr;
+    for(UINT i = 0; i < shaderDesc.BoundResources; ++i)
+    {
+        D3D11_SHADER_INPUT_BIND_DESC bindDesc;
+        HRESULT hr = reflection->GetResourceBindingDesc(i, &bindDesc);
+        assert(SUCCEEDED(hr));
+        
+        if(bindDesc.Type == D3D_SIT_CBUFFER)
+        {
+            auto slot = bindDesc.BindPoint;
+            if(slot == MaterialConstants)
+                materialCBuf = reflection->GetConstantBufferByName(bindDesc.Name);
+            else if(slot == CodeConstants)
+                codeCBuf = reflection->GetConstantBufferByName(bindDesc.Name);
+        }
+    }
+    
+    if(materialCBuf)
+    {
+        res.materialConstantTypes = D3D11_GetVarTypesInCBuffer(materialCBuf);
+        res.materialConstants = D3D11_CreateBufferForCBuf(materialCBuf);
+    }
+    
+    if(codeCBuf)
+    {
+        res.codeConstantTypes = D3D11_GetVarTypesInCBuffer(codeCBuf);
+        res.codeConstants = D3D11_CreateBufferForCBuf(codeCBuf);
+    }
+    
+    // Get number of textures and samplers
+    for(UINT i = 0; i < shaderDesc.BoundResources; ++i)
+    {
+        D3D11_SHADER_INPUT_BIND_DESC bindDesc;
+        HRESULT hr = reflection->GetResourceBindingDesc(i, &bindDesc);
+        assert(SUCCEEDED(hr));
+        
+        if(bindDesc.Type == D3D_SIT_TEXTURE)
+        {
+            auto slot = bindDesc.BindPoint;
+            bool isMaterial = slot >= MaterialTex0;
+            bool isCode     = slot >= CodeTex0 && !isMaterial;
+            if(isMaterial)
+                ++res.materialTexturesCount;
+            if(isCode)
+                ++res.codeTexturesCount;
+        }
+        else if(bindDesc.Type == D3D_SIT_SAMPLER)
+        {
+            auto slot = bindDesc.BindPoint;
+            bool isMaterial = slot >= MaterialSampler0;
+            bool isCode     = slot >= CodeSampler0 && !isMaterial;
+            if(isCode)
+                ++res.codeSamplersCount;
         }
     }
     
@@ -706,9 +859,91 @@ void R_SetPixelShader(R_Shader shader)
     r.deviceContext->PSSetShader(shader.pixelShader, nullptr, 0);
 }
 
-void R_SetUniforms(Slice<R_UniformValue> desc)
+void R_SetCodeConstants_(R_Shader shader, Slice<R_UniformValue> desc, const char* callFile, int callLine)
 {
+    auto& r = renderer;
     
+#ifdef Development
+    // Check correctness
+    if(desc.len != shader.codeConstantTypes.len)
+    {
+        Log("Attempted to set incorrect number of constants to shader at file: %s, line: %d. Expecting %d values, but %d were given.", callFile, callLine, (int)shader.codeConstantTypes.len, (int)desc.len);
+        return;
+    }
+    
+    for(int i = 0; i < desc.len; ++i)
+    {
+        if(desc[i].type != shader.codeConstantTypes[i])
+        {
+            Log("Attempted to set incorrect type of constant to shader at file: %s, line: %d. Value n.%d is of incorrect type.", callFile, callLine, i);
+            return;
+        }
+    }
+#endif
+    
+    ScratchArena scratch;
+    Slice<uchar> buffer = MakeUniformBufferStd140(desc, scratch);
+    
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    HRESULT hr = r.deviceContext->Map(shader.codeConstants, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    assert(SUCCEEDED(hr));
+    memcpy(mapped.pData, buffer.ptr, buffer.len);
+    r.deviceContext->Unmap(shader.codeConstants, 0);
+}
+
+// TODO: Maybe this should be moved elsewhere? Seems general enough
+bool R_CheckMaterial(Material* mat, String matName)
+{
+    R_Shader shader = mat->pixelShader;
+    
+    // Check constants
+    if(mat->uniforms.len != shader.codeConstantTypes.len)
+    {
+        Log("Error in material %.*s: incorrect number of constants. Expecting %d values, but %d were given.", StrPrintf(matName), shader.codeConstantTypes.len, mat->uniforms.len);
+        return false;
+    }
+    
+    for(int i = 0; i < mat->uniforms.len; ++i)
+    {
+        if(mat->uniforms[i].type != shader.codeConstantTypes[i])
+        {
+            Log("Error in material %.*s: incorrect type of constant at index %d.", StrPrintf(matName), i);
+            return false;
+        }
+    }
+    
+    // Check textures
+    if(mat->textures.len != shader.materialTexturesCount)
+    {
+        Log("Error in material %.*s: incorrect number of textures. Expecting %d textures, but %d were given.", StrPrintf(matName), shader.materialTexturesCount, mat->textures.len);
+        return false;
+    }
+    
+    return true;
+}
+
+void R_SetMaterialConstants(R_Shader shader, Slice<R_UniformValue> desc)
+{
+    auto& r = renderer;
+    
+    if(desc.len <= 0) return;
+    
+    if(!shader.materialConstants)
+    {
+        Log("Error: Attempting to set material contants when the shader does not have such cbuffer.");
+        return;
+    }
+    
+    // We assume that the material is correct
+    
+    ScratchArena scratch;
+    Slice<uchar> buffer = MakeUniformBufferStd140(desc, scratch);
+    
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    HRESULT hr = r.deviceContext->Map(shader.materialConstants, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    assert(SUCCEEDED(hr));
+    memcpy(mapped.pData, buffer.ptr, buffer.len);
+    r.deviceContext->Unmap(shader.materialConstants, 0);
 }
 
 void R_SetFramebuffer(R_Framebuffer framebuffer)
@@ -716,7 +951,7 @@ void R_SetFramebuffer(R_Framebuffer framebuffer)
     
 }
 
-void R_SetTexture(R_Texture texture, ShaderKind kind, u32 slot)
+void R_SetTexture(R_Texture texture, ShaderKind kind, TextureSlot slot)
 {
     auto& r = renderer;
     assert(texture.view);
@@ -739,7 +974,7 @@ void R_SetTexture(R_Texture texture, ShaderKind kind, u32 slot)
     }
 }
 
-void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, u32 slot)
+void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, SamplerSlot slot)
 {
     auto& r = renderer;
     assert(samplerKind >= 0 && samplerKind < R_SamplerCount);
@@ -926,7 +1161,7 @@ void R_ResizeSwapchainIfNecessary(int width, int heigth)
     // swapchain->ResizeBuffers();
 }
 
-void R_SubmitFrame()
+void R_PresentFrame()
 {
     auto& r = renderer;
     

@@ -1,7 +1,12 @@
 
 #pragma ps main
 
-int toPaint;
+#include "common.hlsli"
+
+cbuffer CodeConstants : register(CodeConstantsSlot)
+{
+    int toPaint;
+};
 
 int main() : SV_TARGET
 {

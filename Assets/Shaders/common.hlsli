@@ -62,28 +62,28 @@
 #define MaterialSampler9 s19
 
 // CBuffers
-#define PerSceneCBuf      b0
-#define PerFrameCBuf      b1
-#define PerObjCBuf        b2
+#define PerSceneSlot          b0
+#define PerFrameSlot          b1
+#define PerObjSlot            b2
 // CBuffer of constants accessed through code
-#define CodeUniforms      b3
+#define CodeConstantsSlot     b3
 // CBuffer used for material constants
-#define MaterialConstants b4
+#define MaterialConstantsSlot b4
 
-cbuffer PerScene : register(PerSceneCBuf)
+cbuffer PerScene : register(PerSceneSlot)
 {
     
 };
 
 // TODO: PerView would probably be a better name
-cbuffer PerFrame : register(PerFrameCBuf)
+cbuffer PerFrame : register(PerFrameSlot)
 {
     float4x4 world2View;
     float4x4 view2Proj;
     float3 viewPos;
 };
 
-cbuffer PerObj : register(PerObjCBuf)
+cbuffer PerObj : register(PerObjSlot)
 {
     float4x4 model2World;
     float3x3 normalMat;

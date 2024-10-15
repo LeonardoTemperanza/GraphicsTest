@@ -150,7 +150,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     OS_GetClientAreaSize(&width, &height);
     float aspectRatio = (float)width / (float)height;
     
-    R_WaitLastFrameAndBeginCurrentFrame();
+    //R_WaitLastFrameAndBeginCurrentFrame();
     
     if(width <= 0 || height <= 0)
     {
@@ -217,7 +217,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     
     // Render entities in the scene
     {
-        R_SetSampler(R_SamplerDefault, ShaderKind_Pixel, 0);
+        R_SetSampler(R_SamplerDefault, ShaderKind_Pixel, CodeSampler0);
         
         ShaderHandle vertShader = GetShaderByPath("CompiledShaders/model2proj.shader", ShaderKind_Vertex);
         R_SetVertexShader(vertShader);

@@ -665,14 +665,6 @@ void OS_OpenglSwapBuffers()
 }
 #endif
 
-bool OS_NeedThisFrameBeforeNextIteration()
-{
-    assert(win32.init);
-    if(!win32.window) return false;
-    
-    return win32.isInModalLoop;
-}
-
 void OS_Cleanup()
 {
     assert(win32.init);

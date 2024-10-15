@@ -394,6 +394,7 @@ R_SetFramebuffer(e->selectedFramebuffer);
         R_SetFramebuffer(R_DefaultFramebuffer());
     }
     
+#if 0
     // Render pass for entity ids (clicking on entities to select them)
     {
         /*
@@ -411,14 +412,16 @@ R_SetFramebuffer(e->selectedFramebuffer);
             
             // Upload the int uniform here
             R_UniformValue uniforms[] = { MakeUniformInt(GetId(man, ent)) };
-            R_SetUniforms(ArrToSlice(uniforms));
+            R_SetCodeConstants(ent->shader, ArrToSlice(uniforms));
             
             R_DrawMesh(ent->mesh);
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
     }
+#endif
     
+#if 0
     // Draw outline of selected objects
     {
         // Choose color of outline
@@ -446,7 +449,9 @@ R_SetFramebuffer(e->selectedFramebuffer);
         R_DrawFullscreenQuad();
         R_DepthTest(true);
     }
+#endif
     
+#if 0
     // Draw 3D gizmos
     {
         // NOTE: This assumes that the 3D gizmos will be the very last thing rendered
@@ -513,6 +518,7 @@ R_SetFramebuffer(e->selectedFramebuffer);
             }
         }
     }
+#endif
 }
 
 void ShowMainMenuBar(Editor* e)
@@ -1379,7 +1385,7 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     //R_SetPipeline(simpleColor);
     
     R_UniformValue uniforms[] = { MakeUniformVec4(color) };
-    R_SetUniforms(ArrToSlice(uniforms));
+    //R_SetUniforms(ArrToSlice(uniforms));
     
     R_SetPerObjData(Mat4::identity, Mat3::identity);
     

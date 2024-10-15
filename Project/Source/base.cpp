@@ -1090,7 +1090,7 @@ void Put(StringBuilder* builder, t val)
 {
     uintptr_t offset = AlignForward((uintptr_t)(builder->str.ptr + builder->str.len), alignof(t)) - (uintptr_t)(void*)builder->str.ptr;
     int oldLen = builder->str.len;
-    int newLen = (int)offset + sizeof(val);
+    int newLen = (int)offset + sizeof(t);
     int oldCapacity = builder->str.capacity;
     
     // TODO Duplicated code here
@@ -1112,6 +1112,35 @@ void Put(StringBuilder* builder, t val)
     memset(&builder->str[oldLen], 0, newLen-oldLen);
     t* addr = (t*)&builder->str[(int)offset];
     *addr = val;
+}
+
+template<typename t>
+void PutSlice(StringBuilder* builder, Slice<t> slice)
+{
+    uintptr_t offset = AlignForward((uintptr_t)(builder->str.ptr + builder->str.len), alignof(t)) - (uintptr_t)(void*)builder->str.ptr;
+    int oldLen = builder->str.len;
+    int newLen = (int)offset + sizeof(t) * slice.len;
+    int oldCapacity = builder->str.capacity;
+    
+    // TODO Duplicated code here
+    if(newLen > builder->str.capacity)
+        builder->str.capacity = NextPowerOf2(newLen);
+    
+    builder->str.len = newLen;
+    
+    // NOTE: The alignment needs to be 8 here, for consistent binary encoding/decoding
+    char* newPtr = nullptr;
+    if(builder->arena)
+        newPtr = (char*)ArenaResizeLastAlloc(builder->arena, builder->str.ptr, oldCapacity, builder->str.capacity, 8);
+    else
+        newPtr = (char*)_aligned_realloc(builder->str.ptr, builder->str.capacity, 8);
+    
+    builder->str.ptr = newPtr;
+    
+    // Write the value in the address
+    memset(&builder->str[oldLen], 0, newLen-oldLen);
+    t* addr = (t*)&builder->str[(int)offset];
+    memcpy(addr, slice.ptr, sizeof(t) * slice.len);
 }
 
 void NullTerminate(StringBuilder* builder)

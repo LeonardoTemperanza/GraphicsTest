@@ -22,7 +22,7 @@ enum ShaderKind
 // NOTE: Shaders are serialized using these enum
 // values, so already existing ones should not be changed
 // (Count can and should be changed of course)
-enum UniformType
+enum ShaderValType
 {
     Uniform_None  = 0,
     Uniform_Int   = 1,
@@ -35,17 +35,24 @@ enum UniformType
     Uniform_Count,
 };
 
+// Everything is represented with the byte offsets from the address of this struct
 struct ShaderBinaryHeader_v0
 {
     // Metadata on the shader itself
     u8 shaderKind;
     
-    // NOTE: These 3 are actually unused and should be removed
-    u32 numMatConstants;
-    u32 matNames;
-    u32 matOffsets;
+    // Material constants
+    u32 matConstantsTypes;  // Points to an array of UniformType
+    u32 matConstantsTypesCount;
+    u32 matTexturesCount;
     
-    // All of these are byte offsets from the address of this struct
+    // Code controlled parameters
+    u32 codeConstantsTypes;
+    u32 codeConstantsTypesCount;
+    u32 codeTexturesCount;
+    
+    u32 d3d11Bytecode;
+    u32 d3d11BytecodeSize;
     u32 dxil;
     u32 dxilSize;
     u32 vulkanSpirv;
@@ -54,15 +61,7 @@ struct ShaderBinaryHeader_v0
     u32 glslSize;
 };
 
-struct ShaderBinaryHeader_v1
-{
-    ShaderBinaryHeader_v0 v0;
-    
-    u32 d3d11Bytecode;
-    u32 d3d11BytecodeSize;
-};
-
-typedef ShaderBinaryHeader_v1 ShaderBinaryHeader;
+typedef ShaderBinaryHeader_v0 ShaderBinaryHeader;
 
 // Models
 
