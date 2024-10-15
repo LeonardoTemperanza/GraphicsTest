@@ -120,7 +120,7 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     PollAndProcessInput(inEditor);
     
 #ifdef Development
-    HotReloadAssets();
+    HotReloadAssets(frameArena);
 #endif
     
     int width, height;

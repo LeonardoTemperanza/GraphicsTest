@@ -1347,7 +1347,7 @@ void RemoveUnusedWidgets(HashMap<ImGuiID, Widget>* table)
 GetOrAddWidgetReturn GetOrAddWidget(HashMap<ImGuiID, Widget>* table, ImGuiID id)
 {
     auto lookup = Lookup(table, id);
-    if(!lookup.ok)
+    if(!lookup.found)
     {
         Widget* widget = Append(table, id, {});
         widget->lastUsedFrame = Widget::frameCounter;

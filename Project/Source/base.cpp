@@ -1402,9 +1402,9 @@ LookupResult<t> Lookup(StringMap<t>* map, String key)
 {
     u64 idx = LookupIdx(map, key);
     // Not found
-    if(idx == -1) return {.res={}, .ok = false};
+    if(idx == -1) return {.res={}, .found = false};
     
-    return {.res=&map->slots[idx].value, .ok = true};
+    return {.res=&map->slots[idx].value, .found = true};
 }
 
 template<typename t>

@@ -13,8 +13,6 @@
 #include <xmmintrin.h>
 #include <intrin.h>
 
-#include "os/os_generic.h"
-
 // For small platform dependent utility functions
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -482,7 +480,7 @@ struct Array
 };
 
 template<typename t>
-void UseArena(Array<t>* array);
+void UseArena(Array<t>* array, Arena* arena);
 template<typename t>
 void Resize(Array<t>* array, int newSize);
 template<typename t>
@@ -525,7 +523,7 @@ template<typename t>
 struct LookupResult
 {
     t* res;
-    bool ok;
+    bool found;
 };
 
 u64 SipHash(String str, u64 seed = 0x31415926);

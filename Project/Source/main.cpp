@@ -38,6 +38,11 @@ int main()
     S_Init();
     defer { S_Cleanup(); };
     
+#ifdef Development
+    OS_StartFileWatcher(".");  // Watch files in Assets directory (and subfolders)
+    defer { OS_StopFileWatcher(); };
+#endif
+    
     InitAssetSystem();
     
     EntityManager entManager = InitEntityManager();

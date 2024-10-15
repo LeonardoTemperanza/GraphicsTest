@@ -27,9 +27,11 @@ void OS_GetClientAreaSize(int* width, int* height);
 // Return value = false means to quit the application,
 // true means the opposite 
 bool OS_HandleWindowEvents();
+// For simplicity we assume that a single file watcher on a single directory
+// is active at any given time.
 void OS_StartFileWatcher(const char* path);
-void OS_StopFileWatcher(const char* path);
-void OS_ConsumeFileWatcherChanges(OS_FileSystemChange* outChanges, int maxChanges);
+void OS_StopFileWatcher();
+Slice<OS_FileSystemChange> OS_ConsumeFileWatcherChanges(Arena* dst);
 void OS_Cleanup();
 
 // Opengl (some platforms have tight coupling with opengl)

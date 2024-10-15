@@ -27,6 +27,9 @@
 
 #include <shellscalingapi.h>
 
+// File watcher
+#include <shlobj_core.h>
+
 #include "base.h"
 
 #include <cmath>
@@ -78,6 +81,12 @@ struct OS_Context
     // NOTE: Used when not in full screen mode.
     // Stands for Desktop Window Manager
     bool usingDwm;
+    
+    // File watcher
+#define FileWatcherChangeBufSize 1024
+    alignas(DWORD) u8 changeBuf[FileWatcherChangeBufSize];
+    HANDLE watcherFile;
+    OVERLAPPED overlapped;
 };
 
 struct WGL_Context
@@ -137,6 +146,39 @@ static bool Win32_LoadXInput()
     return ok;
 }
 
+// From: https://learn.microsoft.com/en-us/windows/win32/Debug/retrieving-the-last-error-code
+#include <strsafe.h>
+void Win32_LogLastError(LPCTSTR lpszFunction) 
+{ 
+    // Retrieve the system error message for the last-error code
+    
+    LPVOID lpMsgBuf;
+    LPVOID lpDisplayBuf;
+    DWORD dw = GetLastError(); 
+    
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+                  FORMAT_MESSAGE_FROM_SYSTEM |
+                  FORMAT_MESSAGE_IGNORE_INSERTS,
+                  NULL,
+                  dw,
+                  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                  (LPTSTR) &lpMsgBuf,
+                  0, NULL );
+    
+    // Display the error message and exit the process
+    
+    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT, 
+                                      (lstrlen((LPCTSTR)lpMsgBuf) + lstrlen((LPCTSTR)lpszFunction) + 40) * sizeof(TCHAR)); 
+    StringCchPrintf((LPTSTR)lpDisplayBuf, 
+                    LocalSize(lpDisplayBuf) / sizeof(TCHAR),
+                    TEXT("%s failed with error %d: %s"), 
+                    lpszFunction, dw, lpMsgBuf); 
+    MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK); 
+    
+    LocalFree(lpMsgBuf);
+    LocalFree(lpDisplayBuf);
+}
+
 void Win32_BreakOutOfModalLoop()
 {
     // NOTE: If we're switching to the main fiber from here,
@@ -190,6 +232,9 @@ void Win32_PollRawInputMouseDelta(int* x, int* y)
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+// Custom window messages
+#define WM_CUSTOM_FILEWATCHER (WM_USER + 1)
 
 // NOTE: Window callback function. Since Microsoft wants programs to get stuck
 // inside this function at all costs, a weird hack is being used to "break free"
@@ -390,7 +435,7 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         {
             /*
             static HCURSOR arrowCursor = LoadCursor(NULL, IDC_ARROW);
-            
+                        
             // Handle cursor update when hovering over the client area
             if(LOWORD(lParam) == HTCLIENT)
             {
@@ -438,16 +483,16 @@ LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam
         {
             // From: https://gist.github.com/luluco250/ac79d72a734295f167851ffdb36d77ee
             // The official Microsoft examples are pretty terrible about this.
-			// Size needs to be non-constant because GetRawInputData() can return the
-			// size necessary for the RAWINPUT data, which is a weird feature.
-			unsigned size = sizeof(RAWINPUT);
-			static RAWINPUT raw[sizeof(RAWINPUT)];
-			GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
+            // Size needs to be non-constant because GetRawInputData() can return the
+            // size necessary for the RAWINPUT data, which is a weird feature.
+            unsigned size = sizeof(RAWINPUT);
+            static RAWINPUT raw[sizeof(RAWINPUT)];
+            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, raw, &size, sizeof(RAWINPUTHEADER));
             if (raw->header.dwType == RIM_TYPEMOUSE)
             {
                 win32.mouseDeltaX += raw->data.mouse.lLastX;
                 win32.mouseDeltaY -= raw->data.mouse.lLastY;
-			}
+            }
             
             break;
         }
@@ -686,6 +731,109 @@ bool OS_HandleWindowEvents()
     SwitchToFiber(win32.eventsFiber);
     
     return !win32.quit;
+}
+
+void OS_StartFileWatcher(const char* path)
+{
+    assert(win32.init);
+    
+    HANDLE file = CreateFile(path,
+                             FILE_LIST_DIRECTORY,
+                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                             NULL,
+                             OPEN_EXISTING,
+                             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
+                             NULL);
+    assert(file != INVALID_HANDLE_VALUE);
+    
+    OVERLAPPED overlapped;
+    overlapped.hEvent = CreateEvent(NULL, FALSE, 0, NULL);
+    
+    BOOL success = ReadDirectoryChangesW(file, win32.changeBuf, FileWatcherChangeBufSize, TRUE,
+                                         FILE_NOTIFY_CHANGE_FILE_NAME  |
+                                         FILE_NOTIFY_CHANGE_DIR_NAME   |
+                                         FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                         NULL, &overlapped, NULL);
+    
+    win32.watcherFile = file;
+    win32.overlapped  = overlapped;
+}
+
+void OS_StopFileWatcher()
+{
+    assert(win32.init);
+    // TODO
+}
+
+Slice<OS_FileSystemChange> OS_ConsumeFileWatcherChanges(Arena* dst)
+{
+    assert(win32.init);
+    
+    ScratchArena scratch;
+    Array<OS_FileSystemChange> changes = {};
+    UseArena(&changes, scratch);
+    
+    HANDLE event = win32.overlapped.hEvent;
+    assert(event != INVALID_HANDLE_VALUE);
+    
+    DWORD waitRes = WaitForSingleObject(win32.overlapped.hEvent, 0);  // Non-blocking wait
+    if(waitRes == WAIT_OBJECT_0)
+    {
+        DWORD bytesTransferred;
+        GetOverlappedResult(win32.watcherFile, &win32.overlapped, &bytesTransferred, FALSE);
+        
+        FILE_NOTIFY_INFORMATION* event = (FILE_NOTIFY_INFORMATION*)win32.changeBuf;
+        
+        while(true)
+        {
+            DWORD nameLen = event->FileNameLength / sizeof(wchar_t);
+            
+            switch (event->Action)
+            {
+                case FILE_ACTION_ADDED:    break;
+                case FILE_ACTION_REMOVED:  break;
+                case FILE_ACTION_MODIFIED: break;
+                case FILE_ACTION_RENAMED_OLD_NAME: break;
+                case FILE_ACTION_RENAMED_NEW_NAME: break;
+                default: break;
+            }
+            
+            if(event->Action != FILE_ACTION_RENAMED_OLD_NAME)
+            {
+                OS_FileSystemChange change = {};
+                char* fileName = (char*)ArenaAlloc(dst, nameLen+1, 8);
+                // Convert from wchar to regular char. Also change "\" to "/"
+                for(u64 i = 0; i < nameLen; ++i)
+                {
+                    fileName[i] = (char)event->FileName[i];
+                    if(fileName[i] == '\\')
+                        fileName[i] = '/';
+                }
+                
+                fileName[nameLen] = '\0';
+                
+                change.file = (const char*)fileName;
+                
+                Append(&changes, change);
+            }
+            
+            // Check if there are any more events to handle
+            if(event->NextEntryOffset)
+                *((uint8_t**)&event) += event->NextEntryOffset;
+            else
+                break;
+        }
+        
+        // Queue the next event
+        BOOL success = ReadDirectoryChangesW(win32.watcherFile, win32.changeBuf, FileWatcherChangeBufSize, TRUE,
+                                             FILE_NOTIFY_CHANGE_FILE_NAME  |
+                                             FILE_NOTIFY_CHANGE_DIR_NAME   |
+                                             FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                             NULL, &win32.overlapped, NULL);
+        assert(success);
+    }
+    
+    return CopyToArena(&changes, dst);
 }
 
 VirtualKeycode Win32_ConvertToCustomKeyCodes(WPARAM code)

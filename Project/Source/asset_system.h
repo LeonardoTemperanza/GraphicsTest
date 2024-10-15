@@ -75,10 +75,6 @@ struct AssetSystem
     Array<R_Shader>  shaders;
     Array<Material>  materials;
     
-    // Resources
-    Array<Pipeline> pipelines;
-    // array of samplers as well?
-    
     // Acceleration structures to speed up
     // some of the queries
     StringMap<MeshHandle>     pathToMesh;
@@ -110,7 +106,7 @@ ShaderHandle DefaultPixelShaderHandle();
 void UseMaterial(Material mat);
 
 // Hot reloading. To be performed once per frame or once per few frames
-void HotReloadAssets();
+void HotReloadAssets(Arena* frameArena);
 
 void LoadMesh(R_Mesh* mesh, String path);
 void LoadTexture(R_Texture* texture, String path);

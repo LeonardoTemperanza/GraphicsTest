@@ -45,10 +45,6 @@ void ReserveSlotForDefaultAssets()
     assert(man.shaders.len == 0);
     Append(&man.shaders, R_CreateDefaultShader(ShaderKind_Vertex));
     Append(&man.shaders, R_CreateDefaultShader(ShaderKind_Pixel));
-    
-    assert(man.pipelines.len == 0);
-    R_Shader shaders[] = {man.shaders[0], man.shaders[1]};
-    R_Pipeline obj = R_CreatePipeline(ArrToSlice(shaders));
 }
 
 void UseMaterial(Material mat)
@@ -60,9 +56,57 @@ void UseMaterial(Material mat)
         R_SetTexture(mat.textures[i], ShaderKind_Pixel, (TextureSlot)(MaterialTex0 + i));
 }
 
-void HotReloadAssets()
+void HotReloadAssets(Arena* frameArena)
 {
-    // TODO: Loop through all filesystem notifications
+#ifdef Development
+    auto& man = assetManager;
+    
+    // Maybe some of this duplication can be reduced...
+    Slice<OS_FileSystemChange> fileChanges = OS_ConsumeFileWatcherChanges(frameArena);
+    for(int i = 0; i < fileChanges.len; ++i)
+    {
+        String ext = GetPathExtension(fileChanges[i].file);
+        if(ext == "mesh")
+        {
+            auto lookup = Lookup(&man.pathToMesh, fileChanges[i].file);
+            if(lookup.found)
+            {
+                // TODO: Destroy mesh
+                
+                auto handle = lookup.res;
+                LoadMesh(&man.meshes[handle->idx], ToLenStr(fileChanges[i].file));
+            }
+        }
+        else if(ext == "png" || ext == "jpg" || ext == "jpeg")
+        {
+            auto lookup = Lookup(&man.pathToTexture, fileChanges[i].file);
+            if(lookup.found)
+            {
+                // TODO: Destroy texture
+                
+                auto handle = lookup.res;
+                LoadTexture(&man.textures[handle->idx], ToLenStr(fileChanges[i].file));
+            }
+        }
+        else if(ext == "shader")
+        {
+            TODO;
+        }
+        else if(ext == "mat")
+        {
+            auto lookup = Lookup(&man.pathToMaterial, fileChanges[i].file);
+            if(lookup.found)
+            {
+                // TODO: Destroy material
+                
+                auto handle = lookup.res;
+                LoadMaterial(&man.materials[handle->idx], ToLenStr(fileChanges[i].file));
+            }
+        }
+        
+        Log("Changed file: %s", fileChanges[i].file);
+    }
+#endif
 }
 
 void LoadMesh(R_Mesh* mesh, String path)
@@ -251,7 +295,7 @@ MeshHandle GetMeshByPath(const char* path)
     auto& man = assetManager;
     
     auto res = Lookup(&man.pathToMesh, ToLenStr(path));
-    if(!res.ok)
+    if(!res.found)
     {
         MeshHandle mesh;
         Append(&man.meshes, {});
@@ -269,7 +313,7 @@ TextureHandle GetTextureByPath(const char* path)
 {
     auto& man = assetManager;
     auto res = Lookup(&man.pathToTexture, ToLenStr(path));
-    if(!res.ok)
+    if(!res.found)
     {
         TextureHandle texture;
         Append(&man.textures, {});
@@ -289,7 +333,7 @@ ShaderHandle GetShaderByPath(const char* path, ShaderKind kind)
     
     String str = ToLenStr(path);
     auto res = Lookup(&man.pathToShader, str);
-    if(!res.ok)
+    if(!res.found)
     {
         ShaderHandle shader;
         Append(&man.shaders, {});
@@ -309,7 +353,7 @@ MaterialHandle GetMaterialByPath(const char* path)
     
     String str = ToLenStr(path);
     auto res = Lookup(&man.pathToMaterial, str);
-    if(!res.ok)
+    if(!res.found)
     {
         MaterialHandle material;
         Append(&man.materials, {});
