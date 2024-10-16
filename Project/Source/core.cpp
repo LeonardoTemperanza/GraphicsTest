@@ -31,11 +31,16 @@ EntityManager InitEntityManager()
     MeshHandle sphereMesh   = GetMeshByPath("Common/sphere.mesh");
     MeshHandle cubeMesh     = GetMeshByPath("Common/Cube.mesh");
     MeshHandle cylinderMesh = GetMeshByPath("Common/cylinder.mesh");
+    MeshHandle quadMesh     = GetMeshByPath("Common/quad.mesh");
     MaterialHandle raptoidMat = GetMaterialByPath("Raptoid/raptoid.mat");
     
     auto raptoid = NewEntity(man);
     raptoid->mesh = raptoidMesh;
     raptoid->material = raptoidMat;
+    
+    auto quadEnt = NewEntity(man);
+    quadEnt->mesh = quadMesh;
+    quadEnt->material = raptoidMat;
     
     auto camera = NewEntity<Camera>(man);
     camera->base->pos.z = -8.0f;
@@ -174,8 +179,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         Camera* cam = GetDerived<Camera>(man, man->mainCamera);
         Vec3 camPos = {0};
         Quat camRot = Quat::identity;
-        R_CameraParams camParams = {.nearClip=0.1f, .farClip=1000.0f};
-        
+        R_CameraParams camParams = {};
         if(inEditor)
         {
             camPos    = editor->camPos;
@@ -190,11 +194,17 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         }
         else
         {
+            camPos    = Vec3::zero;
+            camRot    = Quat::identity;
+            camParams.fov = 90.0f;
+            camParams.nearClip = 0.1f;
+            camParams.farClip  = 1000.0f;
+            
             Log("There is currently no active camera!");
         }
         
-        Mat4 view2Proj = View2ProjMatrix(camParams.nearClip, camParams.farClip, camParams.fov, aspectRatio);
-        R_SetPerFrameData(World2ViewMatrix(camPos, camRot), R_ConvertView2ProjMatrix(view2Proj), camPos);
+        Mat4 view2Proj = View2ProjPerspectiveMatrix(camParams.nearClip, camParams.farClip, camParams.fov, aspectRatio);
+        R_SetPerFrameData(World2ViewMatrix(camPos, camRot), R_ConvertClipSpace(view2Proj), camPos);
     }
     
 #if 0

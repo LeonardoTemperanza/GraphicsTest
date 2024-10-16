@@ -378,7 +378,7 @@ struct Transform
 
 Mat4 RotationMatrix(Quat rot);
 Mat4 ScaleMatrix(Vec3 scale);
-Mat4 PositionMatrix(Vec3 pos);
+Mat4 TranslationMatrix(Vec3 pos);
 Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale);
 void PosRotScaleFromMat4(Mat4 mat, Vec3* pos, Quat* rot, Vec3* scale);
 Vec3 QuatToEulerRad(Quat q);
@@ -396,7 +396,7 @@ float NormalizeRadAngle(float angle);
 // These functions can be used for other coordinate systems but the result needs
 // to be converted first.
 Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot);
-Mat4 View2ProjMatrix(float nearClip, float farClip, float fov, float aspectRatio); 
+Mat4 View2ProjPerspectiveMatrix(float nearClip, float farClip, float fov, float aspectRatio); 
 
 ////
 // Length strings utils

@@ -352,18 +352,15 @@ void R_Cleanup()
     
 }
 
-Mat4 R_ConvertView2ProjMatrix(Mat4 mat)
+Mat4 R_ConvertClipSpace(Mat4 mat)
 {
     // I calculate the matrix for [-1, 1] in all axes with x pointing right,
     // y pointing up, z pointing into the screen. DX is the same thing except it has
     // range [0, 1] in the z axis, so we need to halve our value
     
-    // TODO: WHY DOES THIS WORK FOR D3D11? I THOUGHT ITS COORDINATE SYSTEM WAS LEFT-HANDED??!?
-    mat.m13 *= -1;
-    mat.m23 *= -1;
-    mat.m33 *= -1;
-    mat.m43 = 1;
-    return mat;
+    //Mat4 transform = Mat4::identity;
+    Mat4 transform = ScaleMatrix({1, 1, 2});
+    return mat * transform;
 }
 
 R_Mesh R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)

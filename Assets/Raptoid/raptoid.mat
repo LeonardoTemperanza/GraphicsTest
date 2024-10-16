@@ -1,11 +1,10 @@
 
 :/material
-pixel_shader: CompiledShaders/pbr.shader  
+pixel_shader: CompiledShaders/pbr.shader
 
 :/textures
 # Diffuse
 Raptoid/Raptoid_material1_Diffuse.jpg
-
-Raptoid/Raptoid_material1_Normals.jpg
 # Normals
+Raptoid/Raptoid_material1_Normals.jpg
 

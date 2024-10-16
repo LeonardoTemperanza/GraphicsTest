@@ -692,7 +692,7 @@ Mat4 ScaleMatrix(Vec3 scale)
     return res;
 }
 
-Mat4 PositionMatrix(Vec3 pos)
+Mat4 TranslationMatrix(Vec3 pos)
 {
     Mat4 res
     {
@@ -706,7 +706,7 @@ Mat4 PositionMatrix(Vec3 pos)
 
 Mat4 Mat4FromPosRotScale(Vec3 pos, Quat rot, Vec3 scale)
 {
-    return PositionMatrix(pos) * RotationMatrix(normalize(rot)) * ScaleMatrix(scale);
+    return TranslationMatrix(pos) * RotationMatrix(normalize(rot)) * ScaleMatrix(scale);
 }
 
 void PosRotScaleFromMat4(Mat4 m, Vec3* pos, Quat* rot, Vec3* scale)
@@ -864,11 +864,11 @@ Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
     //Mat4 res = Mat4::identity;
     Mat4 res = RotationMatrix(normalize(inverse(camRot)));
     // Apply inverse of translation before having applied inverse of rotation
-    res = res * PositionMatrix(-camPos);
+    res = res * TranslationMatrix(-camPos);
     return res;
 }
 
-Mat4 View2ProjMatrix(float nearClip, float farClip, float horizontalDegFov, float aspectRatio)
+Mat4 View2ProjPerspectiveMatrix(float nearClip, float farClip, float horizontalDegFov, float aspectRatio)
 {
     const float n = nearClip;
     const float f = farClip;
@@ -879,13 +879,19 @@ Mat4 View2ProjMatrix(float nearClip, float farClip, float horizontalDegFov, floa
     
     Mat4 res
     {
-        2*n/(r-l), 0,         +(r+l)/(r-l),  0,
-        0,         2*n/(t-b), +(t+b)/(t-b),  0,
-        0,         0,         -(f+n)/(f-n), -2*f*n/(f-n),
+        2*n/(r-l), 0,         -(r+l)/(r-l),  0,
+        0,         2*n/(t-b), -(t+b)/(t-b),  0,
+        0,         0,         +(f+n)/(f-n), -2*f*n/(f-n),
         0,         0,         +1,           0
     };
     
     return res;
+}
+
+Mat4 View2ProjOrthographicMatrix(float nearClip, float farClip, float aspectRatio)
+{
+    TODO;
+    return {};
 }
 
 ////
@@ -1905,6 +1911,7 @@ String LoadEntireFile(const char* path, Arena* dst, bool* outSuccess)
         res.len = 0;
         return res;
     }
+    defer { fclose(file); };
     
     fseek(file, 0, SEEK_END);
     res.len = ftell(file);

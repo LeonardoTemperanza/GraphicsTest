@@ -203,7 +203,7 @@ void R_PresentFrame();
 // Utils
 // Convert the view to projection matrix based on the API's
 // clip space coordinate system
-Mat4 R_ConvertView2ProjMatrix(Mat4 mat);
+Mat4 R_ConvertClipSpace(Mat4 mat);
 
 // CPU <-> GPU transfers
 R_Mesh        R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);

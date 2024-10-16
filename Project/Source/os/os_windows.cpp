@@ -737,26 +737,22 @@ void OS_StartFileWatcher(const char* path)
 {
     assert(win32.init);
     
-    HANDLE file = CreateFile(path,
-                             FILE_LIST_DIRECTORY,
-                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                             NULL,
-                             OPEN_EXISTING,
-                             FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-                             NULL);
-    assert(file != INVALID_HANDLE_VALUE);
+    win32.watcherFile = CreateFile(path,
+                                   FILE_LIST_DIRECTORY,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                   NULL,
+                                   OPEN_EXISTING,
+                                   FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
+                                   NULL);
+    assert(win32.watcherFile != INVALID_HANDLE_VALUE);
     
-    OVERLAPPED overlapped;
-    overlapped.hEvent = CreateEvent(NULL, FALSE, 0, NULL);
+    win32.overlapped.hEvent = CreateEvent(NULL, FALSE, 0, NULL);
     
-    BOOL success = ReadDirectoryChangesW(file, win32.changeBuf, FileWatcherChangeBufSize, TRUE,
+    BOOL success = ReadDirectoryChangesW(win32.watcherFile, win32.changeBuf, FileWatcherChangeBufSize, TRUE,
                                          FILE_NOTIFY_CHANGE_FILE_NAME  |
                                          FILE_NOTIFY_CHANGE_DIR_NAME   |
                                          FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                         NULL, &overlapped, NULL);
-    
-    win32.watcherFile = file;
-    win32.overlapped  = overlapped;
+                                         NULL, &win32.overlapped, NULL);
 }
 
 void OS_StopFileWatcher()
@@ -765,6 +761,7 @@ void OS_StopFileWatcher()
     // TODO
 }
 
+// From: https://gist.github.com/nickav/a57009d4fcc3b527ed0f5c9cf30618f8
 Slice<OS_FileSystemChange> OS_ConsumeFileWatcherChanges(Arena* dst)
 {
     assert(win32.init);
@@ -772,9 +769,6 @@ Slice<OS_FileSystemChange> OS_ConsumeFileWatcherChanges(Arena* dst)
     ScratchArena scratch;
     Array<OS_FileSystemChange> changes = {};
     UseArena(&changes, scratch);
-    
-    HANDLE event = win32.overlapped.hEvent;
-    assert(event != INVALID_HANDLE_VALUE);
     
     DWORD waitRes = WaitForSingleObject(win32.overlapped.hEvent, 0);  // Non-blocking wait
     if(waitRes == WAIT_OBJECT_0)
