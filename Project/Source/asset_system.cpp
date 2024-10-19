@@ -103,8 +103,6 @@ void HotReloadAssets(Arena* frameArena)
                 LoadMaterial(&man.materials[handle->idx], ToLenStr(fileChanges[i].file));
             }
         }
-        
-        Log("Changed file: %s", fileChanges[i].file);
     }
 #endif
 }
@@ -473,7 +471,6 @@ void LoadMaterial(Material* material, String path)
     
     *material = DefaultMaterial();
     
-    const char* vertShaderPath = "";
     const char* pixelShaderPath = "";
     
     while(true)
@@ -489,20 +486,13 @@ void LoadMaterial(Material* material, String path)
                 if(!matLine.ok) break;
                 
                 auto strings = BreakByChar(matLine, ':');
-                if(strings.a == "vertex_shader")
-                {
-                    vertShaderPath = ArenaPushNullTermString(scratch, strings.b);
-                    ConsumeNextLine(&handler);
-                }
-                else if(strings.a == "pixel_shader")
+                if(strings.a == "pixel_shader")
                 {
                     pixelShaderPath = ArenaPushNullTermString(scratch, strings.b);
                     ConsumeNextLine(&handler);
                 }
                 else
-                {
                     break;
-                }
             }
         }
         else if(line.text == ":/textures")
@@ -539,13 +529,7 @@ void LoadMaterial(Material* material, String path)
     
     // Set pipeline
     {
-        ShaderHandle vertHandle = {0};
         ShaderHandle pixelHandle = {1};  // Default pixel handle @cleanup
-        
-        if(vertShaderPath[0] == '\0')
-            Log("Error in material '%.*s': vertex shader not specified.", StrPrintf(path));
-        else
-            vertHandle = GetShaderByPath(vertShaderPath, ShaderKind_Vertex);
         
         if(pixelShaderPath[0] == '\0')
             Log("Error in material '%.*s': pixel shader not specified.", StrPrintf(path));

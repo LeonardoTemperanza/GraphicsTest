@@ -356,11 +356,23 @@ Mat4 R_ConvertClipSpace(Mat4 mat)
 {
     // I calculate the matrix for [-1, 1] in all axes with x pointing right,
     // y pointing up, z pointing into the screen. DX is the same thing except it has
-    // range [0, 1] in the z axis, so we need to halve our value
+    // z pointing outwards from the screen, and has range [0, 1] in the z axis,
+    // so we need to halve our value
     
-    //Mat4 transform = Mat4::identity;
-    Mat4 transform = ScaleMatrix({1, 1, 2});
-    return mat * transform;
+    // First flip the z axis
+    mat.m13 *= -1;
+    mat.m23 *= -1;
+    mat.m33 *= -1;
+    mat.m43 = 1;
+    
+    // Convert z from [-1, 1] to [0, 1]
+    // (multiply with identity matrix but with m33 and m34 = 0.5)
+    mat.m31 = 0.5f * mat.m31 + 0.5f * mat.m41;
+    mat.m32 = 0.5f * mat.m32 + 0.5f * mat.m42;
+    mat.m33 = 0.5f * mat.m33 + 0.5f * mat.m43;
+    mat.m34 = 0.5f * mat.m34 + 0.5f * mat.m44;
+    
+    return mat;
 }
 
 R_Mesh R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices)

@@ -196,7 +196,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         {
             camPos    = Vec3::zero;
             camRot    = Quat::identity;
-            camParams.fov = 90.0f;
+            camParams.fov      = 90.0f;
             camParams.nearClip = 0.1f;
             camParams.farClip  = 1000.0f;
             
@@ -242,11 +242,10 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
         }
     }
     
-#if 0
     // Render and finalize editor
     if(inEditor)
     {
-        RenderEditor(editor, deltaTime);
+        //RenderEditor(editor, deltaTime);
     }
     else
     {
@@ -259,7 +258,6 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
             editor->inEditor = true;
         }
     }
-#endif
     
     ImGui::Render();  // Render UI on top of scene
     R_DearImguiRender();

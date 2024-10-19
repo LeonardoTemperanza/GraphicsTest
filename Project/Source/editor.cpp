@@ -137,7 +137,7 @@ Editor InitEditor(EntityManager* man)
     state.propertyWindowOpen = true;
     state.camParams.fov = 90.0f;
     state.camParams.nearClip = 0.1f;
-    state.camParams.farClip = 100.0f;
+    state.camParams.farClip = 1000.0f;
     state.camRot = Quat::identity;
     
 #ifdef Development
