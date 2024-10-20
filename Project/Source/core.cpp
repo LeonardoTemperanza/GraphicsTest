@@ -245,7 +245,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     // Render and finalize editor
     if(inEditor)
     {
-        //RenderEditor(editor, deltaTime);
+        RenderEditor(editor, deltaTime);
     }
     else
     {

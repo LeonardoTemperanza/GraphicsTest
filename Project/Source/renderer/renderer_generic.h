@@ -56,7 +56,6 @@ enum R_TextureFormat
     R_TexNone = 0,
     R_TexR8,
     R_TexRG8,
-    R_TexRGB8,
     R_TexRGBA8,
     R_TexR8I,
     R_TexR8UI,
@@ -217,8 +216,8 @@ R_Mesh        R_CreateDefaultMesh();
 R_Shader      R_CreateShader(ShaderKind kind, ShaderInput input);
 R_Pipeline    R_CreatePipeline(Slice<R_Shader> shaders);
 R_Framebuffer R_DefaultFramebuffer();
-R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depth, bool stencil);
-void          R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height);  // Only resizes if necessary
+R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depthStencil);
+void          R_ResizeFramebuffer(R_Framebuffer* framebuffer, int width, int height);  // Only resizes if necessary
 
 // TODO: Resource destruction
 //void DestroyMesh(R_Mesh* mesh);
@@ -246,7 +245,7 @@ void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, SamplerSlot slot);
 void R_SetPerSceneData();
 void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos);
 void R_SetPerObjData(Mat4 model2World, Mat3 normalMat);
-#define R_SetCodeConstants(shader, desc) R_SetCodeConstants_(desc, __FILE__, __LINE__)
+#define R_SetCodeConstants(shader, desc) R_SetCodeConstants_(shader, desc, __FILE__, __LINE__)
 void R_SetCodeConstants_(R_Shader shader, Slice<R_UniformValue> desc, const char* callFile, int callLine);
 struct Material;
 bool R_CheckMaterial(Material* mat, String matName);
@@ -260,7 +259,7 @@ void R_CullFace(bool enable);
 void R_AlphaBlending(bool enable);
 
 // Getting state
-R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
+R_Texture R_GetFramebufferColorTexture(R_Framebuffer* framebuffer);
 // Read to CPU, (0, 0) is bottom left and (width, height) top right
 int R_ReadIntPixelFromFramebuffer(int x, int y);
 Vec4 R_ReadPixelFromFramebuffer(int x, int y);

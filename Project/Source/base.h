@@ -774,7 +774,6 @@ struct TwoStrings
 TextFileHandler LoadTextFile(String path, Arena* dst);
 TextLine ConsumeNextLine(TextFileHandler* handler);
 TwoStrings BreakByChar(TextLine line, char c);
-void ParseValue(String* string);
 
 ////
 // Miscellaneous
