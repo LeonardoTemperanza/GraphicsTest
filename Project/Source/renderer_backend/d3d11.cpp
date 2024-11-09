@@ -519,6 +519,44 @@ void R_PresentFrame()
     }
 }
 
+void R_UpdateSwapchainSize()
+{
+    auto& r = renderer;
+    
+    static s32 prevW = 0;
+    static s32 prevH = 0;
+    static bool init = true;
+    if(init)
+    {
+        init = false;
+        OS_GetClientAreaSize(&prevW, &prevH);
+    }
+    
+    s32 w, h;
+    OS_GetClientAreaSize(&w, &h);
+    
+    if(prevW != w || prevH != h)
+    {
+        prevW = w;
+        prevH = h;
+        
+        R_FramebufferFree(&r.screen);
+        renderer.swapchain->ResizeBuffers(2, w, h,
+                                          DXGI_FORMAT_UNKNOWN,  // Preserves the previous value
+                                          DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
+        
+        ID3D11Texture2D* backBuffer = nullptr;
+        HRESULT res = r.swapchain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backBuffer);
+        assert(SUCCEEDED(res));
+        defer { SafeRelease(backBuffer); };
+        
+        ID3D11RenderTargetView* screenRtv = nullptr;
+        res = r.device->CreateRenderTargetView(backBuffer, nullptr, &screenRtv);
+        assert(SUCCEEDED(res));
+        Append(&r.screen.rtv, screenRtv);
+    }
+}
+
 void R_Cleanup()
 {
     auto& r = renderer;

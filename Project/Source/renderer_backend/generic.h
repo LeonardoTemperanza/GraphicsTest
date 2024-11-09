@@ -241,7 +241,7 @@ void R_Init();  // Initializes the graphics api context
 void R_WaitLastFrame();
 void R_PresentFrame();
 // NOTE: Should be called after R_WaitLastFrame and before any rendering commands
-void R_ResizeSwapchain(s32 w, s32 h);
+void R_UpdateSwapchainSize();
 void R_Cleanup();
 
 

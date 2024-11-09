@@ -81,6 +81,8 @@ int main()
         bool proceed = OS_HandleWindowEvents();
         if(!proceed) break;
         
+        R_UpdateSwapchainSize();
+        
         //MainRender(&entManager, &editor, deltaTime, &frameArena);
         const R_Framebuffer* screen = R_GetScreen();
         R_FramebufferClear(screen, BufferMask_Depth & BufferMask_Stencil);
