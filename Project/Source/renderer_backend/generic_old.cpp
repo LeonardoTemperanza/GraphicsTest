@@ -18,7 +18,6 @@ bool IsTextureFormatSigned(R_TextureFormat format)
         case R_TexNone:  return false;
         case R_TexR8:    return true;
         case R_TexRG8:   return true;
-        case R_TexRGB8:  return true;
         case R_TexRGBA8: return true;
         case R_TexR8I:   return true;
         case R_TexR8UI:  return false;
@@ -35,7 +34,6 @@ bool IsTextureFormatInteger(R_TextureFormat format)
         case R_TexNone:  return false;
         case R_TexR8:    return false;
         case R_TexRG8:   return false;
-        case R_TexRGB8:  return false;
         case R_TexRGBA8: return false;
         case R_TexR8I:   return true;
         case R_TexR8UI:  return true;

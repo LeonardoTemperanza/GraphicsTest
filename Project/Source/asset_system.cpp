@@ -8,6 +8,9 @@
 // boundary, these can get swapped. If the user needs to hold on to
 // an asset for more than one frame, it needs to use an AssetHandle.
 // When using an AssetHandle, you also get hot reloading for free.
+// I think this module should provide functions to load/use simple models and simple assets,
+// as well. It should not be the renderer's responsibility (except for the things that are truly platform dependent, such as default shaders, but even then we could probably just use
+// an asset for that.
 
 #if 1
 
@@ -455,6 +458,11 @@ void LoadShader(R_Shader* shader, String path, ShaderKind kind)
     *shader = R_CreateShader((ShaderKind)header.shaderKind, input);
 }
 
+R_UniformValue ParseUniform(String str)
+{
+    return {};
+}
+
 void LoadMaterial(Material* material, String path)
 {
     if(path.len <= 0)
@@ -520,9 +528,18 @@ void LoadMaterial(Material* material, String path)
                 Append(&material->textures, handle);
             }
         }
-        else if(line.text == ":/uniforms")
+        else if(line.text == ":/constants")
         {
-            // TODO
+            while(true)
+            {
+                auto texLine = GetNextLine(&handler);
+                if(!texLine.ok) break;
+                if(StringBeginsWith(texLine.text, ":/")) break;
+                
+                ConsumeNextLine(&handler);
+                
+                auto uniform = ParseUniform(texLine.text);
+            }
         }
         else
         {

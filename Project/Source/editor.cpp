@@ -370,17 +370,20 @@ void RenderEditor(Editor* e, float deltaTime)
     OS_GetClientAreaSize(&width, &height);
     if(width <= 0 || height <= 0) return;
     
-    R_ResizeFramebuffer(e->selectedFramebuffer, width, height);
-    R_ResizeFramebuffer(e->entityIdFramebuffer, width, height);
+    R_ResizeFramebuffer(&e->selectedFramebuffer, width, height);
+    R_ResizeFramebuffer(&e->entityIdFramebuffer, width, height);
     
     // Render pass for selected entities
+    R_Shader model2Proj = GetShaderByPath("CompiledShaders/model2proj.shader", ShaderKind_Vertex);
+    R_SetVertexShader(model2Proj);
+    
     {
-        /*
-R_SetFramebuffer(e->selectedFramebuffer);
-        R_Pipeline paintTrue = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_bool_true.shader");
-        R_SetPipeline(paintTrue);
+        R_AlphaBlending(false);
+        
+        R_SetFramebuffer(e->selectedFramebuffer);
+        R_Shader paintTrue = GetShaderByPath("CompiledShaders/paint_bool_true.shader", ShaderKind_Pixel);
+        R_SetPixelShader(paintTrue);
         R_ClearFrame({0});
-        */
         
         for(int i = 0; i < e->selected.len; ++i)
         {
@@ -395,6 +398,8 @@ R_SetFramebuffer(e->selectedFramebuffer);
         }
         
         R_SetFramebuffer(R_DefaultFramebuffer());
+        
+        R_AlphaBlending(true);
     }
     
 #if 0
@@ -424,7 +429,6 @@ R_SetFramebuffer(e->selectedFramebuffer);
     }
 #endif
     
-#if 0
     // Draw outline of selected objects
     {
         // Choose color of outline
@@ -443,16 +447,19 @@ R_SetFramebuffer(e->selectedFramebuffer);
         
         R_DepthTest(false);
         R_AlphaBlending(true);
-        //R_SetTexture(R_GetFramebufferColorTexture(e->selectedFramebuffer), 0);
-        //R_Pipeline outline = GetPipelineByPath("CompiledShaders/screenspace_vertex.shader", "CompiledShaders/outline_from_int_texture.shader");
-        //R_SetPipeline(outline);
+        R_Shader screenspace = GetShaderByPath("CompiledShaders/screenspace_vertex.shader", ShaderKind_Vertex);
+        R_SetVertexShader(screenspace);
+        R_Shader outline = GetShaderByPath("CompiledShaders/screenspace_pixel.shader", ShaderKind_Pixel);
+        R_SetPixelShader(outline);
+        R_SetTexture(R_GetFramebufferColorTexture(&e->selectedFramebuffer), ShaderKind_Pixel, CodeTex0);
         
         R_UniformValue uniforms[] = { MakeUniformVec4(outlineColor) };
-        R_SetUniforms(ArrToSlice(uniforms));
+        R_SetCodeConstants(outline, ArrToSlice(uniforms));
         R_DrawFullscreenQuad();
         R_DepthTest(true);
+        
+        R_SetTexture({}, ShaderKind_Pixel, CodeTex0);
     }
-#endif
     
 #if 0
     // Draw 3D gizmos
@@ -606,7 +613,6 @@ void ShowEntityList(Editor* e)
             ShowEntityAndChildren(e, ent, childrenPerEntity);
     }
 }
-
 
 void ShowEntityAndChildren(Editor* e, Entity* entity, Slice<Slice<Entity*>> childrenPerEntity)
 {

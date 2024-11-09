@@ -148,6 +148,7 @@ R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFo
     res.depth = depth;
     res.stencil = stencil;
     res.colorFormat = colorFormat;
+    res.format = colorFormat;
     
     glCreateFramebuffers(1, &res.handle);
     
@@ -846,7 +847,7 @@ void R_SetFramebuffer(R_Framebuffer framebuffer)
     renderer.boundFramebuffer = framebuffer;
 }
 
-R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer)
+R_Texture R_GetFramebufferColorTexture(R_Framebuffer* framebuffer)
 {
     assert(framebuffer.color);
     
