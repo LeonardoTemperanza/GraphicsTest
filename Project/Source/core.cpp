@@ -11,6 +11,7 @@ EntityManager InitEntityManager()
     EntityManager manager = {};
     EntityManager* man = &manager;
     
+#if 0
     const char* raptoidPath  = "Raptoid/Raptoid_2.mesh";
     const char* cubePath     = "Common/Cube.mesh";
     const char* spherePath   = "Common/Cube.mesh";
@@ -98,6 +99,8 @@ EntityManager InitEntityManager()
         MountEntity(man, e[6], e[5]);
     }
     
+#endif
+    
     return manager;
 }
 
@@ -118,14 +121,14 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     inEditor = editor->inEditor;
 #endif
     
-    OS_DearImguiBeginFrame();
-    R_DearImguiBeginFrame();  // TODO: Does this need to be here?
-    ImGui::NewFrame();
+    //OS_DearImguiBeginFrame();
+    //R_DearImguiBeginFrame();  // TODO: Does this need to be here?
+    //ImGui::NewFrame();
     
     PollAndProcessInput(inEditor);
     
 #ifdef Development
-    HotReloadAssets(frameArena);
+    //HotReloadAssets(frameArena);
 #endif
     
     int width, height;
@@ -138,8 +141,8 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     }
     
     // Update
-    if(inEditor)
-        UpdateEditor(editor, deltaTime);
+    if(inEditor) {}
+    //UpdateEditor(editor, deltaTime);
     else
         UpdateEntities(man, deltaTime);
     
@@ -149,6 +152,7 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     }
 }
 
+#if 0
 void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* frameArena)
 {
     int width, height;
@@ -262,6 +266,7 @@ void MainRender(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     ImGui::Render();  // Render UI on top of scene
     R_DearImguiRender();
 }
+#endif
 
 void UpdateEntities(EntityManager* man, float deltaTime)
 {

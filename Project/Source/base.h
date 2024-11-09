@@ -233,6 +233,30 @@ inline float Rad2Deg(float rad)
 
 ////
 // Vectors and matrices
+
+// GPU types
+struct alignas(8) Vec2Std140
+{
+    float x;
+    float y;
+};
+
+struct alignas(16) Vec3Std140
+{
+    float x;
+    float y;
+    float z;
+    float _padding;
+};
+
+struct alignas(16) Vec4Std140
+{
+    float x;
+    float y;
+    float z;
+    float w;
+};
+
 struct Vec3
 {
     float x, y, z;
@@ -244,16 +268,37 @@ struct Vec3
     static const Vec3 down;
     static const Vec3 backward;
     static const Vec3 zero;
+    
+    inline operator Vec3Std140() { return {x, y, z}; };
 };
 
 struct Vec4
 {
     float x, y, z, w;
+    
+    inline operator Vec4Std140() { return {x, y, z, w}; };
+};
+
+struct UVec4
+{
+    u32 x, y, z, w;
+};
+
+struct IVec4
+{
+    s32 x, y, z, w;
+};
+
+struct BigVec4
+{
+    f64 x, y, z, w;
 };
 
 struct Vec2
 {
     float x, y;
+    
+    inline operator Vec2Std140() { return {x, y}; };
 };
 
 Vec3 operator +(Vec3 a, Vec3 b);

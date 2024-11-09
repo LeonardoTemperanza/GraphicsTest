@@ -39,6 +39,11 @@ void OS_Cleanup();
 void OS_OpenglSwapBuffers();
 #endif
 
+// Win32 (rendering api initialization might need explicit access to the window handle)
+#ifdef _WIN32
+void* Win32_GetWindowHandle();
+#endif
+
 // Input
 
 enum GamepadButtonField

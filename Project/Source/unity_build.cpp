@@ -31,9 +31,9 @@
 #include "input.cpp"
 #include "core.cpp"
 #include "editor.cpp"
-#include "asset_system.cpp"
+//#include "asset_system.cpp"
 #include "collision.cpp"
-#include "renderer/renderer_generic.cpp"
+#include "renderer_backend/generic.cpp"
 #include "sound/sound_generic.cpp"
 
 // Libraries

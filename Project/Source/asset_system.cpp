@@ -9,6 +9,8 @@
 // an asset for more than one frame, it needs to use an AssetHandle.
 // When using an AssetHandle, you also get hot reloading for free.
 
+#if 1
+
 static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
 static AssetSystem assetManager = {};
 
@@ -22,10 +24,12 @@ Material DefaultMaterial()
 }
 
 // Implicit casts
+/*
 MeshHandle::operator R_Mesh()       { return assetManager.meshes[idx];    }
 TextureHandle::operator R_Texture() { return assetManager.textures[idx];  }
 ShaderHandle::operator R_Shader()   { return assetManager.shaders[idx];   }
 MaterialHandle::operator Material() { return assetManager.materials[idx]; }
+*/
 
 void InitAssetSystem()
 {
@@ -568,3 +572,128 @@ void LoadScene(EntityManager* man, const char* path)
 {
     
 }
+
+#else
+
+void AssetSystemSetMode(AssetSystemMode mode)
+{
+    assetSystem.mode = mode;
+}
+
+Model       GetAsset(ModelHandle handle)       { return assetSystem.assets[handle.slot].model;     }
+R_Shader    GetAsset(VertShaderHandle handle)  { return assetSystem.assets[handle.slot].shader;    }
+R_Shader    GetAsset(PixelShaderHandle handle) { return assetSystem.assets[handle.slot].shader;    }
+Material    GetAsset(MaterialHandle handle)    { return assetSystem.assets[handle.slot].material;  }
+R_Texture2D GetAsset(Texture2DHandle handle)   { return assetSystem.assets[handle.slot].texture2D; }
+R_Cubemap   GetAsset(CubemapHandle handle)     { return assetSystem.assets[handle.slot].cubemap;   }
+
+static u32 AcquireAsset(AssetKind kind, String path)  // This increases the refcount and handles all that logic
+{
+    auto& sys = assetSystem;
+    auto lookup = Lookup(&man.pathMapping, path);
+    if(lookup.found)
+    {
+        auto value = lookup.res;
+        assert(value.kind == kind);
+        
+        auto& asset = sys.assets[value.slot];
+        ++asset.refCount;
+        return value.slot;
+    }
+    else
+    {
+        u32 slot = 0;
+        if(sys.freeSlots.len > 0)
+        {
+            slot = sys.freeSlots[sys.freeSlots.len - 1];
+            Pop(&sys.freeSlots);
+        }
+        else
+        {
+            Append(&sys.assets, {});
+            slot = sys.assets.len - 1;
+        }
+        
+        auto& asset = sys.assets[slot];
+        asset.refCount = 1;
+        return slot;
+    }
+}
+
+static void ReleaseAsset(AssetKind kind, AssetHandle handle)
+{
+    asset(handle->slot < sys.assets.len);
+    
+    auto& sys = assetSystem;
+    auto& asset = sys.assets[handle->slot];
+    assert(kind == asset.kind);
+    
+    assert(asset.refCount > 0 && "Releasing an asset which has already been released");
+    
+    --asset.refCount;
+    if(asset.refCount == 0)
+    {
+        if(sys.mode == AssetSystem_Editor)
+        {
+            // TODO: Free the resource, and also free its entry in the pathMapping table
+        }
+    }
+    
+}
+
+ModelHandle AcquireModel(String path)
+{
+    u32 slot = AcquireAsset(Asset_Model, path);
+    void* asset = &assetSystem.assets[slot].content;
+    LoadModel((Model*)asset, path);
+    return {slot};
+}
+
+VertShaderHandle AcquireVertShader(String path)
+{
+    u32 slot = AcquireAsset(Asset_VertShader, path);
+    void* asset = &assetSystem.assets[slot].content;
+    LoadShader((R_Shader*)asset, path);
+    return {slot};
+}
+
+PixelShaderHandle AcquirePixelShader(String path)
+{
+    u32 slot = AcquireAsset(Asset_PixelShader, path);
+    void* asset = &assetSystem.assets[slot].content;
+    LoadShader((R_Shader*)asset, path);
+    return {slot};
+}
+
+MaterialHandle AcquireMaterial(String path)
+{
+    u32 slot = AcquireAsset(Asset_Material, path);
+    void* asset = &assetSystem.assets[slot].content;
+    LoadMaterial((Material*)asset, path);
+    return {slot};
+}
+
+Texture2DHandle AcquireTexture2D(String path)
+{
+    u32 slot = AcquireAsset(Asset_Texture2D, path);
+    void* asset = &assetSystem.assets[slot].content;
+    LoadTexture2D((R_Texture2D*)asset, path);
+    return {slot};
+}
+
+CubemapHandle AcquireCubemap(String path)
+{
+    u32 slot = AcquireAsset(Asset_Cubemap, path);
+    void* asset = &assetSystem.assets[slot].content;
+    LoadCubemap((R_Cubemap*)asset, path);
+    return {slot};
+}
+
+void ReleaseModel(ModelHandle handle)             { ReleaseAsset(Asset_Model, handle);       }
+void ReleaseVertShader(VertShaderHandle handle)   { ReleaseAsset(Asset_VertShader, handle);  }
+void ReleasePixelShader(PixelShaderHandle handle) { ReleaseAsset(Asset_PixelShader, handle); }
+void ReleaseMaterial(MaterialHandle handle)       { ReleaseAsset(Asset_Material, handle);    }
+void ReleaseTexture2D(Texture2DHandle handle)     { ReleaseAsset(Asset_Texture2D, handle);   }
+void ReleaseCubemap(CubemapHandle handle)         { ReleaseAsset(Asset_Cubemap, handle);     }
+
+#endif

@@ -35,7 +35,6 @@ MetaStruct metaEntity =
 MemberDefinition _membersOfCamera[] =
 {
 { { Meta_Unknown }, offsetof(Camera, base), sizeof(((Camera*)0)->base), StrLit("Camera"), "Camera", StrLit("Base"), "Base", 0, true},
-{ { Meta_Unknown }, offsetof(Camera, params), sizeof(((Camera*)0)->params), StrLit("Camera"), "Camera", StrLit("Params"), "Params", 0, true},
 };
 
 MetaStruct metaCamera =

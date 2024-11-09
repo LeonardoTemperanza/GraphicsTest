@@ -705,10 +705,14 @@ void OS_OpenglSwapBuffers()
         // *might* work more consistently. I love windows!
         DwmFlush();
     }
-    else
-        SwapBuffers(win32.windowDC);
 }
 #endif
+
+void* Win32_GetWindowHandle()
+{
+    assert(win32.init);
+    return (void*)win32.window;
+}
 
 void OS_Cleanup()
 {

@@ -3,7 +3,7 @@
 #include "os/os_generic.h"
 #include "core.h"
 #include "editor.h"
-#include "renderer/renderer_generic.h"
+#include "renderer_backend/generic.h"
 #include "sound/sound_generic.h"
 
 void SetWorkingDirRelativeToExe(const char* path);
@@ -25,14 +25,14 @@ int main()
     defer
     {
         OS_DearImguiShutdown();
-        R_DearImguiShutdown();
+        //R_DearImguiShutdown();
         ImGui::DestroyContext();
     };
     
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     R_Init();
-    R_SetToDefaultState();
+    //R_SetToDefaultState();
     defer { R_Cleanup(); };
     
     S_Init();
@@ -43,13 +43,13 @@ int main()
     defer { OS_StopFileWatcher(); };
 #endif
     
-    InitAssetSystem();
+    //InitAssetSystem();
     
     EntityManager entManager = InitEntityManager();
     defer { FreeEntities(&entManager); };
     
     OS_DearImguiInit();
-    R_DearImguiInit();
+    //R_DearImguiInit();
     
     Editor editor = InitEditor(&entManager);
     
@@ -74,14 +74,17 @@ int main()
         
         MainUpdate(&entManager, &editor, deltaTime, &frameArena);
         
-        R_WaitLastFrameAndBeginCurrentFrame();
+        R_WaitLastFrame();
         
         // Handle window events only now, because we only want to allow
         // resizing after we've finished the last frame.
         bool proceed = OS_HandleWindowEvents();
         if(!proceed) break;
         
-        MainRender(&entManager, &editor, deltaTime, &frameArena);
+        //MainRender(&entManager, &editor, deltaTime, &frameArena);
+        const R_Framebuffer* screen = R_GetScreen();
+        R_FramebufferClear(screen, BufferMask_Depth & BufferMask_Stencil);
+        R_FramebufferFillColorFloat(screen, 0, 0.5f, 0.5f, 0.5f, 1.0f);
         R_PresentFrame();
         
         ArenaFreeAll(&frameArena);

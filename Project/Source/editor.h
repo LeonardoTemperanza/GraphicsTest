@@ -51,7 +51,15 @@ struct Editor
     // Editor camera
     Vec3 camPos;
     Quat camRot;
-    R_CameraParams camParams;
+    
+    struct CameraParams
+    {
+        float fov;
+        float nearClip;
+        float farClip;
+    };
+    
+    CameraParams camParams;
     
     // Gizmo and custom UI state
     

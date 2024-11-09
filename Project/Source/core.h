@@ -2,7 +2,7 @@
 #pragma once
 
 #include "os/os_generic.h"
-#include "renderer/renderer_generic.h"
+#include "renderer_backend/generic.h"
 
 enum EntityFlags
 {
@@ -55,6 +55,10 @@ struct Entity
     MeshHandle     mesh;
     MaterialHandle material;
     
+    // This should be:
+    // ModelHandle model;
+    // Array<MaterialHandle> materials;
+    
     // We have the option to get the derived
     // entity, though it's a bit harder than the other way around
     EntityKind derivedKind;
@@ -68,8 +72,6 @@ introspect()
 struct Camera
 {
     Entity* base;
-    
-    R_CameraParams params;
 };
 
 introspect()

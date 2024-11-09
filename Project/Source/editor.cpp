@@ -145,8 +145,8 @@ Editor InitEditor(EntityManager* man)
 #endif
     
     // Rendering
-    state.selectedFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR8UI, true, false);
-    state.entityIdFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR32I, true, false);
+    //state.selectedFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR8UI, true, false);
+    //state.entityIdFramebuffer = R_CreateFramebuffer(0, 0, true, R_TexR32I, true, false);
     return state;
 }
 
@@ -219,6 +219,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
     
     // Clicking on entities
     {
+#if 0
         if(!isInteractingWithGizmos && PressedKey(input, Keycode_LMouse))
         {
             int width, height;
@@ -239,6 +240,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
                 Free(&e->selected);
             }
         }
+#endif
     }
     
     // Entity list window
@@ -359,6 +361,7 @@ void UpdateEditor(Editor* editor, float deltaTime)
     }
 }
 
+#if 0
 void RenderEditor(Editor* e, float deltaTime)
 {
     EntityManager* man = e->man;
@@ -520,6 +523,8 @@ R_SetFramebuffer(e->selectedFramebuffer);
     }
 #endif
 }
+
+#endif
 
 void ShowMainMenuBar(Editor* e)
 {
@@ -1384,13 +1389,13 @@ void DrawQuickLine(Vec3 v1, Vec3 v2, float scale, Vec4 color)
     //R_Pipeline simpleColor = GetPipelineByPath("CompiledShaders/model2proj.shader", "CompiledShaders/paint_color.shader");
     //R_SetPipeline(simpleColor);
     
-    R_UniformValue uniforms[] = { MakeUniformVec4(color) };
+    //R_UniformValue uniforms[] = { MakeUniformVec4(color) };
     //R_SetUniforms(ArrToSlice(uniforms));
     
-    R_SetPerObjData(Mat4::identity, Mat3::identity);
+    //R_SetPerObjData(Mat4::identity, Mat3::identity);
     
-    R_DrawQuad(q1, q2, q3, q4);
-    R_DrawQuad(q4, q3, q2, q1);
+    //R_DrawQuad(q1, q2, q3, q4);
+    //R_DrawQuad(q4, q3, q2, q1);
 }
 
 bool TranslationGizmo(const char* strId, Editor* e, Vec3* pos)
