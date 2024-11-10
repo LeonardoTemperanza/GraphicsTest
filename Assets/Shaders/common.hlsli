@@ -9,7 +9,7 @@
 #define GlobalsSlot b4
 
 // Slots for texture/sampler/uniform binding.
-// NOTE: These need to be updated along with the ones in renderer_generic.h
+// NOTE: These need to be updated along with the ones in renderer_frontend.cpp
 
 // Texture slots
 

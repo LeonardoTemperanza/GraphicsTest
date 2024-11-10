@@ -5,6 +5,7 @@
 #include "editor.h"
 #include "renderer_backend/generic.h"
 #include "sound/sound_generic.h"
+#include "renderer_frontend.h"
 
 void SetWorkingDirRelativeToExe(const char* path);
 
@@ -12,8 +13,6 @@ int main()
 {
     InitScratchArenas();
     InitPermArena();
-    
-    //printf("%d");
     
     OS_Init("Simple Game Engine");
     defer { OS_Cleanup(); };
@@ -32,11 +31,13 @@ int main()
     Arena frameArena = ArenaVirtualMemInit(GB(4), MB(2));
     
     R_Init();
-    //R_SetToDefaultState();
     defer { R_Cleanup(); };
     
-    S_Init();
-    defer { S_Cleanup(); };
+    //AssetSystemInit();
+    //defer { AssetSystemCleanup(); };
+    
+    RenderResourcesInit();
+    defer { RenderResourcesCleanup(); };
     
 #ifdef Development
     OS_StartFileWatcher(".");  // Watch files in Assets directory (and subfolders)
@@ -81,13 +82,13 @@ int main()
         bool proceed = OS_HandleWindowEvents();
         if(!proceed) break;
         
-        R_UpdateSwapchainSize();
+        s32 w, h;
+        OS_GetClientAreaSize(&w, &h);
         
-        //MainRender(&entManager, &editor, deltaTime, &frameArena);
-        const R_Framebuffer* screen = R_GetScreen();
-        R_FramebufferClear(screen, BufferMask_Depth & BufferMask_Stencil);
-        R_FramebufferFillColorFloat(screen, 0, 0.5f, 0.5f, 0.5f, 1.0f);
-        R_PresentFrame();
+        R_UpdateSwapchainSize();
+        R_SetViewport(0, 0, w, h);
+        
+        RenderFrame(&entManager);
         
         ArenaFreeAll(&frameArena);
         firstIter = false;

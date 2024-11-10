@@ -25,7 +25,7 @@ static u32 D3D11_ConvertSamplerWrap(R_SamplerWrap wrap);
 // Resources
 
 // Buffers
-R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 vertStride)
+R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 vertStride, u32 vertOffset)
 {
     R_Buffer res = {};
     res.flags = flags;
@@ -33,6 +33,11 @@ R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 vertStride)
     return res;
     
     // NOTE: Does not actually alloc, R_BufferTransfer does.
+}
+
+R_Buffer R_BufferVertsAlloc(R_BufferFlags flags, u32 vertStride, u32 vertOffset)
+{
+    
 }
 
 void R_BufferTransfer(R_Buffer* b, u64 size, void* data)
@@ -157,6 +162,7 @@ void R_SamplerFree(R_Sampler* sampler)
 }
 
 // Framebuffers
+// NOTE: I think this should probably also allocate the textures
 R_Framebuffer R_FramebufferAlloc(u32 width, u32 height, R_Texture2D* colorAttachments, u32 colorAttachmentsCount, R_Texture2D depthStencilAttachment)
 {
     assert(colorAttachmentsCount > 0);
@@ -323,6 +329,38 @@ void R_FramebufferFree(R_Framebuffer* f)
     
     for(int i = 0; i < f->colorTextures.len; ++i)
         SafeRelease(f->colorTextures[i]);
+}
+
+// Rendering operations
+void R_SetViewport(s32 x, s32 y, int width, int height)
+{
+    D3D11_VIEWPORT viewport = {};
+    viewport.TopLeftX = (float)x;
+    viewport.TopLeftY = (float)y;
+    viewport.Width    = (float)width;
+    viewport.Height   = (float)height;
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+    
+    renderer.context->RSSetViewports(1, &viewport);
+}
+
+void R_Draw(R_Buffer* verts, R_Buffer* indices, u32 start = 0, u32 count = 0)
+{
+    auto& r = renderer;
+    
+    // Set buffers
+    r.context->IASetIndexBuffer(indices->handle, DXGI_FORMAT_R32_UINT, 0);
+    r.context->IASetVertexBuffers(verts->handle, 0, 1, verts->handle, &verts->stride);
+    r.context->Draw(count, start);
+}
+
+void R_Draw(R_Buffer* verts, u32 start = 0, u32 count = 0)
+{
+    auto& r = renderer;
+    
+    // Set buffer
+    
 }
 
 // Backend state

@@ -173,15 +173,8 @@ void R_BufferFree(R_Buffer* b);
 
 // Shaders
 R_Shader R_ShaderAlloc(R_ShaderInput input, R_ShaderType type);
+void R_ShaderBind(R_Shader* shader);
 void R_ShaderFree(R_Shader* shader);
-R_ShaderPack R_ShaderPackAlloc(R_Shader* shader, u32 shaderCount);
-void R_ShaderPackFree(R_ShaderPack* pack);
-
-// Pipelines
-R_Pipeline R_PipelineAlloc(R_Pipeline* in, R_InputAssembly assembly); 
-void R_PipelineAddBuffer(R_Pipeline* in, R_Buffer* buf);
-void R_PipelineBind(R_Pipeline* in);
-void R_PipelineFree(R_Pipeline* in);
 
 // Rasterizer state
 R_Rasterizer R_RasterizerAlloc(R_RasterizerDesc desc);
@@ -234,7 +227,8 @@ void R_FramebufferFree(R_Framebuffer* f);
 
 // Rendering operations
 void R_SetViewport(s32 x, s32 y, s32 w, s32 h);
-void R_Draw(R_Pipeline* pipeline, u32 start = 0, u32 count = 0);  // Count = 0 means the entire mesh
+void R_Draw(R_Buffer* verts, R_Buffer* indices, u32 start = 0, u32 count = 0);  // Count = 0 means the entire mesh
+void R_Draw(R_Buffer* verts, u32 start = 0, u32 count = 0);                     // Count = 0 means the entire mesh
 
 // Backend state
 void R_Init();  // Initializes the graphics api context
@@ -302,7 +296,6 @@ struct R_Texture;
 struct R_Sampler;
 struct R_Framebuffer;
 struct R_Shader;
-struct R_Pipeline;
 
 void R_SetToDefaultState();
 

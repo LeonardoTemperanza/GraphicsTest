@@ -4,29 +4,55 @@
 #include "base.h"
 #include "renderer_backend/generic.h"
 
-struct RenderResources
+struct Mesh
 {
-    // Samplers
-    R_Sampler* common;  // Linear sampler used for most things
-    
-    // Render passes
-    R_Framebuffer* directionalShadows;
-    
-    // Editor
-    R_Framebuffer* entityIds;
-    R_Framebuffer* outlines;
+    R_Buffer vertBuffer;
+    R_Buffer idxBuffer;
 };
 
 struct Model
 {
-    R_Buffer* verts;
-    R_Buffer* indices;
+    Array<Mesh> meshes;
 };
 
-void RenderScene(EntityManager* entities);
+struct MeshInput
+{
+    Slice<Vertex> verts;
+    Slice<u32> indices;
+};
+
+Model ModelAlloc(Slice<MeshInput> meshes);
+void ModelFree(Model* model);
+
+struct RenderResources
+{
+    // Samplers
+    R_Sampler common;  // Linear sampler used for most things
+    
+    // Render passes
+    R_Framebuffer directionalShadows;
+    
+    // Editor
+    R_Texture selectionColor;
+    R_Texture selectionDepth;
+    R_Framebuffer selectionBuffer;
+    R_Texture outlinesColor;
+    R_Texture outlinesDepth;
+    R_Framebuffer outlines;
+    
+    // Assets
+    //CubemapHandle skybox;
+};
+
+void RenderResourcesInit();
+void UpdateFramebuffers();
+void RenderResourcesCleanup();
+
+void RenderFrame(EntityManager* entities);  // Entrypoint of renderer
+
+void RenderScene(EntityManager* entities, Vec3 camPos, f32 fov, f32 nearClip, f32 farClip);
 void RenderOutlines(EntityManager* entities, Vec4 color, f32 thickness = 1.0f);  // Thickness is in pixels
 void RenderOutlines(EntityManager* entities);
-void RenderResourcesCleanup();
 
 void DebugDrawArrow();
 void DebugDrawLine();

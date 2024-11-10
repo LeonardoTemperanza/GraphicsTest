@@ -34,6 +34,7 @@
 //#include "asset_system.cpp"
 #include "collision.cpp"
 #include "renderer_backend/generic.cpp"
+#include "renderer_frontend.cpp"
 #include "sound/sound_generic.cpp"
 
 // Libraries

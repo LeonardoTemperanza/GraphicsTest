@@ -592,6 +592,13 @@ void LoadScene(EntityManager* man, const char* path)
 
 #else
 
+void AssetSystemInit()
+{
+    auto& sys = assetSystem;
+    sys.defaultAssets[Asset_Mesh];
+    TODO;
+}
+
 void AssetSystemSetMode(AssetSystemMode mode)
 {
     assetSystem.mode = mode;
@@ -706,11 +713,36 @@ CubemapHandle AcquireCubemap(String path)
     return {slot};
 }
 
+ModelHandle AcquireModel(const char* path)              { return AcquireModel(ToLenStr(path));       }
+VertShaderHandle AcquireVertShader(const char* path)    { return AcquireVertShader(ToLenStr(path));  }
+PixelShaderHandle AcquirePixelShader(const char* path)  { return AcquirePixelShader(ToLenStr(path)); }
+MaterialHandle AcquireMaterial(const char* path)        { return AcquireMaterial(ToLenStr(path));    }
+Texture2DHandle AcquireTexture2D(const char* path)      { return AcquireTexture2D(ToLenStr(path));   }
+CubemapHandle AcquireCubemap(const char* path)          { return AcquireCubemap(ToLenStr(path));     }
+
 void ReleaseModel(ModelHandle handle)             { ReleaseAsset(Asset_Model, handle);       }
 void ReleaseVertShader(VertShaderHandle handle)   { ReleaseAsset(Asset_VertShader, handle);  }
 void ReleasePixelShader(PixelShaderHandle handle) { ReleaseAsset(Asset_PixelShader, handle); }
 void ReleaseMaterial(MaterialHandle handle)       { ReleaseAsset(Asset_Material, handle);    }
 void ReleaseTexture2D(Texture2DHandle handle)     { ReleaseAsset(Asset_Texture2D, handle);   }
 void ReleaseCubemap(CubemapHandle handle)         { ReleaseAsset(Asset_Cubemap, handle);     }
+
+void LoadMesh(Asset* mesh, String path)
+{
+    if(mesh->isLoaded)
+    {
+        // Free mesh
+    }
+}
+
+void LoadTexture(Asset* texture, String path)
+{
+    
+}
+
+void LoadShader(Asset* shader, String path, ShaderKind kind);
+void LoadPipeline(Asset* pipeline, String path);
+void LoadMaterial(Asset* material, String path);
+void LoadCubemap(Asset* cubemap, String path);
 
 #endif

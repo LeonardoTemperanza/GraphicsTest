@@ -19,6 +19,8 @@ struct R_Buffer
     R_BufferFlags flags;
     ID3D11Buffer* handle;
     u32 vertStride;
+    
+    // Do i want to save more info about the vertex layout here?
 };
 
 struct R_Shader
@@ -30,22 +32,6 @@ struct R_Shader
         ID3D11VertexShader* vs;
         ID3D11PixelShader* ps;
     };
-};
-
-struct R_ShaderPack
-{
-    R_Shader vs;
-    R_Shader ps;
-};
-
-struct R_Pipeline
-{
-    R_InputAssembly assembly;
-    
-    R_BlendMode blendMode;
-    ID3D11InputLayout* layout;
-    ID3D11BlendState* blendState;
-    bool layoutChanged;
 };
 
 struct R_Sampler

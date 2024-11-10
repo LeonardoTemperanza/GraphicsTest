@@ -156,7 +156,7 @@ void LoadScene(EntityManager* man, const char* path);
 
 enum AssetKind
 {
-    Asset_Model = 0,
+    Asset_Mesh = 0,
     Asset_VertShader,
     Asset_PixelShader,
     Asset_Material,
@@ -169,7 +169,7 @@ enum AssetKind
 struct AssetHandle { u32 slot; };
 
 // These are type-safe typedefs
-struct ModelHandle       : public AssetHandle {};
+struct MeshHandle        : public AssetHandle {};
 struct VertShaderHandle  : public AssetHandle {};
 struct PixelShaderHandle : public AssetHandle {};
 struct MaterialHandle    : public AssetHandle {};
@@ -182,7 +182,7 @@ struct Asset
     // The content is set to the default asset if loading was unsuccessful
     union
     {
-        Model model;
+        R_Mesh mesh;
         R_Shader shader;
         R_Texture2D texture2D;
         R_Cubemap cubemap;
@@ -216,6 +216,7 @@ struct Material
     
 };
 
+void AssetSystemInit();
 void AssetSystemSetMode(AssetSystemMode mode);
 
 // Templatizing it is impossible (or very convoluted), trust me
@@ -226,17 +227,36 @@ Material    GetAsset(MaterialHandle handle);
 R_Texture2D GetAsset(Texture2DHandle handle);
 R_Cubemap   GetAsset(CubemapHandle handle);
 
-ModelHandle AcquireModel(String path);
-void ReleaseModel(ModelHandle* handle);
+MeshHandle AcquireModel(String path);
 VertShaderHandle AcquireVertShader(String path);
-void ReleaseVertShader(VertShaderHandle* handle);
 PixelShaderHandle AcquirePixelShader(String path);
-void ReleasePixelShader(PixelShaderHandle* handle);
 MaterialHandle AcquireMaterial(String path);
-void ReleaseMaterial(MaterialHandle* handle);
 Texture2DHandle AcquireTexture2D(String path);
-void ReleaseTexture2D(Texture2DHandle* handle);
 CubemapHandle AcquireCubemap(String path);
-void ReleaseCubemap(CubemapHandle* handle);
+
+MeshHandle AcquireModel(const char* path);
+VertShaderHandle AcquireVertShader(const char* path);
+PixelShaderHandle AcquirePixelShader(const char* path);
+MaterialHandle AcquireMaterial(const char* path);
+Texture2DHandle AcquireTexture2D(const char* path);
+CubemapHandle AcquireCubemap(const char* path);
+
+void ReleaseModel(ModelHandle handle);
+void ReleaseVertShader(VertShaderHandle handle);
+void ReleasePixelShader(PixelShaderHandle handle);
+void ReleaseMaterial(MaterialHandle handle);
+void ReleaseTexture2D(Texture2DHandle handle);
+void ReleaseCubemap(CubemapHandle handle);
+
+// Hot reloading. To be performed once per frame or once per few frames
+void HotReloadAssets(Arena* frameArena);
+
+// Asset loading functions
+void LoadMesh(Asset* mesh, String path);
+void LoadTexture(Asset* texture, String path);
+void LoadShader(Asset* shader, String path, ShaderKind kind);
+void LoadPipeline(Asset* pipeline, String path);
+void LoadMaterial(Asset* material, String path);
+void LoadCubemap(Asset* cubemap, String path);
 
 #endif
