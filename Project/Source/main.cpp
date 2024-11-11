@@ -24,7 +24,7 @@ int main()
     defer
     {
         OS_DearImguiShutdown();
-        //R_DearImguiShutdown();
+        R_ImGuiShutdown();
         ImGui::DestroyContext();
     };
     
@@ -50,7 +50,7 @@ int main()
     defer { FreeEntities(&entManager); };
     
     OS_DearImguiInit();
-    //R_DearImguiInit();
+    R_ImGuiInit();
     
     Editor editor = InitEditor(&entManager);
     

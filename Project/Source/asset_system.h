@@ -7,7 +7,7 @@
 #include "serialization.h"
 #include "metaprogram_custom_keywords.h"
 
-#if 1
+#if 0
 
 struct PipelinePath
 {
@@ -156,12 +156,12 @@ void LoadScene(EntityManager* man, const char* path);
 
 enum AssetKind
 {
-    Asset_Mesh = 0,
+    //Asset_Mesh = 0,
     Asset_VertShader,
     Asset_PixelShader,
-    Asset_Material,
-    Asset_Texture2D,
-    Asset_Cubemap,
+    //Asset_Material,
+    //Asset_Texture2D,
+    //Asset_Cubemap,
     
     Asset_Count
 };
@@ -182,11 +182,11 @@ struct Asset
     // The content is set to the default asset if loading was unsuccessful
     union
     {
-        R_Mesh mesh;
+        //R_Mesh mesh;
         R_Shader shader;
-        R_Texture2D texture2D;
-        R_Cubemap cubemap;
-    } content;
+        //R_Texture2D texture2D;
+        //R_Cubemap cubemap;
+    };
     
     String path;
     bool isLoaded;
@@ -220,9 +220,9 @@ void AssetSystemInit();
 void AssetSystemSetMode(AssetSystemMode mode);
 
 // Templatizing it is impossible (or very convoluted), trust me
-Model       GetAsset(ModelHandle handle);
-R_Shader    GetAsset(VertShaderHandle handle);
-R_Shader    GetAsset(PixelShaderHandle handle);
+//Model       GetAsset(ModelHandle handle);
+R_Shader*    GetAsset(VertShaderHandle handle);
+R_Shader*    GetAsset(PixelShaderHandle handle);
 Material    GetAsset(MaterialHandle handle);
 R_Texture2D GetAsset(Texture2DHandle handle);
 R_Cubemap   GetAsset(CubemapHandle handle);
@@ -241,7 +241,7 @@ MaterialHandle AcquireMaterial(const char* path);
 Texture2DHandle AcquireTexture2D(const char* path);
 CubemapHandle AcquireCubemap(const char* path);
 
-void ReleaseModel(ModelHandle handle);
+//void ReleaseModel(ModelHandle handle);
 void ReleaseVertShader(VertShaderHandle handle);
 void ReleasePixelShader(PixelShaderHandle handle);
 void ReleaseMaterial(MaterialHandle handle);
@@ -254,7 +254,7 @@ void HotReloadAssets(Arena* frameArena);
 // Asset loading functions
 void LoadMesh(Asset* mesh, String path);
 void LoadTexture(Asset* texture, String path);
-void LoadShader(Asset* shader, String path, ShaderKind kind);
+void LoadShader(Asset* shader, String path, R_ShaderType type);
 void LoadPipeline(Asset* pipeline, String path);
 void LoadMaterial(Asset* material, String path);
 void LoadCubemap(Asset* cubemap, String path);

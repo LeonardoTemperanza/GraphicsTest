@@ -12,7 +12,7 @@
 // as well. It should not be the renderer's responsibility (except for the things that are truly platform dependent, such as default shaders, but even then we could probably just use
 // an asset for that.
 
-#if 1
+#if 0
 
 static Arena sceneArena = ArenaVirtualMemInit(GB(4), MB(2));
 static AssetSystem assetManager = {};
@@ -380,7 +380,7 @@ AssetMetadata GetMetadata(u32 handle, AssetKind kind)
     return assetManager.metadata[kind][handle];
 }
 
-void LoadShader(R_Shader* shader, String path, ShaderKind kind)
+void LoadShader(R_Shader* shader, String path, R_ShaderType type)
 {
     ScratchArena scratch;
     
@@ -592,10 +592,12 @@ void LoadScene(EntityManager* man, const char* path)
 
 #else
 
+static AssetSystem assetSystem;
+
 void AssetSystemInit()
 {
     auto& sys = assetSystem;
-    sys.defaultAssets[Asset_Mesh];
+    //sys.defaultAssets[Asset_Mesh];
     TODO;
 }
 
@@ -604,25 +606,25 @@ void AssetSystemSetMode(AssetSystemMode mode)
     assetSystem.mode = mode;
 }
 
-Model       GetAsset(ModelHandle handle)       { return assetSystem.assets[handle.slot].model;     }
-R_Shader    GetAsset(VertShaderHandle handle)  { return assetSystem.assets[handle.slot].shader;    }
-R_Shader    GetAsset(PixelShaderHandle handle) { return assetSystem.assets[handle.slot].shader;    }
-Material    GetAsset(MaterialHandle handle)    { return assetSystem.assets[handle.slot].material;  }
-R_Texture2D GetAsset(Texture2DHandle handle)   { return assetSystem.assets[handle.slot].texture2D; }
-R_Cubemap   GetAsset(CubemapHandle handle)     { return assetSystem.assets[handle.slot].cubemap;   }
+//Model       GetAsset(ModelHandle handle)       { return assetSystem.assets[handle.slot].model;     }
+R_Shader*    GetAsset(VertShaderHandle handle)  { return &assetSystem.assets[handle.slot].shader; }
+R_Shader*    GetAsset(PixelShaderHandle handle) { return &assetSystem.assets[handle.slot].shader; }
+//Material    GetAsset(MaterialHandle handle)    { return assetSystem.assets[handle.slot].material;  }
+//R_Texture2D GetAsset(Texture2DHandle handle)   { return assetSystem.assets[handle.slot].texture2D; }
+//R_Cubemap   GetAsset(CubemapHandle handle)     { return assetSystem.assets[handle.slot].cubemap;   }
 
 static u32 AcquireAsset(AssetKind kind, String path)  // This increases the refcount and handles all that logic
 {
     auto& sys = assetSystem;
-    auto lookup = Lookup(&man.pathMapping, path);
+    auto lookup = Lookup(&sys.pathMapping, path);
     if(lookup.found)
     {
         auto value = lookup.res;
-        assert(value.kind == kind);
+        assert(value->kind == kind);
         
-        auto& asset = sys.assets[value.slot];
+        auto& asset = sys.assets[value->slot];
         ++asset.refCount;
-        return value.slot;
+        return value->slot;
     }
     else
     {
@@ -646,13 +648,13 @@ static u32 AcquireAsset(AssetKind kind, String path)  // This increases the refc
 
 static void ReleaseAsset(AssetKind kind, AssetHandle handle)
 {
-    asset(handle->slot < sys.assets.len);
-    
     auto& sys = assetSystem;
-    auto& asset = sys.assets[handle->slot];
+    assert(handle.slot < (u32)sys.assets.len);
+    
+    auto& asset = sys.assets[handle.slot];
     assert(kind == asset.kind);
     
-    assert(asset.refCount > 0 && "Releasing an asset which has already been released");
+    assert(asset.refCount > 0 && "Trying to release an asset which has already been released");
     
     --asset.refCount;
     if(asset.refCount == 0)
@@ -665,6 +667,7 @@ static void ReleaseAsset(AssetKind kind, AssetHandle handle)
     
 }
 
+#if 0
 ModelHandle AcquireModel(String path)
 {
     u32 slot = AcquireAsset(Asset_Model, path);
@@ -672,23 +675,25 @@ ModelHandle AcquireModel(String path)
     LoadModel((Model*)asset, path);
     return {slot};
 }
+#endif
 
 VertShaderHandle AcquireVertShader(String path)
 {
     u32 slot = AcquireAsset(Asset_VertShader, path);
-    void* asset = &assetSystem.assets[slot].content;
-    LoadShader((R_Shader*)asset, path);
+    Asset* asset = &assetSystem.assets[slot];
+    LoadShader(asset, path, ShaderType_Vertex);
     return {slot};
 }
 
 PixelShaderHandle AcquirePixelShader(String path)
 {
     u32 slot = AcquireAsset(Asset_PixelShader, path);
-    void* asset = &assetSystem.assets[slot].content;
-    LoadShader((R_Shader*)asset, path);
+    Asset* asset = &assetSystem.assets[slot];
+    LoadShader(asset, path, ShaderType_Pixel);
     return {slot};
 }
 
+#if 0
 MaterialHandle AcquireMaterial(String path)
 {
     u32 slot = AcquireAsset(Asset_Material, path);
@@ -712,20 +717,21 @@ CubemapHandle AcquireCubemap(String path)
     LoadCubemap((R_Cubemap*)asset, path);
     return {slot};
 }
+#endif
 
-ModelHandle AcquireModel(const char* path)              { return AcquireModel(ToLenStr(path));       }
+//ModelHandle AcquireModel(const char* path)              { return AcquireModel(ToLenStr(path));       }
 VertShaderHandle AcquireVertShader(const char* path)    { return AcquireVertShader(ToLenStr(path));  }
 PixelShaderHandle AcquirePixelShader(const char* path)  { return AcquirePixelShader(ToLenStr(path)); }
-MaterialHandle AcquireMaterial(const char* path)        { return AcquireMaterial(ToLenStr(path));    }
-Texture2DHandle AcquireTexture2D(const char* path)      { return AcquireTexture2D(ToLenStr(path));   }
-CubemapHandle AcquireCubemap(const char* path)          { return AcquireCubemap(ToLenStr(path));     }
+//MaterialHandle AcquireMaterial(const char* path)        { return AcquireMaterial(ToLenStr(path));    }
+//Texture2DHandle AcquireTexture2D(const char* path)      { return AcquireTexture2D(ToLenStr(path));   }
+//CubemapHandle AcquireCubemap(const char* path)          { return AcquireCubemap(ToLenStr(path));     }
 
-void ReleaseModel(ModelHandle handle)             { ReleaseAsset(Asset_Model, handle);       }
+//void ReleaseModel(ModelHandle handle)             { ReleaseAsset(Asset_Model, handle);       }
 void ReleaseVertShader(VertShaderHandle handle)   { ReleaseAsset(Asset_VertShader, handle);  }
 void ReleasePixelShader(PixelShaderHandle handle) { ReleaseAsset(Asset_PixelShader, handle); }
-void ReleaseMaterial(MaterialHandle handle)       { ReleaseAsset(Asset_Material, handle);    }
-void ReleaseTexture2D(Texture2DHandle handle)     { ReleaseAsset(Asset_Texture2D, handle);   }
-void ReleaseCubemap(CubemapHandle handle)         { ReleaseAsset(Asset_Cubemap, handle);     }
+//void ReleaseMaterial(MaterialHandle handle)       { ReleaseAsset(Asset_Material, handle);    }
+//void ReleaseTexture2D(Texture2DHandle handle)     { ReleaseAsset(Asset_Texture2D, handle);   }
+//void ReleaseCubemap(CubemapHandle handle)         { ReleaseAsset(Asset_Cubemap, handle);     }
 
 void LoadMesh(Asset* mesh, String path)
 {
@@ -738,6 +744,64 @@ void LoadMesh(Asset* mesh, String path)
 void LoadTexture(Asset* texture, String path)
 {
     
+}
+
+void LoadShader(Asset* shader, String path, R_ShaderType type)
+{
+    ScratchArena scratch;
+    
+    if(shader->isLoaded)
+        R_ShaderFree(&shader->shader);
+    
+    bool success = true;
+    String contents = LoadEntireFile(path, scratch, &success);
+    if(!success)
+    {
+        Log("Failed to load file '%.*s'\n", StrPrintf(path));
+        TODO;
+        return;
+    }
+    
+    char** cursor;
+    char* c = (char*)contents.ptr;
+    cursor = &c;
+    
+    String magicBytes = Next(cursor, sizeof("shader")-1);  // Excluding null terminator
+    if(magicBytes != "shader")
+    {
+        Log("Attempted to load file '%.*s' as a shader, which it is not.", StrPrintf(path));
+        TODO;
+        return;
+    }
+    
+    u32 version = Next<u32>(cursor);
+    if(version < 0 || version > 1)
+    {
+        Log("Attempted to load file '%.*s' as a shader, but its version is unsupported.", StrPrintf(path));
+        TODO;
+        return;
+    }
+    
+    char* headerPtr = *cursor;
+    ShaderBinaryHeader_v0 header_v0 = {};
+    header_v0 = Next<ShaderBinaryHeader_v0>(cursor);
+    
+    auto& header = header_v0;
+    if(header.shaderKind != type)
+    {
+        //const char* desiredKindStr = GetShaderKindString(kind);
+        //const char* actualKindStr  = GetShaderKindString((ShaderKind)header.shaderKind);
+        //Log("Attempted to load shader '%.*s' as a %s, but it's a %s", StrPrintf(path), desiredKindStr, actualKindStr);
+        TODO;
+        return;
+    }
+    
+    R_ShaderInput input = {};
+    input.dxil          = {.ptr=headerPtr+header.dxil, .len=header.dxilSize};
+    input.vulkanSpirv   = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
+    input.glsl          = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
+    input.d3d11Bytecode = {.ptr=headerPtr+header.d3d11Bytecode, .len=header.d3d11BytecodeSize};
+    shader->shader = R_ShaderAlloc(input, (R_ShaderType)header.shaderKind);
 }
 
 void LoadShader(Asset* shader, String path, ShaderKind kind);

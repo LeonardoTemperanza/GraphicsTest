@@ -121,9 +121,9 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     inEditor = editor->inEditor;
 #endif
     
-    //OS_DearImguiBeginFrame();
-    //R_DearImguiBeginFrame();  // TODO: Does this need to be here?
-    //ImGui::NewFrame();
+    OS_DearImguiBeginFrame();
+    R_ImGuiNewFrame();
+    ImGui::NewFrame();
     
     PollAndProcessInput(inEditor);
     
@@ -141,8 +141,8 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     }
     
     // Update
-    if(inEditor) {}
-    //UpdateEditor(editor, deltaTime);
+    if(inEditor)
+        UpdateEditor(editor, deltaTime);
     else
         UpdateEntities(man, deltaTime);
     

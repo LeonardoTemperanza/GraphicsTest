@@ -2,7 +2,6 @@
 #pragma once
 
 #include "base.h"
-#include "serialization.h"
 
 // NOTE: This is meant to be a thin abstraction over the graphics apis. No application logic
 // should be handled here, as that's meant to be a job for the renderer frontend.
@@ -18,6 +17,23 @@ enum
     BufferFlag_ConstantBuffer = 1 << 3
 };
 
+enum R_VertAttribType
+{
+    VertAttrib_Pos = 0,
+    VertAttrib_Normal,
+    VertAttrib_TexCoord,
+    VertAttrib_Tangent,
+    VertAttrib_Bitangent,
+    VertAttrib_Color,
+};
+
+struct R_VertAttrib
+{
+    R_VertAttribType type;
+    u32 bufferSlot;
+    u32 offset;
+};
+
 enum R_ShaderType
 {
     ShaderType_Null = 0,
@@ -25,14 +41,6 @@ enum R_ShaderType
     ShaderType_Pixel,
     
     ShaderType_Count
-};
-
-enum R_InputAssembly
-{
-	InputAssembly_Triangles,
-	InputAssembly_Lines,
-	
-	InputAssembly_Count,
 };
 
 enum R_BlendMode
@@ -128,7 +136,34 @@ struct R_RasterizerDesc
     s32 depthBias = 0;
     f32 depthBiasClamp = 0.0f;
     bool depthClipEnable = true;
-    bool scissorEnable = true;
+    bool scissorEnable = false;
+};
+
+enum R_DepthWriteMask
+{
+    DepthWriteMask_Zero = 0,
+    DepthWriteMask_All,
+};
+
+enum R_DepthFunc
+{
+    DepthFunc_Never = 0,
+    DepthFunc_Less,
+    DepthFunc_Equal,
+    DepthFunc_LessEqual,
+    DepthFunc_Greater,
+    DepthFunc_NotEqual,
+    DepthFunc_GreaterEqual,
+    DepthFunc_Always,
+};
+
+struct R_DepthDesc
+{
+    bool depthEnable = true;
+    R_DepthWriteMask depthWriteMask = DepthWriteMask_All;
+    R_DepthFunc depthFunc = DepthFunc_Less;
+    
+    // TODO: Missing stencil ops
 };
 
 struct R_ShaderInput
@@ -145,6 +180,7 @@ bool R_IsInteger(R_TextureFormat format);
 
 // Backend specific structures...
 struct R_Buffer;
+struct R_VertLayout;
 struct R_Shader;
 struct R_ShaderPack;
 struct R_BufferAttribPack;
@@ -153,6 +189,7 @@ struct R_Texture2D;
 struct R_Cubemap;
 struct R_Framebuffer;
 struct R_Rasterizer;
+struct R_DepthState;
 
 // ...which are defined here
 #ifdef GFX_OPENGL
@@ -164,11 +201,10 @@ struct R_Rasterizer;
 #endif
 
 // Buffers
-R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 vertStride);
-void R_BufferTransfer(R_Buffer* b, u64 size, void* data);
-#define R_BufferTransferStruct(bufferPtr, structValue) R_BufferTransferData(bufferPtr, sizeof(structValue), &structValue)
+R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 stride, u64 size = 0, void* initData = nullptr);
+// TODO: Macros for allocating arrays and structs easily
 void R_BufferUpdate(R_Buffer* b, u64 offset, u64 size, void* data);
-void R_BufferBind(R_Buffer* b, u32 slot);
+void R_BufferUniformBind(R_Buffer* b, u32 slot, R_ShaderType type);
 void R_BufferFree(R_Buffer* b);
 
 // Shaders
@@ -180,6 +216,11 @@ void R_ShaderFree(R_Shader* shader);
 R_Rasterizer R_RasterizerAlloc(R_RasterizerDesc desc);
 void R_RasterizerBind(R_Rasterizer* r);
 void R_RasterizerFree(R_Rasterizer* r);
+
+// Depth state
+R_DepthState R_DepthStateAlloc(R_DepthDesc desc);
+void R_DepthStateBind(R_DepthState* depth);
+void R_DepthStateFree(R_DepthState* depth);
 
 // Textures
 R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData = nullptr,
@@ -225,10 +266,16 @@ void R_FramebufferFillColorInt(const R_Framebuffer* f, u32 slot, u64 r, u64 g, u
 IVec4 R_FramebufferReadColor(const R_Framebuffer* f, u32 slot, s32 x, s32 y);
 void R_FramebufferFree(R_Framebuffer* f);
 
+// Vertex layouts
+R_VertLayout R_VertLayoutAlloc(R_VertAttrib* attributes, u32 count);
+void R_VertLayoutBind(R_VertLayout* layout);
+void R_VertLayoutFree(R_VertLayout* layout);
+
 // Rendering operations
 void R_SetViewport(s32 x, s32 y, s32 w, s32 h);
-void R_Draw(R_Buffer* verts, R_Buffer* indices, u32 start = 0, u32 count = 0);  // Count = 0 means the entire mesh
-void R_Draw(R_Buffer* verts, u32 start = 0, u32 count = 0);                     // Count = 0 means the entire mesh
+void R_Draw(R_Buffer* verts, R_Buffer* indices, u64 start = 0, u64 count = 0);  // Count = 0 means the entire mesh
+void R_Draw(R_Buffer* verts, u64 start = 0, u64 count = 0);                     // Count = 0 means the entire mesh
+void R_SetAlphaBlending(bool enable);
 
 // Backend state
 void R_Init();  // Initializes the graphics api context
@@ -238,7 +285,11 @@ void R_PresentFrame();
 void R_UpdateSwapchainSize();
 void R_Cleanup();
 
-
+// Dear ImGui
+void R_ImGuiInit();
+void R_ImGuiShutdown();
+void R_ImGuiNewFrame();
+void R_ImGuiDrawFrame();
 
 
 

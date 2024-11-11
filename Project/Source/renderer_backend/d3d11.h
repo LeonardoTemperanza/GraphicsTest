@@ -18,15 +18,19 @@ struct R_Buffer
 {
     R_BufferFlags flags;
     ID3D11Buffer* handle;
-    u32 vertStride;
-    
-    // Do i want to save more info about the vertex layout here?
+    u32 stride;
+    u64 size;
+};
+
+struct R_VertLayout
+{
+    ID3D11InputLayout* handle;
+    u32 stride;
 };
 
 struct R_Shader
 {
     R_ShaderType type;
-    ID3D10Blob* bytecode;
     union
     {
         ID3D11VertexShader* vs;
@@ -34,9 +38,14 @@ struct R_Shader
     };
 };
 
-struct R_Sampler
+struct R_Rasterizer
 {
-    ID3D11SamplerState* handle;
+    ID3D11RasterizerState* handle;
+};
+
+struct R_DepthState
+{
+    ID3D11DepthStencilState* handle;
 };
 
 struct R_Texture2D
@@ -48,6 +57,11 @@ struct R_Texture2D
     
     ID3D11Texture2D* handle;
     ID3D11ShaderResourceView* resView;  // Can be nullptr
+};
+
+struct R_Sampler
+{
+    ID3D11SamplerState* handle;
 };
 
 struct R_Framebuffer

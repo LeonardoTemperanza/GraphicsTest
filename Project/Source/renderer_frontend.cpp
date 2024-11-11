@@ -1,5 +1,6 @@
 
 #include "renderer_frontend.h"
+#include "renderer_backend/generic.h"
 
 // NOTE: We're assuming that the backend will always use std140 for uniform layout
 typedef Vec2Std140 GPUVec2;
@@ -71,7 +72,30 @@ void RenderResourcesInit()
     s32 w, h;
     OS_GetClientAreaSize(&w, &h);
     
-    res.common = R_SamplerAlloc();
+    {
+        R_VertAttrib attribs[] =
+        {
+            { .type=VertAttrib_Pos, .bufferSlot=0, .offset=offsetof(Vertex, pos), },
+            { .type=VertAttrib_Normal, .bufferSlot=0, .offset=offsetof(Vertex, normal), },
+            { .type=VertAttrib_TexCoord, .bufferSlot=0, .offset=offsetof(Vertex, texCoord), },
+            { .type=VertAttrib_Tangent, .bufferSlot=0, .offset=offsetof(Vertex, tangent), }
+        };
+        res.staticLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
+    }
+    
+    {
+        R_VertAttrib attribs[] =
+        {
+            { .type=VertAttrib_Pos, .bufferSlot=0, .offset=offsetof(Vertex, pos), },
+            { .type=VertAttrib_Normal, .bufferSlot=0, .offset=offsetof(Vertex, normal), },
+            { .type=VertAttrib_TexCoord, .bufferSlot=0, .offset=offsetof(Vertex, texCoord), },
+            { .type=VertAttrib_Tangent, .bufferSlot=0, .offset=offsetof(Vertex, tangent), }
+        };
+        res.skinnedLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
+    }
+    
+#if 0
+    res.commonSampler = R_SamplerAlloc();
     
     res.selectionColor = R_Texture2DAlloc(TextureFormat_R32Int, w, h);
     res.selectionDepth = R_Texture2DAlloc(TextureFormat_DepthStencil, w, h);
@@ -81,7 +105,14 @@ void RenderResourcesInit()
     res.outlinesDepth = R_Texture2DAlloc(TextureFormat_DepthStencil, w, h);
     res.outlines      = R_FramebufferAlloc(w, h, &res.outlinesColor, 1, res.outlinesDepth);
     
-    res.skybox = AcquireCubemap("Skybox/sky2.png");
+    //res.skybox = AcquireCubemap("Skybox/sky2.png");
+#endif
+    
+    res.staticVertShader = AcquireVertShader("CompiledShaders/simple_vertex.shader");
+    res.simplePixelShader = AcquirePixelShader("CompiledShaders/paint_red.shader");
+    
+    const R_Framebuffer* screen = R_GetScreen();
+    R_FramebufferBind(screen);
 }
 
 void UpdateFramebuffers()
@@ -91,15 +122,25 @@ void UpdateFramebuffers()
     s32 w, h;
     OS_GetClientAreaSize(&w, &h);
     
+#if 0
     R_FramebufferResize(&res.selectionBuffer, w, h);
     R_FramebufferResize(&res.outlines, w, h);
+#endif
 }
 
 void RenderResourcesCleanup()
 {
+    // Not a priority right now. These resources are supposed to
+    // live as long as the program does, and the os will clean up
+    // these for you, so right now we don't worry too much.
+    
+#if 0
     auto& res = renderResources;
     
-    R_SamplerFree(&res.common);
+    R_VertLayoutFree(&res.staticLayout);
+    R_VertLayoutFree(&res.skinnedLayout);
+    
+    R_SamplerFree(&res.commonSampler);
     
     R_Texture2DFree(&res.selectionColor);
     R_Texture2DFree(&res.selectionDepth);
@@ -109,16 +150,87 @@ void RenderResourcesCleanup()
     R_Texture2DFree(&res.outlinesDepth);
     R_FramebufferFree(&res.outlines);
     
-    ReleaseCubemap(res.skybox);
+    //ReleaseCubemap(res.skybox);
+#endif
 }
 
 void RenderFrame(EntityManager* entities)
 {
-    UpdateFramebuffers();
+    auto& res = renderResources;
     
     const R_Framebuffer* screen = R_GetScreen();
-    R_FramebufferClear(screen, BufferMask_Depth & BufferMask_Stencil);
+    R_FramebufferClear(screen, BufferMask_Depth | BufferMask_Stencil);
     R_FramebufferFillColorFloat(screen, 0, 0.5f, 0.5f, 0.5f, 1.0f);
+    
+    R_ShaderBind(GetAsset(res.staticVertShader));
+    R_ShaderBind(GetAsset(res.simplePixelShader));
+    
+    R_FramebufferBind(R_GetScreen());
+    
+    {
+        R_RasterizerDesc desc = {};
+        desc.depthClipEnable = true;
+        desc.cullMode = CullMode_Back;
+        static R_Rasterizer rasterizer = R_RasterizerAlloc(desc);
+        R_RasterizerBind(&rasterizer);
+    }
+    
+    {
+        R_DepthDesc desc = {};
+        desc.depthEnable = true;
+        
+        static R_DepthState depthState = R_DepthStateAlloc(desc);
+        R_DepthStateBind(&depthState);
+    }
+    
+    R_VertLayoutBind(&res.staticLayout);
+    Vertex vertices[] =
+    {
+        { .pos={ 0, 1, 0.5 } },
+        { .pos={ -1, -1, 0.5 } },
+        { .pos={ +1, -1, 0.5 } },
+    };
+    static R_Buffer vertBuf = R_BufferAlloc(BufferFlag_Vertex, sizeof(Vertex), sizeof(vertices), vertices);
+    R_Draw(&vertBuf);
+    
+    /*
+    UpdateFramebuffers();
+    
+    R_FramebufferClear(screen, BufferMask_Depth & BufferMask_Stencil);
+    
+    R_ShaderBind(GetAsset(res.staticVertShader));
+    R_ShaderBind(GetAsset(res.simplePixelShader));
+    
+    R_FramebufferBind(R_GetScreen());
+    
+    {
+        R_RasterizerDesc desc = {};
+        desc.depthClipEnable = false;
+        desc.cullMode = CullMode_None;
+        static R_Rasterizer rasterizer = R_RasterizerAlloc(desc);
+        R_RasterizerBind(&rasterizer);
+    }
+    
+    {
+        R_DepthDesc desc = {};
+        desc.depthEnable = true;
+        
+        static R_DepthState depthState = R_DepthStateAlloc(desc);
+        R_DepthStateBind(&depthState);
+    }
+    
+    R_VertLayoutBind(&res.staticLayout);
+    Vertex vertices[] =
+    {
+        { .pos={ -1, -1, 0.5 } },
+        { .pos={ 0, 1, 0.5 } },
+        { .pos={ +1, -1, 0.5 } },
+    };
+    static R_Buffer vertBuf = R_BufferAlloc(BufferFlag_Vertex, sizeof(Vertex), sizeof(vertices), vertices);
+    R_Draw(&vertBuf);
+    */
+    
+    R_ImGuiDrawFrame();
     
     R_PresentFrame();
 }
