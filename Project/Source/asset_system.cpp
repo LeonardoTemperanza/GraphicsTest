@@ -54,15 +54,6 @@ void ReserveSlotForDefaultAssets()
     Append(&man.shaders, R_CreateDefaultShader(ShaderKind_Pixel));
 }
 
-void UseMaterial(Material mat)
-{
-    R_SetPixelShader(mat.pixelShader);
-    R_SetMaterialConstants(mat.pixelShader, ToSlice(&mat.uniforms));
-    
-    for(int i = 0; i < mat.textures.len; ++i)
-        R_SetTexture(mat.textures[i], ShaderKind_Pixel, (TextureSlot)(MaterialTex0 + i));
-}
-
 void HotReloadAssets(Arena* frameArena)
 {
 #ifdef Development
