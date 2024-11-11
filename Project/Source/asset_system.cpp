@@ -606,7 +606,7 @@ void AssetSystemSetMode(AssetSystemMode mode)
     assetSystem.mode = mode;
 }
 
-//Model       GetAsset(ModelHandle handle)       { return assetSystem.assets[handle.slot].model;     }
+Mesh*        GetAsset(MeshHandle handle)        { return &assetSystem.assets[handle.slot].mesh;     }
 R_Shader*    GetAsset(VertShaderHandle handle)  { return &assetSystem.assets[handle.slot].shader; }
 R_Shader*    GetAsset(PixelShaderHandle handle) { return &assetSystem.assets[handle.slot].shader; }
 //Material    GetAsset(MaterialHandle handle)    { return assetSystem.assets[handle.slot].material;  }
@@ -667,15 +667,13 @@ static void ReleaseAsset(AssetKind kind, AssetHandle handle)
     
 }
 
-#if 0
-ModelHandle AcquireModel(String path)
+MeshHandle AcquireMesh(String path)
 {
-    u32 slot = AcquireAsset(Asset_Model, path);
-    void* asset = &assetSystem.assets[slot].content;
-    LoadModel((Model*)asset, path);
+    u32 slot = AcquireAsset(Asset_Mesh, path);
+    Asset* asset = &assetSystem.assets[slot];
+    if(!LoadMesh(asset, path));
     return {slot};
 }
-#endif
 
 VertShaderHandle AcquireVertShader(String path)
 {
@@ -719,7 +717,7 @@ CubemapHandle AcquireCubemap(String path)
 }
 #endif
 
-//ModelHandle AcquireModel(const char* path)              { return AcquireModel(ToLenStr(path));       }
+MeshHandle AcquireMesh(const char* path)                { return AcquireMesh(ToLenStr(path));       }
 VertShaderHandle AcquireVertShader(const char* path)    { return AcquireVertShader(ToLenStr(path));  }
 PixelShaderHandle AcquirePixelShader(const char* path)  { return AcquirePixelShader(ToLenStr(path)); }
 //MaterialHandle AcquireMaterial(const char* path)        { return AcquireMaterial(ToLenStr(path));    }
@@ -733,25 +731,17 @@ void ReleasePixelShader(PixelShaderHandle handle) { ReleaseAsset(Asset_PixelShad
 //void ReleaseTexture2D(Texture2DHandle handle)     { ReleaseAsset(Asset_Texture2D, handle);   }
 //void ReleaseCubemap(CubemapHandle handle)         { ReleaseAsset(Asset_Cubemap, handle);     }
 
-void LoadMesh(Asset* mesh, String path)
-{
-    if(mesh->isLoaded)
-    {
-        // Free mesh
-    }
-}
-
 void LoadTexture(Asset* texture, String path)
 {
     
 }
 
-void LoadShader(Asset* shader, String path, R_ShaderType type)
+bool LoadShader(Asset* asset, String path, R_ShaderType type)
 {
     ScratchArena scratch;
     
-    if(shader->isLoaded)
-        R_ShaderFree(&shader->shader);
+    if(asset->isLoaded)
+        R_ShaderFree(&asset->shader);
     
     bool success = true;
     String contents = LoadEntireFile(path, scratch, &success);
@@ -759,7 +749,7 @@ void LoadShader(Asset* shader, String path, R_ShaderType type)
     {
         Log("Failed to load file '%.*s'\n", StrPrintf(path));
         TODO;
-        return;
+        return false;
     }
     
     char** cursor;
@@ -771,7 +761,7 @@ void LoadShader(Asset* shader, String path, R_ShaderType type)
     {
         Log("Attempted to load file '%.*s' as a shader, which it is not.", StrPrintf(path));
         TODO;
-        return;
+        return false;
     }
     
     u32 version = Next<u32>(cursor);
@@ -779,7 +769,7 @@ void LoadShader(Asset* shader, String path, R_ShaderType type)
     {
         Log("Attempted to load file '%.*s' as a shader, but its version is unsupported.", StrPrintf(path));
         TODO;
-        return;
+        return false;
     }
     
     char* headerPtr = *cursor;
@@ -793,7 +783,7 @@ void LoadShader(Asset* shader, String path, R_ShaderType type)
         //const char* actualKindStr  = GetShaderKindString((ShaderKind)header.shaderKind);
         //Log("Attempted to load shader '%.*s' as a %s, but it's a %s", StrPrintf(path), desiredKindStr, actualKindStr);
         TODO;
-        return;
+        return false;
     }
     
     R_ShaderInput input = {};
@@ -801,10 +791,60 @@ void LoadShader(Asset* shader, String path, R_ShaderType type)
     input.vulkanSpirv   = {.ptr=headerPtr+header.vulkanSpirv, .len=header.vulkanSpirvSize};
     input.glsl          = {.ptr=headerPtr+header.glsl, .len=header.glslSize};
     input.d3d11Bytecode = {.ptr=headerPtr+header.d3d11Bytecode, .len=header.d3d11BytecodeSize};
-    shader->shader = R_ShaderAlloc(input, (R_ShaderType)header.shaderKind);
+    asset->shader = R_ShaderAlloc(input, (R_ShaderType)header.shaderKind);
+    return true;
 }
 
-void LoadShader(Asset* shader, String path, ShaderKind kind);
+bool LoadMesh(Asset* asset, String path)
+{
+    ScratchArena scratch;
+    
+    bool success = true;
+    String contents = LoadEntireFile(path, scratch, &success);
+    if(!success)
+    {
+        Log("Failed to load file '%.*s'", StrPrintf(path));
+        TODO;
+        return false;
+    }
+    
+    char** cursor;
+    char* c = (char*)contents.ptr;
+    cursor = &c;
+    
+    String magicBytes = Next(cursor, sizeof("mesh")-1);  // Excluding null terminator
+    if(magicBytes != "mesh")
+    {
+        Log("Attempted to load file '%.*s' as a mesh, which it is not.", StrPrintf(path));
+        TODO;
+        return false;
+    }
+    
+    u32 version = Next<u32>(cursor);
+    if(version != 0)
+    {
+        Log("Attempted to load file '%.*s' as a mesh, but its version is unsupported.", StrPrintf(path));
+        TODO;
+        return false;
+    }
+    
+    char* headerPtr = *cursor;
+    auto header = Next<MeshHeader_v0>(cursor);
+    
+    if(header.isSkinned)
+    {
+        Log("Skinned meshes are not yet supported.");
+        TODO;
+        return false;
+    }
+    
+    Slice<Vertex> verts   = {(Vertex*)(headerPtr + header.vertsOffset),   header.numVerts};
+    Slice<u32>    indices = {(u32*)   (headerPtr + header.indicesOffset), header.numIndices};
+    asset->mesh = StaticMeshAlloc({verts, indices});
+    return true;
+}
+
+bool LoadShader(Asset* shader, String path, ShaderKind kind);
 void LoadPipeline(Asset* pipeline, String path);
 void LoadMaterial(Asset* material, String path);
 void LoadCubemap(Asset* cubemap, String path);

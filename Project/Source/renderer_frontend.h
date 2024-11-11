@@ -3,16 +3,12 @@
 
 #include "base.h"
 #include "renderer_backend/generic.h"
+#include "serialization.h"
 
-struct StaticMesh
+struct Mesh
 {
     R_Buffer vertBuffer;
     R_Buffer idxBuffer;
-};
-
-struct StaticModel
-{
-    Array<StaticMesh> meshes;
 };
 
 struct StaticMeshInput
@@ -21,52 +17,24 @@ struct StaticMeshInput
     Slice<u32> indices;
 };
 
-struct SkinnedMesh
-{
-    R_Buffer vertBuffer;
-    R_Buffer idxBuffer;
-};
-
 struct SkinnedMeshInput
 {
     Slice<AnimVert> animVert;
 };
 
-StaticModel StaticModelAlloc(Slice<StaticMeshInput> meshes);
-void StaticModelFree(StaticModel* model);
+Mesh StaticMeshAlloc(StaticMeshInput input);
+Mesh SkinnedMeshAlloc(StaticMeshInput input);
+void DrawMesh(Mesh* mesh);
+void MeshFree(Mesh* mesh);
 
-struct RenderResources
-{
-    // Vertex layouts
-    R_VertLayout staticLayout;
-    R_VertLayout skinnedLayout;
-    
-    // Samplers
-    R_Sampler commonSampler;  // Linear sampler used for most things
-    
-    // Render passes
-    R_Framebuffer directionalShadows;
-    
-    // Editor
-#if 0
-    R_Texture selectionColor;
-    R_Texture selectionDepth;
-    R_Framebuffer selectionBuffer;
-    R_Texture outlinesColor;
-    R_Texture outlinesDepth;
-    R_Framebuffer outlines;
-#endif
-    
-    // Assets
-    //CubemapHandle skybox;
-    VertShaderHandle staticVertShader;
-    PixelShaderHandle simplePixelShader;
-};
+// The asset system needs to know what a mesh is
+#include "asset_system.h"
 
 void RenderResourcesInit();
 void UpdateFramebuffers();
 void RenderResourcesCleanup();
 
+struct EntityManager;
 void RenderFrame(EntityManager* entities);  // Entrypoint of renderer
 
 void RenderScene(EntityManager* entities, Vec3 camPos, f32 fov, f32 nearClip, f32 farClip);

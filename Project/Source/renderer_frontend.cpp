@@ -63,7 +63,54 @@ enum CBufferSlot
     MatConstants = 4
 };
 
+struct RenderResources
+{
+    // Vertex layouts
+    R_VertLayout staticLayout;
+    R_VertLayout skinnedLayout;
+    
+    // Samplers
+    R_Sampler commonSampler;  // Linear sampler used for most things
+    
+    // Render passes
+    R_Framebuffer directionalShadows;
+    
+    // Editor
+#if 0
+    R_Texture selectionColor;
+    R_Texture selectionDepth;
+    R_Framebuffer selectionBuffer;
+    R_Texture outlinesColor;
+    R_Texture outlinesDepth;
+    R_Framebuffer outlines;
+#endif
+    
+    // Assets
+    //CubemapHandle skybox;
+    VertShaderHandle staticVertShader;
+    PixelShaderHandle simplePixelShader;
+};
+
 static RenderResources renderResources;
+
+Mesh StaticMeshAlloc(StaticMeshInput input)
+{
+    Mesh res = {};
+    res.vertBuffer = R_BufferAlloc(BufferFlag_Vertex, sizeof(Vertex), input.verts.len * sizeof(Vertex), input.verts.ptr);
+    res.idxBuffer  = R_BufferAlloc(BufferFlag_Index, 4, input.indices.len * 4, input.indices.ptr);
+    return res;
+}
+
+void DrawMesh(Mesh* mesh)
+{
+    R_Draw(&mesh->vertBuffer, &mesh->idxBuffer, 0, 0);
+}
+
+void MeshFree(Mesh* mesh)
+{
+    R_BufferFree(&mesh->vertBuffer);
+    R_BufferFree(&mesh->idxBuffer);
+}
 
 void RenderResourcesInit()
 {
@@ -108,7 +155,7 @@ void RenderResourcesInit()
     //res.skybox = AcquireCubemap("Skybox/sky2.png");
 #endif
     
-    res.staticVertShader = AcquireVertShader("CompiledShaders/simple_vertex.shader");
+    res.staticVertShader = AcquireVertShader("CompiledShaders/model2proj.shader");
     res.simplePixelShader = AcquirePixelShader("CompiledShaders/paint_red.shader");
     
     const R_Framebuffer* screen = R_GetScreen();
@@ -184,51 +231,12 @@ void RenderFrame(EntityManager* entities)
     }
     
     R_VertLayoutBind(&res.staticLayout);
-    Vertex vertices[] =
+    
+    // Draw entities
+    for_live_entities(entities, ent)
     {
-        { .pos={ 0, 1, 0.5 } },
-        { .pos={ -1, -1, 0.5 } },
-        { .pos={ +1, -1, 0.5 } },
-    };
-    static R_Buffer vertBuf = R_BufferAlloc(BufferFlag_Vertex, sizeof(Vertex), sizeof(vertices), vertices);
-    R_Draw(&vertBuf);
-    
-    /*
-    UpdateFramebuffers();
-    
-    R_FramebufferClear(screen, BufferMask_Depth & BufferMask_Stencil);
-    
-    R_ShaderBind(GetAsset(res.staticVertShader));
-    R_ShaderBind(GetAsset(res.simplePixelShader));
-    
-    R_FramebufferBind(R_GetScreen());
-    
-    {
-        R_RasterizerDesc desc = {};
-        desc.depthClipEnable = false;
-        desc.cullMode = CullMode_None;
-        static R_Rasterizer rasterizer = R_RasterizerAlloc(desc);
-        R_RasterizerBind(&rasterizer);
+        DrawMesh(GetAsset(ent->mesh));
     }
-    
-    {
-        R_DepthDesc desc = {};
-        desc.depthEnable = true;
-        
-        static R_DepthState depthState = R_DepthStateAlloc(desc);
-        R_DepthStateBind(&depthState);
-    }
-    
-    R_VertLayoutBind(&res.staticLayout);
-    Vertex vertices[] =
-    {
-        { .pos={ -1, -1, 0.5 } },
-        { .pos={ 0, 1, 0.5 } },
-        { .pos={ +1, -1, 0.5 } },
-    };
-    static R_Buffer vertBuf = R_BufferAlloc(BufferFlag_Vertex, sizeof(Vertex), sizeof(vertices), vertices);
-    R_Draw(&vertBuf);
-    */
     
     R_ImGuiDrawFrame();
     

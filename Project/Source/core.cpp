@@ -11,7 +11,6 @@ EntityManager InitEntityManager()
     EntityManager manager = {};
     EntityManager* man = &manager;
     
-#if 0
     const char* raptoidPath  = "Raptoid/Raptoid_2.mesh";
     const char* cubePath     = "Common/Cube.mesh";
     const char* spherePath   = "Common/Cube.mesh";
@@ -28,34 +27,31 @@ EntityManager InitEntityManager()
     UseArena(&man->pointLights, &pointLightArena);
     static_assert(4 == Entity_Count, "Every array for each type should be based on an arena for pointer stability");
     
-    MeshHandle raptoidMesh  = GetMeshByPath("Raptoid/Raptoid_2.mesh");
-    MeshHandle sphereMesh   = GetMeshByPath("Common/sphere.mesh");
-    MeshHandle cubeMesh     = GetMeshByPath("Common/Cube.mesh");
-    MeshHandle cylinderMesh = GetMeshByPath("Common/cylinder.mesh");
-    MeshHandle quadMesh     = GetMeshByPath("Common/quad.mesh");
-    MaterialHandle raptoidMat = GetMaterialByPath("Raptoid/raptoid.mat");
+    // When we'll actually load the scene we won't do a string lookup
+    // for each entity because that's stupid... We'll have the handle already
+    // saved, as well as the refcount for each asset already saved.
     
     auto raptoid = NewEntity(man);
-    raptoid->mesh = raptoidMesh;
-    raptoid->material = raptoidMat;
+    raptoid->mesh = AcquireMesh(raptoidPath);
+    //raptoid->material = raptoidMat;
     
     auto quadEnt = NewEntity(man);
-    quadEnt->mesh = quadMesh;
-    quadEnt->material = raptoidMat;
+    quadEnt->mesh = AcquireMesh(cubePath);
+    //quadEnt->material = raptoidMat;
     
     auto camera = NewEntity<Camera>(man);
     camera->base->pos.z = -8.0f;
     camera->base->pos.y = 7.0f;
     camera->base->rot *= AngleAxis(Vec3::right, Deg2Rad(20.0f));
-    camera->params.fov      = 90.0f;
-    camera->params.nearClip = 0.1f;
-    camera->params.farClip  = 1000.0f;
+    //camera->params.fov      = 90.0f;
+    //camera->params.nearClip = 0.1f;
+    //camera->params.farClip  = 1000.0f;
     
     man->mainCamera = GetKey(man, camera->base);
     
     auto player = NewEntity<Player>(man);
-    player->base->mesh = cylinderMesh;
-    player->base->material = raptoidMat;
+    player->base->mesh = AcquireMesh(cylinderPath);
+    //player->base->material = raptoidMat;
     player->base->scale = {0.5f, 1.0f, 0.5f};
     player->gravity = 20.0f;
     player->jumpVel = 10.0f;
@@ -68,8 +64,8 @@ EntityManager InitEntityManager()
     
     {
         Entity* e   = NewEntity(man);
-        e->mesh     = sphereMesh;
-        e->material = raptoidMat;
+        e->mesh     = AcquireMesh(spherePath);
+        //e->material = raptoidMat;
         e->pos.x = pos;
         e->pos.z = -3.0f;
         pos += 3.0f;
@@ -77,8 +73,8 @@ EntityManager InitEntityManager()
     
     {
         Entity* e = NewEntity(man);
-        e->mesh = sphereMesh;
-        e->material = raptoidMat;
+        e->mesh = AcquireMesh(spherePath);
+        //e->material = raptoidMat;
         e->pos.x = pos;
         pos += 3.0f;
     }
@@ -88,8 +84,8 @@ EntityManager InitEntityManager()
         for(int i = 0; i < 7; ++i)
         {
             e[i] = NewEntity(man);
-            e[i]->mesh = raptoidMesh;
-            e[i]->material = raptoidMat;
+            e[i]->mesh = AcquireMesh(raptoidPath);
+            //e[i]->material = raptoidMat;
             e[i]->pos.x = pos;
             pos += 3.0f;
         }
@@ -98,8 +94,6 @@ EntityManager InitEntityManager()
         MountEntity(man, e[5], e[4]);
         MountEntity(man, e[6], e[5]);
     }
-    
-#endif
     
     return manager;
 }
