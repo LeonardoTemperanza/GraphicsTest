@@ -33,9 +33,6 @@ int main()
     R_Init();
     defer { R_Cleanup(); };
     
-    //AssetSystemInit();
-    //defer { AssetSystemCleanup(); };
-    
     RenderResourcesInit();
     defer { RenderResourcesCleanup(); };
     
@@ -43,8 +40,6 @@ int main()
     OS_StartFileWatcher(".");  // Watch files in Assets directory (and subfolders)
     defer { OS_StopFileWatcher(); };
 #endif
-    
-    //InitAssetSystem();
     
     EntityManager entManager = InitEntityManager();
     defer { FreeEntities(&entManager); };
@@ -73,7 +68,8 @@ int main()
             startTicks = OS_GetTicks();
         }
         
-        MainUpdate(&entManager, &editor, deltaTime, &frameArena);
+        CamParams cam = {};
+        MainUpdate(&entManager, &editor, deltaTime, &frameArena, &cam);
         
         R_WaitLastFrame();
         
@@ -88,7 +84,7 @@ int main()
         R_UpdateSwapchainSize();
         R_SetViewport(0, 0, w, h);
         
-        RenderFrame(&entManager);
+        RenderFrame(&entManager, cam);
         
         ArenaFreeAll(&frameArena);
         firstIter = false;

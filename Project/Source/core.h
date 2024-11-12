@@ -10,9 +10,7 @@ enum EntityFlags
     EntityFlags_Destroyed        = 1 << 1,
     EntityFlags_Visible          = 1 << 3,
     EntityFlags_Active           = 1 << 4,
-    EntityFlags_IgnoreMountPos   = 1 << 5,
-    EntityFlags_IgnoreMountRot   = 1 << 6,
-    EntityFlags_IgnoreMountScale = 1 << 7
+    EntityFlags_NoMesh           = 1 << 5
 };
 
 enum EntityKind: u8
@@ -140,8 +138,8 @@ struct Editor;
 
 EntityManager InitEntityManager();
 void FreeEntities(EntityManager* man);
-void MainUpdate(EntityManager* man, Editor* ui, float deltaTime, Arena* frameArena);
-void MainRender(EntityManager* man, Editor* ui, float deltaTime, Arena* frameArena);
+void MainUpdate(EntityManager* man, Editor* ui, float deltaTime, Arena* frameArena, CamParams* outCam);
+//void MainRender(EntityManager* man, Editor* ui, float deltaTime, Arena* frameArena);
 void UpdateEntities(EntityManager* man, float deltaTime);
 
 // Entity manipulation.

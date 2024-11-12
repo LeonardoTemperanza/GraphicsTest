@@ -3,16 +3,17 @@
 #include "renderer_backend/generic.h"
 
 // NOTE: We're assuming that the backend will always use std140 for uniform layout
-typedef Vec2Std140 GPUVec2;
-typedef Vec3Std140 GPUVec3;
-typedef Vec4Std140 GPUVec4;
-typedef Mat4       GPUMat4;
-
 struct PerView
 {
-    GPUMat4 world2View;
-    GPUMat4 viewToProj;
-    GPUVec3 viewPos;
+    alignas(16) Mat4 world2View;
+    alignas(16) Mat4 view2Proj;
+    alignas(16) Vec4 viewPos;
+};
+
+struct PerObj
+{
+    alignas(16) Mat4 model2World;
+    alignas(16) Mat4 normalMat; 
 };
 
 // NOTE: These need to be updated along with the ones in common.hlsli
@@ -56,11 +57,11 @@ enum SamplerSlot
 
 enum CBufferSlot
 {
-    PerScene = 0,
-    PerFrame = 1,
-    PerObj   = 2,
-    CodeConstants = 3,
-    MatConstants = 4
+    PerSceneSlot      = 0,
+    PerViewSlot       = 1,
+    PerObjSlot        = 2,
+    CodeConstantsSlot = 3,
+    MatConstantsSlot  = 4
 };
 
 struct RenderResources
@@ -84,6 +85,10 @@ struct RenderResources
     R_Texture outlinesDepth;
     R_Framebuffer outlines;
 #endif
+    
+    // Uniform buffers
+    R_Buffer perView;
+    R_Buffer perObj;
     
     // Assets
     //CubemapHandle skybox;
@@ -158,6 +163,18 @@ void RenderResourcesInit()
     res.staticVertShader = AcquireVertShader("CompiledShaders/model2proj.shader");
     res.simplePixelShader = AcquirePixelShader("CompiledShaders/paint_red.shader");
     
+    PerView perView = {};
+    perView.world2View = Mat4::identity;
+    perView.view2Proj = Mat4::identity;
+    
+    PerObj perObj = {};
+    perObj.model2World = Mat4::identity;
+    res.perView = R_BufferAlloc(BufferFlag_Dynamic | BufferFlag_ConstantBuffer, sizeof(PerView), sizeof(PerView), &perView);
+    res.perObj  = R_BufferAlloc(BufferFlag_Dynamic | BufferFlag_ConstantBuffer, sizeof(PerObj), sizeof(PerObj), &perObj);
+    
+    R_BufferUniformBind(&res.perObj,  PerObjSlot,  ShaderType_Vertex);
+    R_BufferUniformBind(&res.perView, PerViewSlot, ShaderType_Vertex);
+    
     const R_Framebuffer* screen = R_GetScreen();
     R_FramebufferBind(screen);
 }
@@ -201,7 +218,7 @@ void RenderResourcesCleanup()
 #endif
 }
 
-void RenderFrame(EntityManager* entities)
+void RenderFrame(EntityManager* entities, CamParams cam)
 {
     auto& res = renderResources;
     
@@ -233,8 +250,25 @@ void RenderFrame(EntityManager* entities)
     R_VertLayoutBind(&res.staticLayout);
     
     // Draw entities
+    R_BufferUniformBind(&res.perView, PerViewSlot, ShaderType_Vertex);
+    
+    s32 w, h;
+    OS_GetClientAreaSize(&w, &h);
+    
+    auto view2Proj = View2ProjPerspectiveMatrix(cam.nearClip, cam.farClip, cam.fov, (float)w, (float)h);
+    
+    PerView perView = {};
+    perView.world2View = World2ViewMatrix(cam.pos, cam.rot);
+    perView.view2Proj  = R_ConvertClipSpace(view2Proj);
+    R_BufferUpdateStruct(&res.perView, perView);
     for_live_entities(entities, ent)
     {
+        if(ent->flags & EntityFlags_NoMesh) continue;
+        
+        PerObj perObj = {};
+        perObj.model2World = ComputeWorldTransform(entities, ent);
+        R_BufferUpdateStruct(&res.perObj, perObj);
+        
         DrawMesh(GetAsset(ent->mesh));
     }
     

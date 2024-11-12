@@ -662,7 +662,7 @@ MeshHandle AcquireMesh(String path)
 {
     u32 slot = AcquireAsset(Asset_Mesh, path);
     Asset* asset = &assetSystem.assets[slot];
-    if(!LoadMesh(asset, path));
+    LoadMesh(asset, path);
     return {slot};
 }
 

@@ -40,6 +40,7 @@ EntityManager InitEntityManager()
     //quadEnt->material = raptoidMat;
     
     auto camera = NewEntity<Camera>(man);
+    camera->base->flags |= EntityFlags_NoMesh;
     camera->base->pos.z = -8.0f;
     camera->base->pos.y = 7.0f;
     camera->base->rot *= AngleAxis(Vec3::right, Deg2Rad(20.0f));
@@ -59,6 +60,7 @@ EntityManager InitEntityManager()
     player->groundAccel = 40.0f;
     
     auto pointLight = NewEntity<PointLight>(man);
+    pointLight->base->flags |= EntityFlags_NoMesh;
     
     float pos = 0.0f;
     
@@ -108,7 +110,7 @@ void FreeEntities(EntityManager* man)
     static_assert(4 == Entity_Count, "All entity type arrays should be freed");
 }
 
-void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* frameArena)
+void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* frameArena, CamParams* outCam)
 {
     bool inEditor = false;
 #ifdef Development
@@ -136,9 +138,24 @@ void MainUpdate(EntityManager* man, Editor* editor, float deltaTime, Arena* fram
     
     // Update
     if(inEditor)
+    {
         UpdateEditor(editor, deltaTime);
+        outCam->pos = editor->camPos;
+        outCam->rot = editor->camRot;
+        outCam->fov = editor->camParams.fov;
+        outCam->nearClip = editor->camParams.nearClip;
+        outCam->farClip = editor->camParams.farClip;
+    }
     else
+    {
         UpdateEntities(man, deltaTime);
+        TODO;
+        outCam->pos = editor->camPos;
+        outCam->rot = editor->camRot;
+        outCam->fov = editor->camParams.fov;
+        outCam->nearClip = editor->camParams.nearClip;
+        outCam->farClip = editor->camParams.farClip;
+    }
     
     // End of frame activities
     {

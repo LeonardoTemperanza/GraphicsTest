@@ -64,8 +64,21 @@ void R_BufferUpdate(R_Buffer* b, u64 offset, u64 size, void* data)
     
     D3D11_MAPPED_SUBRESOURCE mappedResource = {};
     r.context->Map((ID3D11Resource*)b->handle, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-	memmove(((u8*)mappedResource.pData) + offset, data, size);
-	r.context->Unmap((ID3D11Resource*)b->handle, 0);
+    memmove(((u8*)mappedResource.pData) + offset, data, size);
+    r.context->Unmap((ID3D11Resource*)b->handle, 0);
+}
+
+void R_BufferUniformBind(R_Buffer* b, u32 slot, R_ShaderType type)
+{
+    auto& r = renderer;
+    
+    switch(type)
+    {
+        case ShaderType_Null:   break;
+        case ShaderType_Count:  break;
+        case ShaderType_Vertex: r.context->VSSetConstantBuffers(slot, 1, &b->handle); break;
+        case ShaderType_Pixel:  r.context->PSSetConstantBuffers(slot, 1, &b->handle); break;
+    }
 }
 
 void R_BufferFree(R_Buffer* b)
@@ -193,17 +206,17 @@ R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void
     res.format = D3D11_ConvertTextureFormat(format);
     
     D3D11_TEXTURE2D_DESC desc = {0};
-	desc.Width = width;
-	desc.Height = height;
-	desc.MipLevels = 1;
-	desc.ArraySize = 1;
-	desc.Format = res.format;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.Usage = D3D11_ConvertTextureMutability(mutability);
-	desc.BindFlags = D3D11_GetTexBindFlags(usage);
-	desc.CPUAccessFlags = D3D11_GetTextureCPUAccess(mutability);
-	desc.MiscFlags = 0;
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = res.format;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Usage = D3D11_ConvertTextureMutability(mutability);
+    desc.BindFlags = D3D11_GetTexBindFlags(usage);
+    desc.CPUAccessFlags = D3D11_GetTextureCPUAccess(mutability);
+    desc.MiscFlags = 0;
     
     D3D11_FormatGetPixelSize(format);
     
@@ -506,10 +519,14 @@ void R_Draw(R_Buffer* verts, R_Buffer* indices, u64 start, u64 count)
     auto& r = renderer;
     
     // Set buffers
-    /*r.context->IASetIndexBuffer(indices->handle, DXGI_FORMAT_R32_UINT, 0);
-    r.context->IASetVertexBuffers(verts->handle, 0, 1, verts->handle, &verts->stride);
-    r.context->Draw(count, start);
-*/
+    UINT offset = 0;
+    r.context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    r.context->IASetVertexBuffers(0, 1, &verts->handle, &verts->stride, &offset);
+    r.context->IASetIndexBuffer(indices->handle, DXGI_FORMAT_R32_UINT, 0);
+    
+    if(count == 0) count = indices->size / sizeof(u32);
+    
+    r.context->DrawIndexed((UINT)count, (UINT)start, 0);
 }
 
 void R_Draw(R_Buffer* verts, u64 start, u64 count)
@@ -786,6 +803,30 @@ void R_Cleanup()
 #endif
 }
 
+// Miscellaneous
+Mat4 R_ConvertClipSpace(Mat4 mat)
+{
+    // I calculate the matrix for [-1, 1] in all axes with x pointing right,
+    // y pointing up, z pointing into the screen. DX is the same thing except it has
+    // z pointing outwards from the screen, and has range [0, 1] in the z axis,
+    // so we need to halve our value
+    
+    // First flip the z axis
+    mat.m13 *= -1;
+    mat.m23 *= -1;
+    mat.m33 *= -1;
+    mat.m43 = 1;
+    
+    // Convert z from [-1, 1] to [0, 1]
+    // (multiply with identity matrix but with m33 and m34 = 0.5)
+    mat.m31 = 0.5f * mat.m31 + 0.5f * mat.m41;
+    mat.m32 = 0.5f * mat.m32 + 0.5f * mat.m42;
+    mat.m33 = 0.5f * mat.m33 + 0.5f * mat.m43;
+    mat.m34 = 0.5f * mat.m34 + 0.5f * mat.m44;
+    
+    return mat;
+}
+
 // Dear ImGui
 void R_ImGuiInit()
 {
@@ -1005,20 +1046,23 @@ static D3D11_INPUT_ELEMENT_DESC D3D11_ConvertVertAttrib(R_VertAttrib attrib)
 {
     // TODO: Look into instancing
     
+    auto inputClass = D3D11_INPUT_PER_VERTEX_DATA;
     switch(attrib.type)
     {
         case VertAttrib_Pos:
-        return { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+        return { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
         case VertAttrib_Normal:
-        return { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+        return { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
         case VertAttrib_TexCoord:
-        return { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, attrib.bufferSlot, attrib.offset, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+        return { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
         case VertAttrib_Tangent:
-        return { "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+        return { "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
         case VertAttrib_Bitangent:
-        return { "BITANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, D3D11_INPUT_PER_VERTEX_DATA, 0 };
-        case VertAttrib_Color:
-        return { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, D3D11_INPUT_PER_VERTEX_DATA, 0 };
+        return { "BITANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
+        case VertAttrib_ColorRGB:
+        return { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
+        case VertAttrib_ColorScale:
+        return { "COLOR", 0, DXGI_FORMAT_R32_FLOAT, attrib.bufferSlot, attrib.offset, inputClass, attrib.typeSlot };
     }
     
     return {};
@@ -1036,12 +1080,13 @@ static String D3D11_BuildDummyShaderForInputLayout(Slice<R_VertAttrib> attribs, 
     {
         switch(attribs[i].type)
         {
-            case VertAttrib_Pos:       Append(&builder, "float3 pos : POSITION;\n");        break;
-            case VertAttrib_Normal:    Append(&builder, "float3 normal : NORMAL;\n");       break;
-            case VertAttrib_TexCoord:  Append(&builder, "float2 texCoord : TEXCOORD;\n");   break;
-            case VertAttrib_Tangent:   Append(&builder, "float3 tangent : TANGENT;\n");     break;
-            case VertAttrib_Bitangent: Append(&builder, "float3 bitangent : BITANGENT;\n"); break;
-            case VertAttrib_Color:     Append(&builder, "float3 color : COLOR;\n");         break;
+            case VertAttrib_Pos:        Append(&builder, "float3 pos : POSITION;\n");        break;
+            case VertAttrib_Normal:     Append(&builder, "float3 normal : NORMAL;\n");       break;
+            case VertAttrib_TexCoord:   Append(&builder, "float2 texCoord : TEXCOORD;\n");   break;
+            case VertAttrib_Tangent:    Append(&builder, "float3 tangent : TANGENT;\n");     break;
+            case VertAttrib_Bitangent:  Append(&builder, "float3 bitangent : BITANGENT;\n"); break;
+            case VertAttrib_ColorRGB:   Append(&builder, "float3 colorRGB : COLOR;\n");      break;
+            case VertAttrib_ColorScale: Append(&builder, "float colorScale : COLOR;\n");    break;
         }
     }
     

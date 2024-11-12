@@ -868,8 +868,10 @@ Mat4 World2ViewMatrix(Vec3 camPos, Quat camRot)
     return res;
 }
 
-Mat4 View2ProjPerspectiveMatrix(float nearClip, float farClip, float horizontalDegFov, float aspectRatio)
+Mat4 View2ProjPerspectiveMatrix(float nearClip, float farClip, float horizontalDegFov, float width, float height)
 {
+    const float aspectRatio = width / height;
+    
     const float n = nearClip;
     const float f = farClip;
     const float r = n * tan(Deg2Rad(horizontalDegFov) / 2.0f);

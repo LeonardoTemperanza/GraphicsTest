@@ -24,12 +24,14 @@ enum R_VertAttribType
     VertAttrib_TexCoord,
     VertAttrib_Tangent,
     VertAttrib_Bitangent,
-    VertAttrib_Color,
+    VertAttrib_ColorRGB,
+    VertAttrib_ColorScale,
 };
 
 struct R_VertAttrib
 {
     R_VertAttribType type;
+    u32 typeSlot;  // One could use the same type more than once
     u32 bufferSlot;
     u32 offset;
 };
@@ -202,8 +204,10 @@ struct R_DepthState;
 
 // Buffers
 R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 stride, u64 size = 0, void* initData = nullptr);
+#define R_BufferAllocStruct(flags, structName) R_BufferAlloc(flags, sizeof(structName), sizeof(structName), &structName)
 // TODO: Macros for allocating arrays and structs easily
 void R_BufferUpdate(R_Buffer* b, u64 offset, u64 size, void* data);
+#define R_BufferUpdateStruct(buffer, structVar) R_BufferUpdate(buffer, 0, sizeof(structVar), &structVar)
 void R_BufferUniformBind(R_Buffer* b, u32 slot, R_ShaderType type);
 void R_BufferFree(R_Buffer* b);
 
@@ -284,6 +288,9 @@ void R_PresentFrame();
 // NOTE: Should be called after R_WaitLastFrame and before any rendering commands
 void R_UpdateSwapchainSize();
 void R_Cleanup();
+
+// Miscellaneous
+Mat4 R_ConvertClipSpace(Mat4 mat);
 
 // Dear ImGui
 void R_ImGuiInit();
