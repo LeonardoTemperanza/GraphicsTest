@@ -1446,7 +1446,7 @@ u64 LookupIdx(StringMap<t>* map, String key)
 }
 
 template<typename k, typename v>
-v*Append(HashMap<k, v>* map, k key, const v& value)
+v* Append(HashMap<k, v>* map, k key, const v& value)
 {
     // TODO TODO TODO @speed
     // This is just O(n) instead of O(1)

@@ -46,7 +46,7 @@ struct ParseResult
     {
         bool defined;
         String entry;
-    } stages[ShaderKind_Count];
+    } stages[ShaderType_Count];
 };
 
 struct ShaderPragma
@@ -61,8 +61,8 @@ void SetWorkingDirRelativeToExe(const char* path);
 
 inline bool IsWhitespace(char c);
 int EatAllWhitespace(char** at);
-const wchar_t* D3D12_GetHLSLTarget(ShaderKind kind);
-const char* D3D11_GetHLSLTarget(ShaderKind kind);
+const wchar_t* D3D12_GetHLSLTarget(ShaderType kind);
+const char* D3D11_GetHLSLTarget(ShaderType kind);
 
 enum DxcCompilationKind
 {
@@ -70,11 +70,11 @@ enum DxcCompilationKind
     ToSpirv
 };
 
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo,
+String CompileHLSL(ShaderType shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo,
                    ComPtr<ID3D12ShaderReflection>& outReflection);
-String CompileHLSLForD3D11(const char* name, ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
-String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
-void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, const char* shaderPath, ShaderKind kind, int definedStages);
+String CompileHLSLForD3D11(const char* name, ShaderType shaderKind, String hlslSource, String entry, Arena* dst, bool* ok);
+String CompileToGLSL(ShaderType shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok);
+void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, const char* shaderPath, ShaderType kind, int definedStages);
 
 // Usage:
 // shader_importer.exe file_to_import.hlsl
@@ -128,14 +128,14 @@ int main(int argCount, char** args)
     {
         if(pragmas[i].name == "vs")
         {
-            auto& stage = result.stages[ShaderKind_Vertex];
+            auto& stage = result.stages[ShaderType_Vertex];
             stage.defined = true;
             stage.entry = pragmas[i].param;
             ++definedStages;
         }
         else if(pragmas[i].name == "ps")
         {
-            auto& stage = result.stages[ShaderKind_Pixel];
+            auto& stage = result.stages[ShaderType_Pixel];
             stage.defined = true;
             stage.entry = pragmas[i].param;
             ++definedStages;
@@ -148,9 +148,9 @@ int main(int argCount, char** args)
         return 1;
     }
     
-    for(int i = 0; i < ShaderKind_Count; ++i)
+    for(int i = 0; i < ShaderType_Count; ++i)
     {
-        ShaderKind shaderKind = (ShaderKind)i;
+        ShaderType shaderKind = (ShaderType)i;
         auto& stage = result.stages[i];
         if(stage.defined)
         {
@@ -196,7 +196,7 @@ int main(int argCount, char** args)
                 if(FAILED(hr) && errorBlob)
                 {
                     printf("HLSL->D3D11 Bytecode Failed - ");
-                    printf("%s shader compilation messages:\n", GetShaderKindString(shaderKind));
+                    printf("%s shader compilation messages:\n", GetShaderTypeString(shaderKind));
                     printf("%s", (char*)errorBlob->GetBufferPointer());
                     errorBlob->Release();
                     ok = false;
@@ -206,7 +206,7 @@ int main(int argCount, char** args)
                 assert(SUCCEEDED(hr));
                 
                 printf("HLSL->D3D11 OK - ");
-                printf("%s shader successfully compiled.\n", GetShaderKindString(shaderKind));
+                printf("%s shader successfully compiled.\n", GetShaderTypeString(shaderKind));
                 d3d11Bytecode = {.ptr=(const char*)bytecode->GetBufferPointer(), .len=(s64)bytecode->GetBufferSize()};
             }
             
@@ -230,7 +230,7 @@ int main(int argCount, char** args)
     return 0;
 }
 
-String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ComPtr<ID3D12ShaderReflection>& outReflection)
+String CompileHLSL(ShaderType shaderKind, String hlslSource, String entry, Arena* dst, bool* ok, DxcCompilationKind compileTo, ComPtr<ID3D12ShaderReflection>& outReflection)
 {
     String binary = {0};
     if(hlslSource.len <= 0) return binary;
@@ -280,7 +280,7 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     ComPtr<IDxcBlobUtf8> remarks;
     compileResult->GetOutput(DXC_OUT_REMARKS, IID_PPV_ARGS(&remarks), nullptr);
     
-    const char* shaderKindStr = GetShaderKindString(shaderKind);
+    const char* shaderKindStr = GetShaderTypeString(shaderKind);
     bool showErrors = errors && errors->GetStringLength();
     bool showRemarks = remarks && remarks->GetStringLength();
     if(showErrors || showRemarks)
@@ -333,7 +333,7 @@ String CompileHLSL(ShaderKind shaderKind, String hlslSource, String entry, Arena
     return binary;
 }
 
-String CompileHLSLForD3D11(const char* path, ShaderKind shaderKind, String hlslSource, String entry, Arena* dst, bool* ok)
+String CompileHLSLForD3D11(const char* path, ShaderType shaderKind, String hlslSource, String entry, Arena* dst, bool* ok)
 {
     ScratchArena scratch(dst);
     
@@ -365,7 +365,7 @@ String CompileHLSLForD3D11(const char* path, ShaderKind shaderKind, String hlslS
     if(FAILED(hr) && errorBlob)
     {
         printf("HLSL->D3D11 Bytecode Failed - ");
-        printf("%s shader compilation messages:\n", GetShaderKindString(shaderKind));
+        printf("%s shader compilation messages:\n", GetShaderTypeString(shaderKind));
         printf("%s", (char*)errorBlob->GetBufferPointer());
         errorBlob->Release();
         *ok = false;
@@ -375,11 +375,11 @@ String CompileHLSLForD3D11(const char* path, ShaderKind shaderKind, String hlslS
     assert(SUCCEEDED(hr));
     
     printf("HLSL->D3D11 OK - ");
-    printf("%s shader successfully compiled.\n", GetShaderKindString(shaderKind));
+    printf("%s shader successfully compiled.\n", GetShaderTypeString(shaderKind));
     return {.ptr=(const char*)bytecode->GetBufferPointer(), .len=(s64)bytecode->GetBufferSize()};
 }
 
-String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok)
+String CompileToGLSL(ShaderType shaderKind, String vulkanSpirvBinary, Arena* dst, bool* ok)
 {
     String binary = {0};
     if(vulkanSpirvBinary.len <= 0) return binary;
@@ -434,7 +434,7 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
         printf("Error while building combined image samplers: %s\n", e.what());
     }
     
-    const char* shaderKindStr = GetShaderKindString(shaderKind);
+    const char* shaderKindStr = GetShaderTypeString(shaderKind);
     
     std::string source;
     try
@@ -454,7 +454,7 @@ String CompileToGLSL(ShaderKind shaderKind, String vulkanSpirvBinary, Arena* dst
     return binary;
 }
 
-void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, const char* shaderPath, ShaderKind kind, int definedStages)
+void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String glsl, const char* shaderPath, ShaderType kind, int definedStages)
 {
     ScratchArena scratch;
     
@@ -467,7 +467,7 @@ void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String g
     
     ShaderBinaryHeader_v0 header = {0};
     // Metadata
-    header.shaderKind = kind;
+    header.shaderType = kind;
     
     Array<ShaderType> codeConstantsTypes = {};
     Array<ShaderType> materialConstantsTypes = {};
@@ -498,7 +498,7 @@ void BuildBinary(String d3d11Bytecode, String dxil, String vulkanSpirv, String g
     if(definedStages > 1)
     {
         Append(&outPath, "_");
-        Append(&outPath, GetShaderKindString(kind));
+        Append(&outPath, GetShaderTypeString(kind));
     }
     
     Append(&outPath, ".shader");
@@ -566,27 +566,29 @@ int EatAllWhitespace(char** at)
     return newlines;
 }
 
-const wchar_t* D3D12_GetHLSLTarget(ShaderKind kind)
+const wchar_t* D3D12_GetHLSLTarget(ShaderType kind)
 {
     const wchar_t* target = L"";
     switch(kind)
     {
-        default:                 target = L"";                 break;
-        case ShaderKind_Vertex:  target = d3d12_vertexTarget;  break;
-        case ShaderKind_Pixel:   target = d3d12_pixelTarget;   break;
+        case ShaderType_Null:    target = L"";                 break;
+        case ShaderType_Count:   target = L"";                 break;
+        case ShaderType_Vertex:  target = d3d12_vertexTarget;  break;
+        case ShaderType_Pixel:   target = d3d12_pixelTarget;   break;
     }
     
     return target;
 }
 
-const char* D3D11_GetHLSLTarget(ShaderKind kind)
+const char* D3D11_GetHLSLTarget(ShaderType kind)
 {
     const char* target = "";
     switch(kind)
     {
-        default:                 target = "";                  break;
-        case ShaderKind_Vertex:  target = d3d11_vertexTarget;  break;
-        case ShaderKind_Pixel:   target = d3d11_pixelTarget;   break;
+        case ShaderType_Null:    target = "";                  break;
+        case ShaderType_Count:   target = "";                  break;
+        case ShaderType_Vertex:  target = d3d11_vertexTarget;  break;
+        case ShaderType_Pixel:   target = d3d11_pixelTarget;   break;
     }
     
     return target;

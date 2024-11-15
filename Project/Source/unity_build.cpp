@@ -29,7 +29,7 @@
 #include "base.cpp"
 #include "main.cpp"
 #include "input.cpp"
-#include "core.cpp"
+#include "entities.cpp"
 #include "editor.cpp"
 #include "asset_system.cpp"
 #include "collision.cpp"

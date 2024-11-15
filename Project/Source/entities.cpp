@@ -1,6 +1,6 @@
 
 #include "os/os_generic.h"
-#include "core.h"
+#include "entities.h"
 #include "asset_system.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui/imgui.h"
@@ -15,7 +15,7 @@ EntityManager InitEntityManager()
     const char* cubePath     = "Common/Cube.mesh";
     const char* spherePath   = "Common/Cube.mesh";
     const char* cylinderPath = "Common/cylinder.mesh";
-    const char* pbr = "pbr.mat";
+    const char* raptoidMat   = "Raptoid/raptoid.mat";
     
     static Arena baseArena   = ArenaVirtualMemInit(GB(4), MB(2));
     static Arena cameraArena = ArenaVirtualMemInit(MB(64), MB(2));
@@ -27,17 +27,15 @@ EntityManager InitEntityManager()
     UseArena(&man->pointLights, &pointLightArena);
     static_assert(4 == Entity_Count, "Every array for each type should be based on an arena for pointer stability");
     
-    // When we'll actually load the scene we won't do a string lookup
-    // for each entity because that's stupid... We'll have the handle already
-    // saved, as well as the refcount for each asset already saved.
+    // TODO: Figure out how we want to do scene loading
     
     auto raptoid = NewEntity(man);
     raptoid->mesh = AcquireMesh(raptoidPath);
-    //raptoid->material = raptoidMat;
+    raptoid->material = AcquireMaterial(raptoidMat);
     
     auto quadEnt = NewEntity(man);
     quadEnt->mesh = AcquireMesh(cubePath);
-    //quadEnt->material = raptoidMat;
+    quadEnt->material = AcquireMaterial(raptoidMat);
     
     auto camera = NewEntity<Camera>(man);
     camera->base->flags |= EntityFlags_NoMesh;
@@ -52,7 +50,7 @@ EntityManager InitEntityManager()
     
     auto player = NewEntity<Player>(man);
     player->base->mesh = AcquireMesh(cylinderPath);
-    //player->base->material = raptoidMat;
+    player->base->material = AcquireMaterial(raptoidMat);
     player->base->scale = {0.5f, 1.0f, 0.5f};
     player->gravity = 20.0f;
     player->jumpVel = 10.0f;
@@ -67,7 +65,7 @@ EntityManager InitEntityManager()
     {
         Entity* e   = NewEntity(man);
         e->mesh     = AcquireMesh(spherePath);
-        //e->material = raptoidMat;
+        e->material = AcquireMaterial(raptoidMat);
         e->pos.x = pos;
         e->pos.z = -3.0f;
         pos += 3.0f;
@@ -76,7 +74,7 @@ EntityManager InitEntityManager()
     {
         Entity* e = NewEntity(man);
         e->mesh = AcquireMesh(spherePath);
-        //e->material = raptoidMat;
+        e->material = AcquireMaterial(raptoidMat);
         e->pos.x = pos;
         pos += 3.0f;
     }
@@ -87,7 +85,7 @@ EntityManager InitEntityManager()
         {
             e[i] = NewEntity(man);
             e[i]->mesh = AcquireMesh(raptoidPath);
-            //e[i]->material = raptoidMat;
+            e[i]->material = AcquireMaterial(raptoidMat);
             e[i]->pos.x = pos;
             pos += 3.0f;
         }

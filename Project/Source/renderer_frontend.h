@@ -79,7 +79,6 @@ struct GraphicsSettings
 {
     bool vsync;
     AntialiasingType aa;
-    
 };
 
 void SetGraphicsSettings(GraphicsSettings settings);

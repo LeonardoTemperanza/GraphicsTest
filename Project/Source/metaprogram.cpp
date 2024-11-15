@@ -7,34 +7,36 @@ static const char* const headers[] =
 {
     "asset_system.h",
     "base.h",
-    "core.h",
+    "entities.h",
     "editor.h",
     "input.h",
     "gameplay.h",
+    "renderer_frontend.h",
 };
 
 static const char* const impls[] =
 {
     "asset_system.cpp",
     "base.cpp",
-    "core.cpp",
+    "entities.cpp",
     "editor.cpp",
     "input.cpp",
     "main.cpp",
     "unity_build.cpp",
     "gameplay.cpp",
+    "renderer_frontend.cpp",
 };
 
 static const char* const paths[] =
 {
     "asset_system.h",
     "base.h",
-    "core.h",
+    "entities.h",
     "editor.h",
     "input.h",
     "asset_system.cpp",
     "base.cpp",
-    "core.cpp",
+    "entities.cpp",
     "editor.cpp",
     "input.cpp",
     "main.cpp",
@@ -44,6 +46,7 @@ static const char* const paths[] =
 };
 
 Array<String> introspectables = {0};
+Array<String> std140Structs = {0};
 
 // Current file to write to.
 FILE* outputFile;
@@ -107,6 +110,8 @@ int main()
     Println("");
     
     // First pass: gather all introspectables
+    // @refactor We should gather the entire type info
+    // for all types.
     auto ptr = ArenaZAllocArray(Slice<Token>, ArrayCount(paths), &permArena);
     Slice<Slice<Token>> tokensPerFile = {.ptr = ptr, .len = 2};
     for(int i = 0; i < ArrayCount(paths); ++i)
@@ -147,6 +152,9 @@ int main()
                 ParseError(p, p->at, "Expecting 'struct' after 'introspect()'");
         }
     }
+    
+    // TODO: Check generated type info
+    
     
     SetOutput(introspectionH);
     
@@ -266,11 +274,18 @@ void ParseFile(const char* path, Slice<Token> tokens, Arena* dst)
 void ParseIntrospection(Parser* p)
 {
     // Parse parameters to the introspect keyword
+    bool std140 = false;
     if(p->at->kind == Tok_OpenParen)
     {
         while(true)
         {
             ++p->at;
+            
+            if(p->at->kind == Tok_Ident && p->at->text == "std140")
+            {
+                ++p->at;
+                std140 = true;
+            }
             
             if(p->at->kind == Tok_CloseParen)
             {
@@ -289,6 +304,11 @@ void ParseIntrospection(Parser* p)
             ++p->at;
             
             Token* structName = p->at;
+            
+            if(std140)
+            {
+                
+            }
             
             Println("MemberDefinition _membersOf%.*s[] =", (int)structName->text.len, structName->text.ptr);
             Println("{");

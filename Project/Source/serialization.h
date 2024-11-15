@@ -10,13 +10,13 @@
 // NOTE: Shaders are serialized using these enum
 // values, so already existing ones should not be changed
 // (Count can and should be changed of course)
-enum ShaderKind
+enum ShaderType
 {
-    ShaderKind_None    = 0,
-    ShaderKind_Vertex  = 1,
-    ShaderKind_Pixel   = 2,
+    ShaderType_Null    = 0,
+    ShaderType_Vertex  = 1,
+    ShaderType_Pixel   = 2,
     
-    ShaderKind_Count,
+    ShaderType_Count,
 };
 
 // NOTE: Shaders are serialized using these enum
@@ -39,7 +39,7 @@ enum ShaderValType
 struct ShaderBinaryHeader_v0
 {
     // Metadata on the shader itself
-    u8 shaderKind;
+    u8 shaderType;
     
     // Material constants
     u32 matConstantsTypes;  // Points to an array of UniformType
@@ -90,13 +90,14 @@ struct AnimVert
     } boneWeights[MaxBonesInfluence];
 };
 
-inline const char* GetShaderKindString(ShaderKind kind)
+inline const char* GetShaderTypeString(ShaderType kind)
 {
     switch(kind)
     {
-        default:                 return "unknown";
-        case ShaderKind_Vertex:  return "vertex";
-        case ShaderKind_Pixel:   return "pixel";
+        case ShaderType_Null:   return "null";
+        case ShaderType_Count:   return "count";
+        case ShaderType_Vertex: return "vertex";
+        case ShaderType_Pixel:  return "pixel";
     }
     
     return "unknown";

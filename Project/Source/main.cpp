@@ -1,7 +1,7 @@
 
 #include "base.h"
 #include "os/os_generic.h"
-#include "core.h"
+#include "entities.h"
 #include "editor.h"
 #include "renderer_backend/generic.h"
 #include "sound/sound_generic.h"
@@ -73,8 +73,9 @@ int main()
         
         R_WaitLastFrame();
         
-        // Handle window events only now, because we only want to allow
-        // resizing after we've finished the last frame.
+        // NOTE: We handle window events specifically after the previous
+        // frame has been submitted, because we want to let the operating
+        // system resize only after having finished rendering the frame
         bool proceed = OS_HandleWindowEvents();
         if(!proceed) break;
         

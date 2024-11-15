@@ -3,7 +3,7 @@
 
 // Editor stuff
 
-#include "core.h"
+#include "entities.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui/imgui.h"
 #include "generated/introspection.h"

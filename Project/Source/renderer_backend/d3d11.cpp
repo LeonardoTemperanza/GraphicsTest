@@ -68,7 +68,7 @@ void R_BufferUpdate(R_Buffer* b, u64 offset, u64 size, void* data)
     r.context->Unmap((ID3D11Resource*)b->handle, 0);
 }
 
-void R_BufferUniformBind(R_Buffer* b, u32 slot, R_ShaderType type)
+void R_BufferUniformBind(R_Buffer* b, u32 slot, ShaderType type)
 {
     auto& r = renderer;
     
@@ -87,7 +87,7 @@ void R_BufferFree(R_Buffer* b)
 }
 
 // Shaders
-R_Shader R_ShaderAlloc(R_ShaderInput input, R_ShaderType type)
+R_Shader R_ShaderAlloc(R_ShaderInput input, ShaderType type)
 {
     auto& r = renderer;
     
@@ -118,7 +118,7 @@ void R_ShaderBind(R_Shader* shader)
     
     switch(shader->type)
     {
-        case ShaderType_Null: break;
+        case ShaderType_Null:  break;
         case ShaderType_Count: break;
         case ShaderType_Vertex:
         {
@@ -137,7 +137,7 @@ void R_ShaderFree(R_Shader* shader)
 {
     switch(shader->type)
     {
-        case ShaderType_Null: break;
+        case ShaderType_Null:  break;
         case ShaderType_Count: break;
         case ShaderType_Vertex:
         {
@@ -197,8 +197,15 @@ void R_DepthStateFree(R_DepthState* depth)
 }
 
 // Textures
-R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData, R_TextureUsage usage, R_TextureMutability mutability)
+R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData, R_TextureUsage usage, R_TextureMutability mutability, bool mips)
 {
+    auto& r = renderer;
+    
+    if(mips)
+    {
+        usage |= TextureUsage_ShaderResource | TextureUsage_Drawable;
+    }
+    
     R_Texture2D res = {};
     res.width = width;
     res.height = height;
@@ -208,7 +215,7 @@ R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void
     D3D11_TEXTURE2D_DESC desc = {0};
     desc.Width = width;
     desc.Height = height;
-    desc.MipLevels = 1;
+    desc.MipLevels = mips ? 0 : 1;  // 0 means use all mips
     desc.ArraySize = 1;
     desc.Format = res.format;
     desc.SampleDesc.Count = 1;
@@ -216,21 +223,42 @@ R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void
     desc.Usage = D3D11_ConvertTextureMutability(mutability);
     desc.BindFlags = D3D11_GetTexBindFlags(usage);
     desc.CPUAccessFlags = D3D11_GetTextureCPUAccess(mutability);
-    desc.MiscFlags = 0;
+    desc.MiscFlags = mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
     
-    D3D11_FormatGetPixelSize(format);
+    D3D11_SUBRESOURCE_DATA sd = {};
+    sd.pSysMem = initData;
+    sd.SysMemPitch = D3D11_FormatGetPixelSize(res.formatSimple) * width;
+    
+    r.device->CreateTexture2D(&desc, initData? &sd : nullptr, &res.handle);
+    
+    // Create resource view for texture if needed
+    if(usage & TextureUsage_ShaderResource)
+    {
+        
+        D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+        desc.Format = res.format;
+        desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        desc.Texture2D.MostDetailedMip = 0;
+        desc.Texture2D.MipLevels = mips ? -1 : 1; // -1 means use all mip levels
+        
+        r.device->CreateShaderResourceView(res.handle, &desc, &res.resView);
+        
+        if(mips) r.context->GenerateMips(res.resView);
+    }
     
     return res;
 }
 
-void R_Texture2DBind(R_Texture2D* t, u32 slot, R_ShaderType type)
+void R_Texture2DBind(R_Texture2D* t, u32 slot, ShaderType type)
 {
+    assert(t->resView && "Attempting to bind a texture which doesn't have a resource view");
+    
     auto& r = renderer;
     
     switch(type)
     {
-        case ShaderType_Null:  break;
-        case ShaderType_Count: break;
+        case ShaderType_Null:   break;
+        case ShaderType_Count:  break;
         case ShaderType_Vertex: r.context->VSSetShaderResources(slot, 1, &t->resView); break;
         case ShaderType_Pixel:  r.context->PSSetShaderResources(slot, 1, &t->resView); break;
     }
@@ -259,7 +287,7 @@ R_Sampler R_SamplerAlloc(R_SamplerFilter min, R_SamplerFilter mag, R_SamplerWrap
     return res;
 }
 
-void R_SamplerBind(R_Sampler* s, u32 slot, R_ShaderType type)
+void R_SamplerBind(R_Sampler* s, u32 slot, ShaderType type)
 {
     auto& r = renderer;
     
@@ -281,6 +309,10 @@ void R_SamplerFree(R_Sampler* sampler)
 R_Framebuffer R_FramebufferAlloc(u32 width, u32 height, R_Texture2D* colorAttachments, u32 colorAttachmentsCount, R_Texture2D depthStencilAttachment)
 {
     assert(colorAttachmentsCount > 0);
+    
+    // There are a few things missing which should be finished up
+    // before trying to use framebuffers
+    TODO;
     
     auto& r = renderer;
     
@@ -861,6 +893,7 @@ static u32 D3D11_FormatGetPixelSize(R_TextureFormat format)
         case TextureFormat_R:            return 1;
         case TextureFormat_RG:           return 2;
         case TextureFormat_RGBA:         return 4;
+        case TextureFormat_RGBA_SRGB:    return 4;
         case TextureFormat_DepthStencil: return 4;
     }
     
@@ -890,12 +923,13 @@ static DXGI_FORMAT D3D11_ConvertTextureFormat(R_TextureFormat format)
 {
     switch(format)
     {
-        case TextureFormat_Invalid: return DXGI_FORMAT_UNKNOWN;
-        case TextureFormat_Count:   return DXGI_FORMAT_UNKNOWN;
-        case TextureFormat_R32Int:  return DXGI_FORMAT_R32_SINT;
-        case TextureFormat_R:       return DXGI_FORMAT_R8_UNORM;
-        case TextureFormat_RG:      return DXGI_FORMAT_R8G8_UNORM;
-        case TextureFormat_RGBA:    return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case TextureFormat_Invalid:      return DXGI_FORMAT_UNKNOWN;
+        case TextureFormat_Count:        return DXGI_FORMAT_UNKNOWN;
+        case TextureFormat_R32Int:       return DXGI_FORMAT_R32_SINT;
+        case TextureFormat_R:            return DXGI_FORMAT_R8_UNORM;
+        case TextureFormat_RG:           return DXGI_FORMAT_R8G8_UNORM;
+        case TextureFormat_RGBA:         return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case TextureFormat_RGBA_SRGB:    return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         case TextureFormat_DepthStencil: return DXGI_FORMAT_D24_UNORM_S8_UINT;
     }
     
@@ -1146,110 +1180,6 @@ static D3D11_DEPTH_STENCIL_DESC D3D11_ConvertDepthStateDesc(R_DepthDesc desc)
     res.StencilEnable = false;
     return res;
 }
-
-// Old code, could still be useful though.
-#if 0
-R_Texture R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels)
-{
-    auto& r = renderer;
-    assert(numChannels >= 1 && numChannels <= 4);
-    assert(blob.ptr);
-    
-    R_Texture res = {};
-    res.kind = R_Tex2D;
-    
-    DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    switch(numChannels)
-    {
-        case 1:  format = DXGI_FORMAT_R8_UNORM;       break;
-        case 2:  format = DXGI_FORMAT_R8G8_UNORM;     break;
-        case 3:  format = DXGI_FORMAT_R8G8B8A8_UNORM; break;
-        case 4:  format = DXGI_FORMAT_R8G8B8A8_UNORM; break;
-        default: assert(false && "Unsupported channel count."); break;
-    }
-    
-    D3D11_TEXTURE2D_DESC texDesc = {};
-    texDesc.Width  = width;
-    texDesc.Height = height;
-    texDesc.MipLevels = 0;  // Let D3D generate mipmaps
-    texDesc.ArraySize = 1;
-    texDesc.Format = format;
-    texDesc.SampleDesc.Count = 1;
-    texDesc.Usage = D3D11_USAGE_DEFAULT;
-    texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-    texDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
-    
-    // Create the texture and upload data to GPU
-    {
-        HRESULT hr = r.device->CreateTexture2D(&texDesc, nullptr, &res.tex);
-        assert(SUCCEEDED(hr));
-        
-        r.context->UpdateSubresource(res.tex, 0, nullptr, blob.ptr, width * 4, 0);
-    }
-    
-    // Create a Shader Resource View
-    {
-        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = texDesc.Format;
-        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MostDetailedMip = 0;
-        srvDesc.Texture2D.MipLevels = -1; // Use all available mipmap levels
-        
-        HRESULT hr = r.device->CreateShaderResourceView(res.tex, &srvDesc, &res.view);
-        assert(SUCCEEDED(hr));
-    }
-    
-    // Generate mipmaps
-    r.context->GenerateMips(res.view);
-    
-    return res;
-}
-
-Mat4 R_ConvertClipSpace(Mat4 mat)
-{
-    // I calculate the matrix for [-1, 1] in all axes with x pointing right,
-    // y pointing up, z pointing into the screen. DX is the same thing except it has
-    // z pointing outwards from the screen, and has range [0, 1] in the z axis,
-    // so we need to halve our value
-    
-    // First flip the z axis
-    mat.m13 *= -1;
-    mat.m23 *= -1;
-    mat.m33 *= -1;
-    mat.m43 = 1;
-    
-    // Convert z from [-1, 1] to [0, 1]
-    // (multiply with identity matrix but with m33 and m34 = 0.5)
-    mat.m31 = 0.5f * mat.m31 + 0.5f * mat.m41;
-    mat.m32 = 0.5f * mat.m32 + 0.5f * mat.m42;
-    mat.m33 = 0.5f * mat.m33 + 0.5f * mat.m43;
-    mat.m34 = 0.5f * mat.m34 + 0.5f * mat.m44;
-    
-    return mat;
-}
-
-// Libraries
-void R_DearImguiInit()
-{
-    ImGui_ImplDX11_Init(renderer.device, renderer.context);
-}
-
-void R_DearImguiBeginFrame()
-{
-    ImGui_ImplDX11_NewFrame();
-}
-
-void R_DearImguiRender()
-{
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-}
-
-void R_DearImguiShutdown()
-{
-    ImGui_ImplDX11_Shutdown();
-}
-
-#endif
 
 // Undefine backend specific macros
 #undef SafeRelease

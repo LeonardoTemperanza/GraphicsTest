@@ -36,15 +36,6 @@ struct R_VertAttrib
     u32 offset;
 };
 
-enum R_ShaderType
-{
-    ShaderType_Null = 0,
-    ShaderType_Vertex,
-    ShaderType_Pixel,
-    
-    ShaderType_Count
-};
-
 enum R_BlendMode
 {
     BlendMode_None = 0,
@@ -83,21 +74,10 @@ enum R_TextureFormat
     TextureFormat_R,
     TextureFormat_RG,
     TextureFormat_RGBA,
+    TextureFormat_RGBA_SRGB,
     TextureFormat_DepthStencil,
     
     TextureFormat_Count
-};
-
-enum R_TextureChannel
-{
-    TextureChannel_Zero,
-    TextureChannel_One,
-    TextureChannel_R,
-    TextureChannel_G,
-    TextureChannel_B,
-    TextureChannel_A,
-    
-    TextureChannel_Count,
 };
 
 enum R_TextureMutability
@@ -208,11 +188,11 @@ R_Buffer R_BufferAlloc(R_BufferFlags flags, u32 stride, u64 size = 0, void* init
 // TODO: Macros for allocating arrays and structs easily
 void R_BufferUpdate(R_Buffer* b, u64 offset, u64 size, void* data);
 #define R_BufferUpdateStruct(buffer, structVar) R_BufferUpdate(buffer, 0, sizeof(structVar), &structVar)
-void R_BufferUniformBind(R_Buffer* b, u32 slot, R_ShaderType type);
+void R_BufferUniformBind(R_Buffer* b, u32 slot, ShaderType type);
 void R_BufferFree(R_Buffer* b);
 
 // Shaders
-R_Shader R_ShaderAlloc(R_ShaderInput input, R_ShaderType type);
+R_Shader R_ShaderAlloc(R_ShaderInput input, ShaderType type);
 void R_ShaderBind(R_Shader* shader);
 void R_ShaderFree(R_Shader* shader);
 
@@ -229,9 +209,10 @@ void R_DepthStateFree(R_DepthState* depth);
 // Textures
 R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData = nullptr,
                              R_TextureUsage usage = TextureUsage_ShaderResource | TextureUsage_Drawable,
-                             R_TextureMutability mutability = TextureMutability_Immutable);
+                             R_TextureMutability mutability = TextureMutability_Mutable,
+                             bool mips = false);
 void R_Texture2DTransfer(R_Texture2D* t, String data);
-void R_Texture2DBind(R_Texture2D* t, u32 slot, R_ShaderType type);
+void R_Texture2DBind(R_Texture2D* t, u32 slot, ShaderType type);
 void R_Texture2DFree(R_Texture2D* t);
 struct R_CubemapBinary
 {
@@ -242,7 +223,7 @@ void R_CubemapAlloc(R_Cubemap* c, u32 width, u32 height, R_CubemapBinary initDat
                     R_TextureUsage usage = TextureUsage_ShaderResource | TextureUsage_Drawable,
                     R_TextureMutability mutability = TextureMutability_Immutable);
 void R_CubemapTransfer(R_Cubemap* c, R_CubemapBinary data);
-void R_CubemapBind(R_Cubemap* c, u32 slot, R_ShaderType type);
+void R_CubemapBind(R_Cubemap* c, u32 slot, ShaderType type);
 void R_CubemapFree(R_Cubemap* c);
 
 // Samplers
@@ -250,7 +231,7 @@ R_Sampler R_SamplerAlloc(R_SamplerFilter min = SamplerFilter_LinearMipmapLinear,
                          R_SamplerFilter mag = SamplerFilter_LinearMipmapLinear,
                          R_SamplerWrap wrapU = SamplerWrap_Repeat,
                          R_SamplerWrap wrapV = SamplerWrap_Repeat);
-void R_SamplerBind(R_Sampler* s, u32 slot, R_ShaderType type);
+void R_SamplerBind(R_Sampler* s, u32 slot, ShaderType type);
 void R_SamplerFree(R_Sampler* s);
 
 // Framebuffers
@@ -297,222 +278,3 @@ void R_ImGuiInit();
 void R_ImGuiShutdown();
 void R_ImGuiNewFrame();
 void R_ImGuiDrawFrame();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-
-// First we define the backend independent types
-
-struct R_PerSceneData
-{
-    int test;
-};
-
-struct R_PerFrameData
-{
-    Mat4 world2View;
-    Mat4 view2Proj;
-    Vec3 viewPos;
-};
-
-struct R_PerObjData
-{
-    Mat4 model2World;
-};
-
-R_UniformValue MakeUniformFloat(float value);
-R_UniformValue MakeUniformInt(int value);
-R_UniformValue MakeUniformUInt(u32 value);
-R_UniformValue MakeUniformVec3(Vec3 value);
-R_UniformValue MakeUniformVec4(Vec4 value);
-R_UniformValue MakeUniformMat4(Mat4 value);
-
-Slice<uchar> MakeUniformBufferStd140(Slice<R_UniformValue> desc, Arena* dst);
-
-// Types defined in the respective .h files:
-struct R_Mesh;
-struct R_Texture;
-struct R_Sampler;
-struct R_Framebuffer;
-struct R_Shader;
-
-void R_SetToDefaultState();
-
-struct ShaderInput
-{
-    String d3d11Bytecode;
-    String dxil;
-    String vulkanSpirv;
-    String glsl;
-};
-
-// Slots for texture/sampler/uniform binding.
-// NOTE: These need to be kept in sync with the ones
-// in common.hlsli
-enum TextureSlot
-{
-    CodeTex0     = 0,
-    CodeTex1     = 1,
-    CodeTex2     = 2,
-    CodeTex3     = 3,
-    CodeTex4     = 4,
-    CodeTex5     = 5,
-    CodeTex6     = 6,
-    CodeTex7     = 7,
-    CodeTex8     = 8,
-    CodeTex9     = 9,
-    MaterialTex0 = 10,
-    MaterialTex1 = 11,
-    MaterialTex2 = 12,
-    MaterialTex3 = 13,
-    MaterialTex4 = 14,
-    MaterialTex5 = 15,
-    MaterialTex6 = 16,
-    MaterialTex7 = 17,
-    MaterialTex8 = 18,
-    MaterialTex9 = 19,
-};
-
-enum SamplerSlot
-{
-    CodeSampler0     = 0,
-    CodeSampler1     = 1,
-    CodeSampler2     = 2,
-    CodeSampler3     = 3,
-    CodeSampler4     = 4,
-    CodeSampler5     = 5,
-    CodeSampler6     = 6,
-    CodeSampler7     = 7,
-    CodeSampler8     = 8,
-    CodeSampler9     = 9,
-    MaterialSampler0 = 10,
-    MaterialSampler1 = 11,
-    MaterialSampler2 = 12,
-    MaterialSampler3 = 13,
-    MaterialSampler4 = 14,
-    MaterialSampler5 = 15,
-    MaterialSampler6 = 16,
-    MaterialSampler7 = 17,
-    MaterialSampler8 = 18,
-    MaterialSampler9 = 19,
-};
-
-enum CBufferSlot
-{
-    PerSceneCBuf      = 0,
-    PerFrameCBuf      = 1,
-    PerObjCBuf        = 2,
-    CodeConstants     = 3,
-    MaterialConstants = 4,
-};
-
-#ifdef GFX_OPENGL
-#include "renderer_backend/opengl.h"
-#elif defined(GFX_D3D11)
-#include "renderer_backend/d3d11.h"
-#else
-#error "Unsupported gfx api."
-#endif
-
-// From this point, these functions are all gfx api dependent
-
-// Initializes the graphics API context
-void R_Init();
-void R_Cleanup();
-
-void R_ResizeSwapchainIfNecessary();  // Must be called after R_WaitLastFrameAndBeginCurrentFrame
-void R_WaitLastFrameAndBeginCurrentFrame();
-void R_PresentFrame();
-
-// Utils
-// Convert the view to projection matrix based on the API's
-// clip space coordinate system
-Mat4 R_ConvertClipSpace(Mat4 mat);
-
-// CPU <-> GPU transfers
-R_Mesh        R_UploadMesh(Slice<Vertex> verts, Slice<s32> indices);
-R_Mesh        R_UploadSkinnedMesh(Slice<AnimVert> verts, Slice<s32> indices);
-R_Mesh        R_UploadBasicMesh(Slice<Vec3> verts, Slice<Vec3> normals, Slice<s32> indices);
-R_Texture     R_UploadTexture(String blob, u32 width, u32 height, u8 numChannels);
-R_Texture     R_UploadCubemap(String top, String bottom, String left, String right, String front, String back, u32 width,
-                              u32 height, u8 numChannels);
-R_Shader      R_CreateDefaultShader(ShaderKind kind);
-R_Mesh        R_CreateDefaultMesh();
-R_Shader      R_CreateShader(ShaderKind kind, ShaderInput input);
-R_Pipeline    R_CreatePipeline(Slice<R_Shader> shaders);
-R_Framebuffer R_DefaultFramebuffer();
-R_Framebuffer R_CreateFramebuffer(int width, int height, bool color, R_TextureFormat colorFormat, bool depth, bool stencil);
-void          R_ResizeFramebuffer(R_Framebuffer framebuffer, int width, int height);  // Only resizes if necessary
-
-// TODO: Resource destruction
-//void DestroyMesh(R_Mesh* mesh);
-//void DestroyTexture(R_Texture* tex);
-
-// Drawing
-void R_DrawMesh(R_Mesh mesh);
-void R_DrawArrow(Vec3 ori, Vec3 dst, float baseRadius, float coneRadius, float coneLength);
-void R_DrawSphere(Vec3 center, float radius);
-void R_DrawInvertedSphere(Vec3 center, float radius);
-void R_DrawCone(Vec3 baseCenter, Vec3 dir, float radius, float length);
-void R_DrawCylinder(Vec3 center, Vec3 dir, float radius, float height);
-// Counter clockwise is assumed. Both faces face the same way
-void R_DrawQuad(Vec3 v1, Vec3 v2, Vec3 v3, Vec3 v4);
-void R_DrawFullscreenQuad();
-
-// Setting state
-void R_SetViewport(int width, int height);
-void R_SetVertexShader(R_Shader shader);
-void R_SetPixelShader(R_Shader shader);
-void R_SetFramebuffer(R_Framebuffer framebuffer);
-void R_SetTexture(R_Texture texture, ShaderKind kind, TextureSlot slot);
-void R_SetSampler(R_SamplerKind samplerKind, ShaderKind kind, SamplerSlot slot);
-
-void R_SetPerSceneData();
-void R_SetPerFrameData(Mat4 world2View, Mat4 view2Proj, Vec3 viewPos);
-void R_SetPerObjData(Mat4 model2World, Mat3 normalMat);
-#define R_SetCodeConstants(shader, desc) R_SetCodeConstants_(desc, __FILE__, __LINE__)
-void R_SetCodeConstants_(R_Shader shader, Slice<R_UniformValue> desc, const char* callFile, int callLine);
-struct Material;
-bool R_CheckMaterial(Material* mat, String matName);
-void R_SetMaterialConstants(R_Shader shader, Slice<R_UniformValue> desc);
-
-void R_ClearFrame(Vec4 color);
-void R_ClearFrameInt(int r, int g, int b, int a);
-void R_ClearDepth();
-void R_DepthTest(bool enable);
-void R_CullFace(bool enable);
-void R_AlphaBlending(bool enable);
-
-// Getting state
-R_Texture R_GetFramebufferColorTexture(R_Framebuffer framebuffer);
-// Read to CPU, (0, 0) is bottom left and (width, height) top right
-int R_ReadIntPixelFromFramebuffer(int x, int y);
-Vec4 R_ReadPixelFromFramebuffer(int x, int y);
-R_Sampler GetSampler(R_SamplerKind kind);
-
-// Libraries
-void R_DearImguiInit();
-void R_DearImguiBeginFrame();
-void R_DearImguiRender();
-void R_DearImguiShutdown();
-
-#endif

@@ -43,10 +43,11 @@ float4 pixelMain(Vert2Pixel input) : SV_TARGET
     float3 lightSpecularColor = float3(0.2f, 0.2f, 0.2f);
     
     // Compute normal
-    float3 normalSample = normalize(normalMap.Sample(linearSampler, input.uv).xyz * 2.0f - 1.0f);
-    float3x3 tbn = float3x3(input.tangent, bitangent, input.normal);
-    float3 normal = mul(normalSample, tbn);
-    
+    //float3 normalSample = normalize(normalMap.Sample(linearSampler, input.uv).xyz * 2.0f - 1.0f);
+    //float3x3 tbn = float3x3(input.tangent, bitangent, input.normal);
+    //float3 normal = mul(normalSample, tbn);
+    float3 normal = input.normal;    
+
     // Sample textures
     float4 diffuseSample = diffuseMap.Sample(linearSampler, input.uv);
     

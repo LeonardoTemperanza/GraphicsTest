@@ -24,8 +24,12 @@ REM Generate introspection info from the metaprogram
 cl /Zi /std:c++20 /nologo /FC ..\Source\metaprogram.cpp
 metaprogram
 
+REM Uncomment to turn on sanitizer
+REM set sanitizer=/fsanitize=address
+set sanitizer=
+
 REM Development build, debug is enabled, profiling and optimization disabled
-cl /Zi /Od /DBoundsChecking %common%
+cl /Zi /Od /DBoundsChecking %sanitizer% %common%
 set build_ret=%errorlevel%
 
 REM NOTE: In release, to remove the terminal, you can do: /subsystem:WINDOWS /entry:mainCRTStartup

@@ -97,6 +97,7 @@ struct RenderResources
 };
 
 static RenderResources renderResources;
+static GraphicsSettings gfxSettings;
 
 Mesh StaticMeshAlloc(StaticMeshInput input)
 {
@@ -115,6 +116,16 @@ void MeshFree(Mesh* mesh)
 {
     R_BufferFree(&mesh->vertBuffer);
     R_BufferFree(&mesh->idxBuffer);
+}
+
+static void UseMaterial(Material* mat)
+{
+    R_ShaderBind(GetAsset(mat->shader));
+    
+    for(int i = 0; i < mat->textures.len; ++i)
+    {
+        R_Texture2DBind(GetAsset(mat->textures[i]), MatTex0 + i, ShaderType_Pixel);
+    }
 }
 
 void RenderResourcesInit()
@@ -146,9 +157,9 @@ void RenderResourcesInit()
         res.skinnedLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
     }
     
-#if 0
     res.commonSampler = R_SamplerAlloc();
     
+#if 0
     res.selectionColor = R_Texture2DAlloc(TextureFormat_R32Int, w, h);
     res.selectionDepth = R_Texture2DAlloc(TextureFormat_DepthStencil, w, h);
     res.selectionBuffer  = R_FramebufferAlloc(w, h, &res.selectionColor, 1, res.selectionDepth);
@@ -195,8 +206,8 @@ void UpdateFramebuffers()
 void RenderResourcesCleanup()
 {
     // Not a priority right now. These resources are supposed to
-    // live as long as the program does, and the os will clean up
-    // these for you, so right now we don't worry too much.
+    // live as long as the program does, and the os will clean these
+    // up for you, so right now we don't worry too much.
     
 #if 0
     auto& res = renderResources;
@@ -227,7 +238,7 @@ void RenderFrame(EntityManager* entities, CamParams cam)
     R_FramebufferFillColorFloat(screen, 0, 0.5f, 0.5f, 0.5f, 1.0f);
     
     R_ShaderBind(GetAsset(res.staticVertShader));
-    R_ShaderBind(GetAsset(res.simplePixelShader));
+    //R_ShaderBind(GetAsset(res.simplePixelShader));
     
     R_FramebufferBind(R_GetScreen());
     
@@ -267,8 +278,11 @@ void RenderFrame(EntityManager* entities, CamParams cam)
         
         PerObj perObj = {};
         perObj.model2World = ComputeWorldTransform(entities, ent);
+        perObj.normalMat = transpose(ComputeTransformInverse(perObj.model2World));
         R_BufferUpdateStruct(&res.perObj, perObj);
         
+        R_SamplerBind(&res.commonSampler, CodeSampler0, ShaderType_Pixel);
+        UseMaterial(GetAsset(ent->material));
         DrawMesh(GetAsset(ent->mesh));
     }
     

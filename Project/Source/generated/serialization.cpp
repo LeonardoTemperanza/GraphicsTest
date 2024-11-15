@@ -9,8 +9,9 @@
 // Including all project headers to pick up struct declarations
 #include "asset_system.h"
 #include "base.h"
-#include "core.h"
+#include "entities.h"
 #include "editor.h"
 #include "input.h"
 #include "gameplay.h"
+#include "renderer_frontend.h"
 
