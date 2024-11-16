@@ -10,7 +10,6 @@ static const char* const headers[] =
     "entities.h",
     "editor.h",
     "input.h",
-    "gameplay.h",
     "renderer_frontend.h",
 };
 
@@ -23,10 +22,10 @@ static const char* const impls[] =
     "input.cpp",
     "main.cpp",
     "unity_build.cpp",
-    "gameplay.cpp",
     "renderer_frontend.cpp",
 };
 
+#if 0
 static const char* const paths[] =
 {
     "asset_system.h",
@@ -44,6 +43,7 @@ static const char* const paths[] =
     "gameplay.h",
     "gameplay.cpp",
 };
+#endif
 
 Array<String> introspectables = {0};
 Array<String> std140Structs = {0};
@@ -66,6 +66,12 @@ void SetOutput(FILE* file)
 int main()
 {
     InitScratchArenas();
+    
+    Array<const char*> paths = {};
+    for(int i = 0; i < ArrayCount(headers); ++i)
+        Append(&paths, headers[i]);
+    for(int i = 0; i < ArrayCount(impls); ++i)
+        Append(&paths, impls[i]);
     
     Arena permArena = ArenaVirtualMemInit(GB(2), MB(2));
     

@@ -75,6 +75,7 @@ enum R_TextureFormat
     TextureFormat_RG,
     TextureFormat_RGBA,
     TextureFormat_RGBA_SRGB,
+    TextureFormat_RGBA_HDR,
     TextureFormat_DepthStencil,
     
     TextureFormat_Count
@@ -210,7 +211,8 @@ void R_DepthStateFree(R_DepthState* depth);
 R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData = nullptr,
                              R_TextureUsage usage = TextureUsage_ShaderResource | TextureUsage_Drawable,
                              R_TextureMutability mutability = TextureMutability_Mutable,
-                             bool mips = false);
+                             bool mips = false,
+                             u8 sampleCount = 1);
 void R_Texture2DTransfer(R_Texture2D* t, String data);
 void R_Texture2DBind(R_Texture2D* t, u32 slot, ShaderType type);
 void R_Texture2DFree(R_Texture2D* t);
@@ -242,13 +244,13 @@ void R_FramebufferBind(const R_Framebuffer* f);
 void R_FramebufferResize(const R_Framebuffer* f, u32 newWidth, u32 newHeight);
 void R_FramebufferClear(const R_Framebuffer* f, R_BufferMask mask);
 // Unused channels will naturally be ignored
-void R_FramebufferFillColorFloat(const R_Framebuffer* f, u32 slot, f64 r, f64 g, f64 b, f64 a);
-void R_FramebufferFillColorInt(const R_Framebuffer* f, u32 slot, u64 r, u64 g, u64 b, u64 a);
+void R_FramebufferFillColor(const R_Framebuffer* f, u32 slot, f64 r, f64 g, f64 b, f64 a);
 // NOTE: This causes a stall on the CPU, as it will wait until the data is transferred,
 // so try to call this at the end of the frame if necessary
 // (0, 0) is located on the bottom left of the image.
 // This function returns 0 for unused channels in the corresponding index
 IVec4 R_FramebufferReadColor(const R_Framebuffer* f, u32 slot, s32 x, s32 y);
+void R_FramebufferResolve(R_Framebuffer* src, R_Framebuffer* dst);
 void R_FramebufferFree(R_Framebuffer* f);
 
 // Vertex layouts

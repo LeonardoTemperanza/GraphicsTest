@@ -1,0 +1,9 @@
+
+:/material
+pixel_shader: CompiledShaders/pbr.shader
+
+:/textures
+# Diffuse
+grey.png
+# Normals
+Raptoid/Raptoid_material1_Normals.jpg

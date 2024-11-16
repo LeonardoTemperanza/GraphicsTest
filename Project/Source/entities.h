@@ -70,6 +70,9 @@ introspect()
 struct Camera
 {
     Entity* base;
+    float fov;
+    float nearClip;
+    float farClip;
 };
 
 introspect()
@@ -126,12 +129,6 @@ struct EntityManager
     Slice<Slice<Entity*>> liveChildrenPerEntity;
     
     Array<PointLight> framePointLights;
-};
-
-struct GraphicsResources
-{
-    R_Sampler linearSampler;
-    R_Sampler shadowSampler;
 };
 
 struct Editor;
@@ -198,4 +195,4 @@ Slice<Slice<Entity*>> ComputeAllLiveChildrenForEachEntity(EntityManager* man, Ar
 bool IsChild(EntityManager* man, Entity* suspectedChild, Entity* entity);
 
 // Gameplay code
-void UpdatePlayer(Player* player, float deltaTime);
+void UpdatePlayer(EntityManager* man, Player* player, float deltaTime);

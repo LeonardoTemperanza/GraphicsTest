@@ -12,7 +12,6 @@
 #include "entities.h"
 #include "editor.h"
 #include "input.h"
-#include "gameplay.h"
 #include "renderer_frontend.h"
 
 MemberDefinition _membersOfEntity[] =
@@ -36,6 +35,9 @@ MetaStruct metaEntity =
 MemberDefinition _membersOfCamera[] =
 {
 { { Meta_Unknown }, offsetof(Camera, base), sizeof(((Camera*)0)->base), StrLit("Camera"), "Camera", StrLit("Base"), "Base", 0, true},
+{ { Meta_Float }, offsetof(Camera, fov), sizeof(((Camera*)0)->fov), StrLit("Camera"), "Camera", StrLit("Fov"), "Fov", 0, true},
+{ { Meta_Float }, offsetof(Camera, nearClip), sizeof(((Camera*)0)->nearClip), StrLit("Camera"), "Camera", StrLit("Near Clip"), "Near Clip", 0, true},
+{ { Meta_Float }, offsetof(Camera, farClip), sizeof(((Camera*)0)->farClip), StrLit("Camera"), "Camera", StrLit("Far Clip"), "Far Clip", 0, true},
 };
 
 MetaStruct metaCamera =

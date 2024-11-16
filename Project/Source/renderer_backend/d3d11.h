@@ -72,17 +72,17 @@ struct R_Framebuffer
     R_TextureFormat colorFormatSimple;
     
     Array<ID3D11RenderTargetView*> rtv;
-    ID3D11DepthStencilView* dsv;  // Could be nullptr
+    ID3D11DepthStencilView* dsv;
     
-    // In the case of the screen framebuffer this can't be accessed
-    // so this will actually be empty
     Array<ID3D11Texture2D*> colorTextures;
+    ID3D11Texture2D* depthStencilTexture;
 };
 
 struct Renderer
 {
     ID3D11Device* device;
     ID3D11DeviceContext* context;
+    ID3D11Texture2D* backbuffer;
     IDXGISwapChain2* swapchain;
     // This lets us wait until the last frame has been presented,
     // which is good because it lets us reduce latency

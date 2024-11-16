@@ -197,9 +197,11 @@ void R_DepthStateFree(R_DepthState* depth)
 }
 
 // Textures
-R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData, R_TextureUsage usage, R_TextureMutability mutability, bool mips)
+R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void* initData, R_TextureUsage usage, R_TextureMutability mutability, bool mips, u8 sampleCount)
 {
     auto& r = renderer;
+    
+    assert(sampleCount > 0);
     
     if(mips)
     {
@@ -218,10 +220,11 @@ R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void
     desc.MipLevels = mips ? 0 : 1;  // 0 means use all mips
     desc.ArraySize = 1;
     desc.Format = res.format;
-    desc.SampleDesc.Count = 1;
-    desc.SampleDesc.Quality = 0;
+    desc.SampleDesc.Count = sampleCount;
+    desc.SampleDesc.Quality = sampleCount > 1 ? D3D11_STANDARD_MULTISAMPLE_PATTERN : 0;
     desc.Usage = D3D11_ConvertTextureMutability(mutability);
     desc.BindFlags = D3D11_GetTexBindFlags(usage);
+    if(res.formatSimple == TextureFormat_DepthStencil) desc.BindFlags |= D3D11_BIND_DEPTH_STENCIL;
     desc.CPUAccessFlags = D3D11_GetTextureCPUAccess(mutability);
     desc.MiscFlags = mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
     
@@ -237,7 +240,7 @@ R_Texture2D R_Texture2DAlloc(R_TextureFormat format, u32 width, u32 height, void
         
         D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
         desc.Format = res.format;
-        desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        desc.ViewDimension = sampleCount > 1 ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
         desc.Texture2D.MostDetailedMip = 0;
         desc.Texture2D.MipLevels = mips ? -1 : 1; // -1 means use all mip levels
         
@@ -310,10 +313,6 @@ R_Framebuffer R_FramebufferAlloc(u32 width, u32 height, R_Texture2D* colorAttach
 {
     assert(colorAttachmentsCount > 0);
     
-    // There are a few things missing which should be finished up
-    // before trying to use framebuffers
-    TODO;
-    
     auto& r = renderer;
     
     if(width < 1)  width = 1;
@@ -328,6 +327,7 @@ R_Framebuffer R_FramebufferAlloc(u32 width, u32 height, R_Texture2D* colorAttach
         res.colorFormatSimple = colorAttachments[0].formatSimple;
     }
     
+    // Color attachments
     Resize(&res.colorTextures, colorAttachmentsCount);
     Resize(&res.rtv, colorAttachmentsCount);
     for(u32 i = 0; i < colorAttachmentsCount; ++i)
@@ -342,8 +342,9 @@ R_Framebuffer R_FramebufferAlloc(u32 width, u32 height, R_Texture2D* colorAttach
         assert(SUCCEEDED(hr));
     }
     
-    // Depth stencil target view
-    TODO;
+    // Depth stencil attachment
+    res.depthStencilTexture = depthStencilAttachment.handle;
+    r.device->CreateDepthStencilView(res.depthStencilTexture, nullptr, &res.dsv);
     
     return res;
 }
@@ -361,6 +362,7 @@ void R_FramebufferBind(const R_Framebuffer* f)
 void R_FramebufferResize(R_Framebuffer* f, u32 newWidth, u32 newHeight)
 {
     // Need to recreate all textures and associated views.
+    TODO;
 }
 
 void R_FramebufferClear(const R_Framebuffer* f, R_BufferMask mask)
@@ -382,22 +384,11 @@ void R_FramebufferClear(const R_Framebuffer* f, R_BufferMask mask)
         r.context->ClearDepthStencilView(f->dsv, clearFlag, 1.0f, 0);
 }
 
-void R_FramebufferFillColorFloat(const R_Framebuffer* f, u32 slot, f64 r, f64 g, f64 b, f64 a)
+void R_FramebufferFillColor(const R_Framebuffer* f, u32 slot, f64 r, f64 g, f64 b, f64 a)
 {
     assert((s32)slot < f->rtv.len);
     float array[4] = { (float)r, (float)g, (float)b, (float)a };
     renderer.context->ClearRenderTargetView(f->rtv[slot], array);
-}
-
-void R_FramebufferFillColorInt(const R_Framebuffer* f, u32 slot, s32 r, s32 g, s32 b, s32 a)
-{
-    assert((s32)slot < f->rtv.len);
-    
-    // The microsoft docs recommend drawing a full screen quad
-    // for clearing integer textures:
-    // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-clearrendertargetview#remarks
-    
-    TODO;
 }
 
 IVec4 R_FramebufferReadColor(const R_Framebuffer* f, u32 slot, u32 x, u32 y)
@@ -463,6 +454,16 @@ IVec4 R_FramebufferReadColor(const R_Framebuffer* f, u32 slot, u32 x, u32 y)
     }
     else
         return {0, 0, 0, 0};
+}
+
+void R_FramebufferResolve(R_Framebuffer* src, const R_Framebuffer* dst)
+{
+    assert(src->colorTextures.len == dst->colorTextures.len);
+    
+    auto& r = renderer;
+    
+    for(int i = 0; i < src->colorTextures.len; ++i)
+        r.context->ResolveSubresource(dst->colorTextures[i], 0, src->colorTextures[i], 0, dst->colorFormat);
 }
 
 void R_FramebufferFree(R_Framebuffer* f)
@@ -676,15 +677,16 @@ void R_Init()
     
     // Create screen RTV and DSV
     {
-        ID3D11Texture2D* backBuffer = nullptr;
-        res = r.swapchain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backBuffer);
+        res = r.swapchain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&r.backbuffer);
         assert(SUCCEEDED(res));
-        defer { SafeRelease(backBuffer); };
         
         ID3D11RenderTargetView* screenRtv = nullptr;
-        res = r.device->CreateRenderTargetView(backBuffer, nullptr, &screenRtv);
+        res = r.device->CreateRenderTargetView(r.backbuffer, nullptr, &screenRtv);
         assert(SUCCEEDED(res));
         Append(&r.screen.rtv, screenRtv);
+        Append(&r.screen.colorTextures, r.backbuffer);
+        r.screen.colorFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        r.screen.colorFormatSimple = TextureFormat_RGBA;
         
         int width, height;
         OS_GetClientAreaSize(&width, &height);
@@ -887,14 +889,15 @@ static u32 D3D11_FormatGetPixelSize(R_TextureFormat format)
 {
     switch(format)
     {
-        case TextureFormat_Invalid:      return 0;
-        case TextureFormat_Count:        return 0;
-        case TextureFormat_R32Int:       return 4;
-        case TextureFormat_R:            return 1;
-        case TextureFormat_RG:           return 2;
-        case TextureFormat_RGBA:         return 4;
-        case TextureFormat_RGBA_SRGB:    return 4;
-        case TextureFormat_DepthStencil: return 4;
+        case TextureFormat_Invalid:         return 0;
+        case TextureFormat_Count:           return 0;
+        case TextureFormat_R32Int:          return 4;
+        case TextureFormat_R:               return 1;
+        case TextureFormat_RG:              return 2;
+        case TextureFormat_RGBA:            return 4;
+        case TextureFormat_RGBA_SRGB:       return 4;
+        case TextureFormat_RGBA_HDR:        return 8;
+        case TextureFormat_DepthStencil:    return 4;
     }
     
     return 0;
@@ -923,14 +926,15 @@ static DXGI_FORMAT D3D11_ConvertTextureFormat(R_TextureFormat format)
 {
     switch(format)
     {
-        case TextureFormat_Invalid:      return DXGI_FORMAT_UNKNOWN;
-        case TextureFormat_Count:        return DXGI_FORMAT_UNKNOWN;
-        case TextureFormat_R32Int:       return DXGI_FORMAT_R32_SINT;
-        case TextureFormat_R:            return DXGI_FORMAT_R8_UNORM;
-        case TextureFormat_RG:           return DXGI_FORMAT_R8G8_UNORM;
-        case TextureFormat_RGBA:         return DXGI_FORMAT_R8G8B8A8_UNORM;
-        case TextureFormat_RGBA_SRGB:    return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-        case TextureFormat_DepthStencil: return DXGI_FORMAT_D24_UNORM_S8_UINT;
+        case TextureFormat_Invalid:         return DXGI_FORMAT_UNKNOWN;
+        case TextureFormat_Count:           return DXGI_FORMAT_UNKNOWN;
+        case TextureFormat_R32Int:          return DXGI_FORMAT_R32_SINT;
+        case TextureFormat_R:               return DXGI_FORMAT_R8_UNORM;
+        case TextureFormat_RG:              return DXGI_FORMAT_R8G8_UNORM;
+        case TextureFormat_RGBA:            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case TextureFormat_RGBA_SRGB:       return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        case TextureFormat_RGBA_HDR:        return DXGI_FORMAT_R16G16B16A16_FLOAT;
+        case TextureFormat_DepthStencil:    return DXGI_FORMAT_D24_UNORM_S8_UINT;
     }
     
     return DXGI_FORMAT_UNKNOWN;

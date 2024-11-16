@@ -12,6 +12,5 @@
 #include "entities.h"
 #include "editor.h"
 #include "input.h"
-#include "gameplay.h"
 #include "renderer_frontend.h"
 

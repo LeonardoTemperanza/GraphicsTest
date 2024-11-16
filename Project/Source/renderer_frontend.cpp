@@ -71,20 +71,11 @@ struct RenderResources
     R_VertLayout skinnedLayout;
     
     // Samplers
-    R_Sampler commonSampler;  // Linear sampler used for most things
+    R_Sampler bilinear;  // Linear sampler used for most things
     
     // Render passes
-    R_Framebuffer directionalShadows;
-    
-    // Editor
-#if 0
-    R_Texture selectionColor;
-    R_Texture selectionDepth;
-    R_Framebuffer selectionBuffer;
-    R_Texture outlinesColor;
-    R_Texture outlinesDepth;
-    R_Framebuffer outlines;
-#endif
+    R_Framebuffer mainFramebuffer;  // Used to render the main scene with hdr and multisample
+    R_Framebuffer postProcess;      // Used for post processing. It's still hdr, but not multisampled
     
     // Uniform buffers
     R_Buffer perView;
@@ -157,19 +148,7 @@ void RenderResourcesInit()
         res.skinnedLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
     }
     
-    res.commonSampler = R_SamplerAlloc();
-    
-#if 0
-    res.selectionColor = R_Texture2DAlloc(TextureFormat_R32Int, w, h);
-    res.selectionDepth = R_Texture2DAlloc(TextureFormat_DepthStencil, w, h);
-    res.selectionBuffer  = R_FramebufferAlloc(w, h, &res.selectionColor, 1, res.selectionDepth);
-    
-    res.outlinesColor = R_Texture2DAlloc(TextureFormat_R32Int, w, h);
-    res.outlinesDepth = R_Texture2DAlloc(TextureFormat_DepthStencil, w, h);
-    res.outlines      = R_FramebufferAlloc(w, h, &res.outlinesColor, 1, res.outlinesDepth);
-    
-    //res.skybox = AcquireCubemap("Skybox/sky2.png");
-#endif
+    res.bilinear = R_SamplerAlloc();
     
     res.staticVertShader = AcquireVertShader("CompiledShaders/model2proj.shader");
     res.simplePixelShader = AcquirePixelShader("CompiledShaders/paint_red.shader");
@@ -186,8 +165,29 @@ void RenderResourcesInit()
     R_BufferUniformBind(&res.perObj,  PerObjSlot,  ShaderType_Vertex);
     R_BufferUniformBind(&res.perView, PerViewSlot, ShaderType_Vertex);
     
+    R_Texture2D mainFramebufferColor = R_Texture2DAlloc(TextureFormat_RGBA_SRGB,
+                                                        w, h, nullptr,
+                                                        TextureUsage_ShaderResource | TextureUsage_Drawable,
+                                                        TextureMutability_Mutable, false, 4);
+    R_Texture2D mainFramebufferDepth = R_Texture2DAlloc(TextureFormat_DepthStencil,
+                                                        w, h, nullptr,
+                                                        0, 
+                                                        TextureMutability_Mutable, false, 4);
+    res.mainFramebuffer = R_FramebufferAlloc(w, h, &mainFramebufferColor, 1, mainFramebufferDepth);
+    
+    R_Texture2D postProcessColor = R_Texture2DAlloc(TextureFormat_RGBA_HDR,
+                                                    w, h, nullptr,
+                                                    TextureUsage_ShaderResource | TextureUsage_Drawable,
+                                                    TextureMutability_Mutable, false);
+    R_Texture2D postProcessDepth = R_Texture2DAlloc(TextureFormat_DepthStencil,
+                                                    w, h, nullptr,
+                                                    0, 
+                                                    TextureMutability_Mutable, false);
+    res.postProcess = R_FramebufferAlloc(w, h, &postProcessColor, 1, postProcessDepth);
+    
     const R_Framebuffer* screen = R_GetScreen();
-    R_FramebufferBind(screen);
+    //R_FramebufferBind(screen);
+    R_FramebufferBind(&res.mainFramebuffer);
 }
 
 void UpdateFramebuffers()
@@ -197,10 +197,7 @@ void UpdateFramebuffers()
     s32 w, h;
     OS_GetClientAreaSize(&w, &h);
     
-#if 0
-    R_FramebufferResize(&res.selectionBuffer, w, h);
-    R_FramebufferResize(&res.outlines, w, h);
-#endif
+    R_FramebufferResize(&res.mainFramebuffer, w, h);
 }
 
 void RenderResourcesCleanup()
@@ -233,14 +230,13 @@ void RenderFrame(EntityManager* entities, CamParams cam)
 {
     auto& res = renderResources;
     
-    const R_Framebuffer* screen = R_GetScreen();
-    R_FramebufferClear(screen, BufferMask_Depth | BufferMask_Stencil);
-    R_FramebufferFillColorFloat(screen, 0, 0.5f, 0.5f, 0.5f, 1.0f);
+    R_FramebufferClear(&res.mainFramebuffer, BufferMask_Depth | BufferMask_Stencil);
+    R_FramebufferFillColor(&res.mainFramebuffer, 0, 0.5f, 0.5f, 0.5f, 1.0f);
+    
+    R_FramebufferBind(&res.mainFramebuffer);
     
     R_ShaderBind(GetAsset(res.staticVertShader));
-    //R_ShaderBind(GetAsset(res.simplePixelShader));
     
-    R_FramebufferBind(R_GetScreen());
     
     {
         R_RasterizerDesc desc = {};
@@ -281,11 +277,14 @@ void RenderFrame(EntityManager* entities, CamParams cam)
         perObj.normalMat = transpose(ComputeTransformInverse(perObj.model2World));
         R_BufferUpdateStruct(&res.perObj, perObj);
         
-        R_SamplerBind(&res.commonSampler, CodeSampler0, ShaderType_Pixel);
+        R_SamplerBind(&res.bilinear, CodeSampler0, ShaderType_Pixel);
         UseMaterial(GetAsset(ent->material));
         DrawMesh(GetAsset(ent->mesh));
     }
     
+    R_FramebufferResolve(&res.mainFramebuffer, R_GetScreen());
+    
+    R_FramebufferBind(R_GetScreen());
     R_ImGuiDrawFrame();
     
     R_PresentFrame();
