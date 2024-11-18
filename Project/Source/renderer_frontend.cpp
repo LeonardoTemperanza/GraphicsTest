@@ -64,30 +64,19 @@ enum CBufferSlot
     MatConstantsSlot  = 4
 };
 
-struct RenderResources
-{
-    // Vertex layouts
-    R_VertLayout staticLayout;
-    R_VertLayout skinnedLayout;
-    
-    // Samplers
-    R_Sampler bilinear;  // Linear sampler used for most things
-    
-    // Render passes
-    R_Framebuffer mainFramebuffer;  // Used to render the main scene with hdr and multisample
-    R_Framebuffer postProcess;      // Used for post processing. It's still hdr, but not multisampled
-    
-    // Uniform buffers
-    R_Buffer perView;
-    R_Buffer perObj;
-    
-    // Assets
-    //CubemapHandle skybox;
-    VertShaderHandle staticVertShader;
-    PixelShaderHandle simplePixelShader;
-};
+static R_VertLayout staticLayout;
+static R_VertLayout skinnedLayout;
 
-static RenderResources renderResources;
+static R_Sampler bilinear;
+
+static R_Framebuffer mainFramebuffer;
+static R_Framebuffer postProcess;
+
+static R_Buffer perView;
+static R_Buffer perObj;
+
+static VertShaderHandle staticVertShader;
+
 static GraphicsSettings gfxSettings;
 
 Mesh StaticMeshAlloc(StaticMeshInput input)
@@ -121,8 +110,6 @@ static void UseMaterial(Material* mat)
 
 void RenderResourcesInit()
 {
-    auto& res = renderResources;
-    
     s32 w, h;
     OS_GetClientAreaSize(&w, &h);
     
@@ -134,7 +121,7 @@ void RenderResourcesInit()
             { .type=VertAttrib_TexCoord, .bufferSlot=0, .offset=offsetof(Vertex, texCoord), },
             { .type=VertAttrib_Tangent, .bufferSlot=0, .offset=offsetof(Vertex, tangent), }
         };
-        res.staticLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
+        staticLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
     }
     
     {
@@ -145,25 +132,18 @@ void RenderResourcesInit()
             { .type=VertAttrib_TexCoord, .bufferSlot=0, .offset=offsetof(Vertex, texCoord), },
             { .type=VertAttrib_Tangent, .bufferSlot=0, .offset=offsetof(Vertex, tangent), }
         };
-        res.skinnedLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
+        skinnedLayout = R_VertLayoutAlloc(attribs, ArrayCount(attribs));
     }
     
-    res.bilinear = R_SamplerAlloc();
+    bilinear = R_SamplerAlloc();
     
-    res.staticVertShader = AcquireVertShader("CompiledShaders/model2proj.shader");
-    res.simplePixelShader = AcquirePixelShader("CompiledShaders/paint_red.shader");
+    staticVertShader = AcquireVertShader("CompiledShaders/model2proj.shader");
     
-    PerView perView = {};
-    perView.world2View = Mat4::identity;
-    perView.view2Proj = Mat4::identity;
+    perView = R_BufferAlloc(BufferFlag_Dynamic | BufferFlag_ConstantBuffer, sizeof(PerView), sizeof(PerView), nullptr);
+    perObj  = R_BufferAlloc(BufferFlag_Dynamic | BufferFlag_ConstantBuffer, sizeof(PerObj), sizeof(PerObj), nullptr);
     
-    PerObj perObj = {};
-    perObj.model2World = Mat4::identity;
-    res.perView = R_BufferAlloc(BufferFlag_Dynamic | BufferFlag_ConstantBuffer, sizeof(PerView), sizeof(PerView), &perView);
-    res.perObj  = R_BufferAlloc(BufferFlag_Dynamic | BufferFlag_ConstantBuffer, sizeof(PerObj), sizeof(PerObj), &perObj);
-    
-    R_BufferUniformBind(&res.perObj,  PerObjSlot,  ShaderType_Vertex);
-    R_BufferUniformBind(&res.perView, PerViewSlot, ShaderType_Vertex);
+    R_BufferUniformBind(&perObj,  PerObjSlot,  ShaderType_Vertex);
+    R_BufferUniformBind(&perView, PerViewSlot, ShaderType_Vertex);
     
     R_Texture2D mainFramebufferColor = R_Texture2DAlloc(TextureFormat_RGBA_SRGB,
                                                         w, h, nullptr,
@@ -173,7 +153,7 @@ void RenderResourcesInit()
                                                         w, h, nullptr,
                                                         0, 
                                                         TextureMutability_Mutable, false, 4);
-    res.mainFramebuffer = R_FramebufferAlloc(w, h, &mainFramebufferColor, 1, mainFramebufferDepth);
+    mainFramebuffer = R_FramebufferAlloc(w, h, &mainFramebufferColor, 1, mainFramebufferDepth);
     
     R_Texture2D postProcessColor = R_Texture2DAlloc(TextureFormat_RGBA_HDR,
                                                     w, h, nullptr,
@@ -183,21 +163,19 @@ void RenderResourcesInit()
                                                     w, h, nullptr,
                                                     0, 
                                                     TextureMutability_Mutable, false);
-    res.postProcess = R_FramebufferAlloc(w, h, &postProcessColor, 1, postProcessDepth);
+    postProcess = R_FramebufferAlloc(w, h, &postProcessColor, 1, postProcessDepth);
     
     const R_Framebuffer* screen = R_GetScreen();
     //R_FramebufferBind(screen);
-    R_FramebufferBind(&res.mainFramebuffer);
+    R_FramebufferBind(&mainFramebuffer);
 }
 
 void UpdateFramebuffers()
 {
-    auto& res = renderResources;
-    
     s32 w, h;
     OS_GetClientAreaSize(&w, &h);
     
-    R_FramebufferResize(&res.mainFramebuffer, w, h);
+    R_FramebufferResize(&mainFramebuffer, w, h);
 }
 
 void RenderResourcesCleanup()
@@ -209,33 +187,31 @@ void RenderResourcesCleanup()
 #if 0
     auto& res = renderResources;
     
-    R_VertLayoutFree(&res.staticLayout);
-    R_VertLayoutFree(&res.skinnedLayout);
+    R_VertLayoutFree(&staticLayout);
+    R_VertLayoutFree(&skinnedLayout);
     
-    R_SamplerFree(&res.commonSampler);
+    R_SamplerFree(&commonSampler);
     
-    R_Texture2DFree(&res.selectionColor);
-    R_Texture2DFree(&res.selectionDepth);
-    R_FramebufferFree(&res.selectionBuffer);
+    R_Texture2DFree(&selectionColor);
+    R_Texture2DFree(&selectionDepth);
+    R_FramebufferFree(&selectionBuffer);
     
-    R_Texture2DFree(&res.outlinesColor);
-    R_Texture2DFree(&res.outlinesDepth);
-    R_FramebufferFree(&res.outlines);
+    R_Texture2DFree(&outlinesColor);
+    R_Texture2DFree(&outlinesDepth);
+    R_FramebufferFree(&outlines);
     
-    //ReleaseCubemap(res.skybox);
+    //ReleaseCubemap(skybox);
 #endif
 }
 
 void RenderFrame(EntityManager* entities, CamParams cam)
 {
-    auto& res = renderResources;
+    R_FramebufferClear(&mainFramebuffer, BufferMask_Depth | BufferMask_Stencil);
+    R_FramebufferFillColor(&mainFramebuffer, 0, 0.5f, 0.5f, 0.5f, 1.0f);
     
-    R_FramebufferClear(&res.mainFramebuffer, BufferMask_Depth | BufferMask_Stencil);
-    R_FramebufferFillColor(&res.mainFramebuffer, 0, 0.5f, 0.5f, 0.5f, 1.0f);
+    R_FramebufferBind(&mainFramebuffer);
     
-    R_FramebufferBind(&res.mainFramebuffer);
-    
-    R_ShaderBind(GetAsset(res.staticVertShader));
+    R_ShaderBind(GetAsset(staticVertShader));
     
     
     {
@@ -254,35 +230,39 @@ void RenderFrame(EntityManager* entities, CamParams cam)
         R_DepthStateBind(&depthState);
     }
     
-    R_VertLayoutBind(&res.staticLayout);
+    R_VertLayoutBind(&staticLayout);
     
     // Draw entities
-    R_BufferUniformBind(&res.perView, PerViewSlot, ShaderType_Vertex);
+    R_BufferUniformBind(&perView, PerViewSlot, ShaderType_Vertex);
     
     s32 w, h;
     OS_GetClientAreaSize(&w, &h);
     
     auto view2Proj = View2ProjPerspectiveMatrix(cam.nearClip, cam.farClip, cam.fov, (float)w, (float)h);
     
-    PerView perView = {};
-    perView.world2View = World2ViewMatrix(cam.pos, cam.rot);
-    perView.view2Proj  = R_ConvertClipSpace(view2Proj);
-    R_BufferUpdateStruct(&res.perView, perView);
+    {
+        PerView data = {};
+        data.world2View = World2ViewMatrix(cam.pos, cam.rot);
+        data.view2Proj  = R_ConvertClipSpace(view2Proj);
+        R_BufferUpdateStruct(&perView, data);
+    }
     for_live_entities(entities, ent)
     {
         if(ent->flags & EntityFlags_NoMesh) continue;
         
-        PerObj perObj = {};
-        perObj.model2World = ComputeWorldTransform(entities, ent);
-        perObj.normalMat = transpose(ComputeTransformInverse(perObj.model2World));
-        R_BufferUpdateStruct(&res.perObj, perObj);
+        {
+            PerObj data = {};
+            data.model2World = ComputeWorldTransform(entities, ent);
+            data.normalMat = transpose(ComputeTransformInverse(data.model2World));
+            R_BufferUpdateStruct(&perObj, data);
+        }
         
-        R_SamplerBind(&res.bilinear, CodeSampler0, ShaderType_Pixel);
+        R_SamplerBind(&bilinear, CodeSampler0, ShaderType_Pixel);
         UseMaterial(GetAsset(ent->material));
         DrawMesh(GetAsset(ent->mesh));
     }
     
-    R_FramebufferResolve(&res.mainFramebuffer, R_GetScreen());
+    R_FramebufferResolve(&mainFramebuffer, R_GetScreen());
     
     R_FramebufferBind(R_GetScreen());
     R_ImGuiDrawFrame();

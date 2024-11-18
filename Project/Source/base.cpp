@@ -770,31 +770,31 @@ float SafeAtan2(double y, double x)
 
 Vec3 QuatToEulerRad(Quat q)
 {
+    q = normalize(q);
+    
     Vec3 angles;
     
-    // Roll (X-axis rotation)
-    double sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z);
-    double cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y);
-    angles.x = (float)std::atan2(sinr_cosp, cosr_cosp);
+    // yaw (z-axis rotation)
+    float siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+    float cosy_cosp = 1 - 2 * (q.z * q.z + q.x * q.x);
+    angles.z = std::atan2(siny_cosp, cosy_cosp);
     
-    // Pitch (Y-axis rotation)
-    double sinp = 2.0 * (q.w * q.y - q.z * q.x);
-    if (std::abs(sinp) >= 1.0)
-        angles.y = (float)std::copysign(Pi / 2.0, sinp); // use ±90 degrees if out of range
-    else
-        angles.y = (float)std::asin(sinp);
+    // roll (x-axis rotation)
+    float sinr = 2 * (q.w * q.x - q.y * q.z);
+    sinr = clamp(sinr, -1.0f, 1.0f); // Clamp to handle numerical inaccuracies
+    angles.x = std::asin(sinr);
     
-    // Yaw (Z-axis rotation)
-    double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
-    double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
-    angles.z = (float)std::atan2(siny_cosp, cosy_cosp);
+    // pitch (y-axis rotation)
+    float sinp_cosp = 2 * (q.w * q.y + q.z * q.x);
+    float cosp_cosp = 1 - 2 * (q.x * q.x + q.y * q.y);
+    angles.y = std::atan2(sinp_cosp, cosp_cosp);
     
     return angles;
 }
 
 Quat EulerRadToQuat(Vec3 euler)
 {
-    return normalize(AngleAxis(Vec3::up, euler.x) * AngleAxis(Vec3::right, euler.y) * AngleAxis(Vec3::forward, euler.z));
+    return normalize(AngleAxis(Vec3::up, euler.y) * AngleAxis(Vec3::right, euler.x) * AngleAxis(Vec3::forward, euler.z));
 }
 
 Vec3 EulerRadToDeg(Vec3 euler)
@@ -1510,8 +1510,8 @@ void Remove(HashMap<k, v>* map, k key)
     if(found != -1)  // Found something
     {
         auto lastIdx = map->keys.len - 1;
-        map->keys[lastIdx] = map->keys[found];
-        map->values[lastIdx] = map->values[found];
+        map->keys[found] = map->keys[lastIdx];
+        map->values[found] = map->values[lastIdx];
         Pop(&map->keys);
         Pop(&map->values);
     }

@@ -1325,8 +1325,6 @@ void ShowQuatControl(const char* strId, Editor* e, Quat* value, float columnWidt
             float* v = (float*)&res.widget->eulerAngles + i;
             if(*v == -0.0f) *v = 0.0f;
         }
-        
-        Log("Not found!");
     }
     
     Vec3* euler = &res.widget->eulerAngles;
